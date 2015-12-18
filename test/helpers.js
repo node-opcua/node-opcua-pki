@@ -5,6 +5,8 @@ var path = require("path");
 
 var tmpFolder = path.join(__dirname, "../tmp");
 
+toolbox.g_config.silent = false;
+
 var doneOnce = false;
 module.exports = function (self) {
 
@@ -12,7 +14,7 @@ module.exports = function (self) {
 
         self.timeout(400000);
 
-        self.tmpFolder = tmpFolder;
+        this.tmpFolder = tmpFolder;
         if (doneOnce) {
             return done();
         }

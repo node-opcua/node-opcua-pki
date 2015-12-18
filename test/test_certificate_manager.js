@@ -1,13 +1,14 @@
 require("requirish")._(module);
 
-var pki = require("lib/pki/certificate_manager");
+var pki = require("index");
+var toolbox = pki.toolbox;
+
 var path = require("path");
 var fs = require("fs");
 require("should");
 
-var toolbox = require("lib/pki/certificate_toolbox");
 
-//xx toolbox.g_config.silent = true;
+
 
 function grep(data, regExp) {
     return data.split("\n").filter(function (l) {
@@ -19,24 +20,17 @@ describe("CertificateManager", function () {
 
     this.timeout(400000);
 
-    require("./helpers")();
+    require("./helpers")(this);
+    var self;
+    before(function () {
+        self = this;
+    });
 
     it("should create a certificateManager", function (done) {
 
         var options = {
-            location: path.join(this.tmpFolder, "PKI")
+            location: path.join(self.tmpFolder, "PKI")
         };
-
-        if (0) {
-            removeFolder(options.location);
-            fs.existsSync(path.join(options.location)).should.eql(false);
-            fs.existsSync(path.join(options.location, "trusted")).should.eql(false);
-            fs.existsSync(path.join(options.location, "rejected")).should.eql(false);
-            fs.existsSync(path.join(options.location, "own")).should.eql(false);
-            fs.existsSync(path.join(options.location, "own/certs")).should.eql(false);
-            fs.existsSync(path.join(options.location, "own/private")).should.eql(false);
-        }
-
 
         var cm = new pki.CertificateManager(options);
 
@@ -65,9 +59,16 @@ describe("CertificateManager", function () {
         cm.initialize(function (err) {
 
             var params = {
-                applicationUri: "TOTO",
+                applicationUri: "MY:APPLICATION:URI",
                 // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
-                duration: 365 * 7
+                duration: 365 * 7,
+                dns: [
+                    "localhost",
+                    "my.domain.com"
+                ],
+                ip: [
+                   "192.123.145.121"
+                ]
             };
             if (err) {
                 return done(err);
@@ -86,7 +87,13 @@ describe("CertificateManager", function () {
 
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
+                    fs.writeFileSync(path.join(self.tmpFolder, "dump_cert1.txt"),data);
+
                     console.log(data);
+
+                    grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
+                    grep(data,/DNS/).should.match(/DNS:localhost/);
+                    grep(data,/DNS/).should.match(/DNS:my.domain.com/);
 
                     grep(data, /Signature Algorithm/).should.match(/Signature Algorithm: sha256WithRSAEncryption/);
                     grep(data, /SelfSigned/).should.match(/SelfSigned/);
