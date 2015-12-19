@@ -138,6 +138,11 @@ describe("Signing Certificate with Certificate Authority" ,function(){
                     callback(err);
                 });
 
+            },
+
+            function (callback) {
+                // should verify that certificate is valid
+
             }
 
 
@@ -217,5 +222,54 @@ describe("Signing Certificate with Certificate Authority" ,function(){
             done(err);
         });
     });
+
+
+    /**
+     *
+     * @param certificate  {String} certificate to create
+     * @param privateKey
+     * @param callback
+     */
+    function createSignedCertificate(certificate,privateKey,callback) {
+
+        var startDate = new Date();
+        var duration = 1000;
+        var params = {
+            applicationUri:  "BAD SHOULD BE IN REQUEST",
+            startDate: startDate,
+            duration: duration
+        };
+        ca.createSelfSignedCertificate(certificate,privateKey,params, function(err) {
+            console.log("signed_certificate = signed_certificate",certificate);
+            callback(err,certificate);
+        });
+    }
+    it("T4 - should revoke a certificate",function(done) {
+
+        var privateKey = cm.privateKey;
+        var certificate = path.join(self.tmpFolder,"certificate_to_be_revoked1.pem");
+
+        var tasks = [
+
+            function(callback) {
+                createSignedCertificate(certificate,privateKey,function(err) {
+                    fs.existsSync(certificate).should.eql(true);
+                    callback(err);
+                });
+            },
+
+            function(callback) {
+                ca.revokeCertificate(certificate,{},callback);
+            }
+
+
+        ];
+
+        async.series(tasks,done);
+
+
+
+    });
+
 
 });

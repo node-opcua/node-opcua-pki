@@ -63,7 +63,13 @@ var make_path         = toolbox.make_path;
 
 toolbox.g_config.silent = argv.silent;
 
+var ca;
+function construct_CertificateAuthority(callback) {
 
+    ca = new pki.CertificateAuthority({ location: config.certificateDir + "/CA" });
+    ca.initialize(callback);
+
+}
 
 
 function get_offset_date(date, nb_days) {
@@ -117,6 +123,14 @@ var g_argv = require('yargs')
     })
     .command("demo", "create default certificate for node-opcua demos", function (yargs, argv) {
 
+        function do_job() {
+            //xx console.log(local_argv);
+            config= readConfiguration(argv);
+            displayChapter(" Create Demo certificates");
+            createDefaultCertificates(local_argv);
+
+        }
+
         //xx console.log(yargs.argv);
 
         var local_argv = yargs
@@ -133,6 +147,9 @@ var g_argv = require('yargs')
             .boolean("silent")
             .describe("silent", "no output")
 
+            .boolean("clean")
+            .describe("clean", "Purge existing directory [use with care ]")
+
             .usage("$0  demo [--dev] [--silent] [--force]")
             .example("$0  demo -dev")
 
@@ -142,10 +159,15 @@ var g_argv = require('yargs')
         if (local_argv.help) {
             console.log(yargs.help());
         } else {
-            //xx console.log(local_argv);
-            config= readConfiguration(argv);
-            displayChapter(" Create Demo certificates");
-            createDefaultCertificates(local_argv);
+
+            if (local_argv.clean) {
+                var del = require("del");
+                del(path.join(__dirname,"../certificates")).then(function(err){
+                    do_job();
+                });
+            } else {
+                do_job();
+            }
         }
     })
 
@@ -250,9 +272,18 @@ function __create_default_certificates(base_name, prefix, applicationUri, done) 
 
     var key_1024 = make_path(base_name, prefix + "key_1024.pem");
     var public_key_1024 = make_path(base_name, prefix + "public_key_1024.pub");
+
     var key_2048 = make_path(base_name, prefix + "key_2048.pem");
+    var public_key_2048 = make_path(base_name, prefix + "public_key_2048.pub");
 
     console.log(" urn = ", applicationUri);
+
+    var dns = [
+        "localhost"
+    ];
+    var ip = [
+
+    ];
 
     function createCertificate(certificate,private_key,applicationUri,startDate,duration,callback) {
 
@@ -261,26 +292,38 @@ function __create_default_certificates(base_name, prefix, applicationUri, done) 
         toolbox.createCertificateSigningRequest(crs_file,private_key,function(err){
             ca.signCertificateRequest(certificate,crs_file,{
                 applicationUri: applicationUri,
+                dns: dns,
+                ip:  ip,
                 startDate: startDate,
                 duration: duration
             },callback);
         });
     }
+
     function createSelfSignedCertificate(certificate,private_key,applicationUri,startDate,duration,callback) {
 
         ca.createSelfSignedCertificate(certificate,private_key,{
             applicationUri: applicationUri,
+            dns: dns,
+            ip:  ip,
             startDate: startDate,
             duration: duration
         },callback);
     }
+
+    function revoke_certificate(certificate,callback) {
+        ca.revokeCertificate(certificate,{},callback);
+    }
+
+
     var tasks1 = [
 
         createPrivateKey.bind(null, key_1024, 1024),
-
         getPublicKeyFromPrivateKey.bind(null, key_1024, public_key_1024),
 
         createPrivateKey.bind(null, key_2048, 2048),
+        getPublicKeyFromPrivateKey.bind(null, key_2048, public_key_2048),
+
 
         createCertificate.bind(null, make_path(base_name, prefix + "cert_1024.pem"), key_1024, applicationUri, yesterday, 365),
         createCertificate.bind(null, make_path(base_name, prefix + "cert_2048.pem"), key_2048, applicationUri, yesterday, 365),
@@ -339,13 +382,7 @@ function create_default_certificates(done) {
     async.series(task1, done);
 }
 
-var ca;
-function construct_CertificateAuthority(callback) {
 
-    ca = new pki.CertificateAuthority({ location: config.certificateDir + "/CA" });
-    ca.initialize(callback);
-
-}
 function createDefaultCertificates(argv) {
 
     async.series([
