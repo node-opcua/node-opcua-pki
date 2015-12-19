@@ -5,7 +5,7 @@ var path = require("path");
 
 var tmpFolder = path.join(__dirname, "../tmp");
 
-toolbox.g_config.silent = false;
+toolbox.g_config.silent = process.env.VERBOSE ? false :true;
 
 var doneOnce = false;
 module.exports = function (self) {

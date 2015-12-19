@@ -7,7 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "mocha test"
+    "test": "mocha test",
+    "cover": "istanbul cover node_modules/mocha/bin/_mocha"
   },
   "keywords": [
     "PKI",
@@ -24,10 +25,12 @@
     "requirish": "^0.3.0",
     "underscore": "^1.8.3",
     "unzip": "^0.1.11",
-    "wget-improved": "^1.2.1"
+    "wget-improved": "^1.2.1",
+    "yargs": "^3.31.0"
   },
   "devDependencies": {
     "del": "^2.2.0",
+    "mocha": "^2.3.4",
     "should": "^8.0.2"
   }
 }

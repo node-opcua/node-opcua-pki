@@ -96,6 +96,7 @@ describe("Signing" ,function(){
         async.series([
 
             function(callback) {
+                // create a Certificate Signing Request
                 createCertificateRequest(function(err,certificate_request) {
                     self.certificate_request = certificate_request;
                     callback(err)
@@ -111,12 +112,17 @@ describe("Signing" ,function(){
                 var params = {
                     applicationUri:  "BAD SHOULD BE IN REQUEST",
                     startDate: new Date(2011,25,12),
-                    duration: 10
+                    duration: 10* 365
                 };
 
                 ca.signCertificateRequest(certificate_filename,self.certificate_request,params,function(err, certificate) {
-                    console.log("Certificate = ",certificate);
-                    fs.existsSync(certificate);
+                    //xx console.log("Certificate = ",certificate);
+                    fs.existsSync(certificate).should.eql(true);
+
+                    //Serial Number: 4096 (0x1000)
+
+                    // should have 2 x -----BEGIN CERTIFICATE----- in the chain
+
                     callback(err);
                 });
 
@@ -126,5 +132,78 @@ describe("Signing" ,function(){
         ],done);
     });
 
+    it("T2 - should create various Certificates signed by the CA authority", function (done) {
+
+
+        var self = this;
+        self.certificate_request="";
+
+        var now = new Date();
+        var last_year = new Date();
+        last_year.setFullYear(now.getFullYear()-1);
+        var next_year = (new Date());
+        next_year.setFullYear(now.getFullYear()+1);
+
+        function sign(startDate,duration,callback) {
+
+            var a = toolbox.x509Date(startDate) + "_" + duration;
+
+            fs.existsSync(self.certificate_request).should.eql(true);
+
+            var certificate_filename = path.join(self.tmpFolder, "sample_certificate" + a + ".pem");
+
+            var params = {
+                applicationUri:  "BAD SHOULD BE IN REQUEST",
+                startDate: startDate,
+                duration: duration
+            };
+
+            ca.signCertificateRequest(certificate_filename,self.certificate_request,params,function(err, certificate) {
+
+                console.log("Certificate = ",certificate);
+                if (!err) {
+                    fs.existsSync(certificate).should.eql(true);
+                }
+                //Serial Number: 4096 (0x1000)
+
+                // should have 2 x -----BEGIN CERTIFICATE----- in the chain
+
+                callback(err);
+            });
+        }
+        async.series([
+
+            function(callback) {
+                // create a Certificate Signing Request
+                createCertificateRequest(function(err,certificate_request) {
+                    self.certificate_request = certificate_request;
+                    callback(err)
+                })
+            },
+            sign.bind(null,last_year, 1 * 200), // obsolete
+            sign.bind(null,last_year, 10 * 365), // valid
+            sign.bind(null,next_year, 1 *  365), // not started yet
+
+        ],done);
+
+    });
+
+    it("T3 - should create various self-signed Certificates using the CA", function (done) {
+
+        // using a CA to construct self-signed certificates provides the following benefits:
+        //    - startDate can be easily specified in the past or the future
+        //    - certificate can be revoked ??? to be checked.
+
+        var privateKey = cm.privateKey;
+        var certificate = path.join(self.tmpFolder,"sample_self_signed_certificate.pem");
+
+        fs.existsSync(certificate).should.eql(false);
+        ca.createSelfSignedCertificate(certificate,privateKey,{
+            applicationUri: "SomeUri"
+        },function(err) {
+            fs.existsSync(certificate).should.eql(true);
+            done();
+        });
+    });
 
 });
