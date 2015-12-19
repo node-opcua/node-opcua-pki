@@ -7,8 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "mocha test",
-    "cover": "istanbul cover node_modules/mocha/bin/_mocha"
+    "test": "mocha test -t 700000",
+    "cover": "istanbul cover -x \"bin/**\" node_modules/mocha/bin/_mocha"
   },
   "keywords": [
     "PKI",

@@ -13,7 +13,7 @@ describe("Certificate Authority", function () {
 
     this.timeout(400000);
 
-    require("./helpers")(this);
+    require("./helpers").beforeTest(this);
 
     var options = {};
     var self;
@@ -44,11 +44,11 @@ describe("Certificate Authority", function () {
 
 });
 
-describe("Signing" ,function(){
+describe("Signing Certificate with Certificate Authority" ,function(){
 
 
     this.timeout(400000);
-    require("./helpers")(this);
+    require("./helpers").beforeTest(this);
 
     var self;
 
@@ -86,6 +86,18 @@ describe("Signing" ,function(){
         });
 
     }
+
+    it("should have a CA Certificate",function(done){
+        fs.existsSync(ca.caCertificate).should.eql(true);
+        done();
+    });
+
+    it("should have a CA Certificate with a CRL",function(done){
+        ca.constructCACertificateWithCRL(function() {
+            fs.existsSync(ca.caCertificateWithCrl).should.eql(true);
+            done();
+        });
+    });
 
     it("should sign a Certificate Request", function (done) {
 
@@ -180,9 +192,9 @@ describe("Signing" ,function(){
                     callback(err)
                 })
             },
-            sign.bind(null,last_year, 1 * 200), // obsolete
+            sign.bind(null,last_year,      200), // outdated
             sign.bind(null,last_year, 10 * 365), // valid
-            sign.bind(null,next_year, 1 *  365), // not started yet
+            sign.bind(null,next_year,      365)  // not started yet
 
         ],done);
 
@@ -202,7 +214,7 @@ describe("Signing" ,function(){
             applicationUri: "SomeUri"
         },function(err) {
             fs.existsSync(certificate).should.eql(true);
-            done();
+            done(err);
         });
     });
 

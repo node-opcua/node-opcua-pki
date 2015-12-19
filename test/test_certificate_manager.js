@@ -7,20 +7,15 @@ var path = require("path");
 var fs = require("fs");
 require("should");
 
+var grep = require("./helpers").grep;
 
 
-
-function grep(data, regExp) {
-    return data.split("\n").filter(function (l) {
-        return l.match(regExp);
-    }).join("\n");
-}
 describe("CertificateManager", function () {
 
 
     this.timeout(400000);
 
-    require("./helpers")(this);
+    require("./helpers").beforeTest(this);
     var self;
     before(function () {
         self = this;
@@ -74,7 +69,7 @@ describe("CertificateManager", function () {
                 return done(err);
             }
 
-            console.log(params.startDate);
+            //xx console.log(params.startDate);
 
             cm.createSelfSignedCertificate(params, function (err) {
 
@@ -89,7 +84,7 @@ describe("CertificateManager", function () {
 
                     fs.writeFileSync(path.join(self.tmpFolder, "dump_cert1.txt"),data);
 
-                    console.log(data);
+                    //console.log(data);
 
                     grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
                     grep(data,/DNS/).should.match(/DNS:localhost/);
