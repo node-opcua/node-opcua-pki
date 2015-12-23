@@ -7,7 +7,6 @@ var tmpFolder = path.join(__dirname, "../tmp");
 
 toolbox.g_config.silent = process.env.VERBOSE ? false :true;
 
-
 module.exports.grep =
     function grep(data, regExp) {
         return data.split("\n").filter(function (l) {

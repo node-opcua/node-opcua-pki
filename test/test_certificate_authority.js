@@ -142,7 +142,8 @@ describe("Signing Certificate with Certificate Authority" ,function(){
 
             function (callback) {
                 // should verify that certificate is valid
-
+                // todo
+                callback();
             }
 
 
