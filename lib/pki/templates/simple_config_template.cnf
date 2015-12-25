@@ -3,6 +3,8 @@
 ########################################################################################################################
 
 distinguished_name       = req_distinguished_name
+# default_md               = sha1
+default_md                = sha256                      # The default digest algorithm
 
 [ v3_ca ]
 subjectKeyIdentifier        = hash
