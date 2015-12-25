@@ -14,8 +14,8 @@ private_key              = $dir/private/cakey.pem     # the CA private key
 x509_extensions          = usr_cert                   #
 default_days             = 3650                       # default duration : 10 years
 
-default_md               = sha1
-# default_md             = sha256                      # The default digest algorithm
+# default_md               = sha1
+default_md                = sha256                      # The default digest algorithm
 
 preserve                 = no
 policy                   = policy_match
