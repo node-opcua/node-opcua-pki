@@ -94,7 +94,11 @@ describe("CertificateManager", function () {
                     grep(data,/DNS/).should.match(/DNS:localhost/);
                     grep(data,/DNS/).should.match(/DNS:my.domain.com/);
 
-                    grep(data, /Signature Algorithm/).should.match(/Signature Algorithm: sha256WithRSAEncryption/);
+
+                    if (toolbox.openssl_version.match(/1.0.2/)) {
+                        // note openssl version 1.0.1 does support sha256 signature
+                        grep(data, /Signature Algorithm/).should.match(/Signature Algorithm: sha256WithRSAEncryption/);
+                    }
                     grep(data, /SelfSigned/).should.match(/SelfSigned/);
 
                     var y = (new Date()).getFullYear();

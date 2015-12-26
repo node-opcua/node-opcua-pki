@@ -27,7 +27,9 @@ describe("Certificate Authority", function () {
 
     it("should read openssl version", function (done) {
 
-        toolbox.execute_openssl("version", {cwd: "."}, function (err) {
+        toolbox.execute_openssl("version", {cwd: "."}, function (err,outputs) {
+            console.log(outputs);
+            toolbox.openssl_version.should.eql(outputs);
             done(err);
         });
     });
