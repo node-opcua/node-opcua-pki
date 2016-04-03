@@ -55,6 +55,7 @@ describe("CertificateManager", function () {
         };
 
         var cm = new pki.CertificateManager(options);
+
         cm.initialize(function (err) {
 
             var params = {
@@ -88,8 +89,7 @@ describe("CertificateManager", function () {
 
                     fs.writeFileSync(path.join(self.tmpFolder, "dump_cert1.txt"),data);
 
-                    //console.log(data);
-
+        
                     grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
                     grep(data,/DNS/).should.match(/DNS:localhost/);
                     grep(data,/DNS/).should.match(/DNS:my.domain.com/);

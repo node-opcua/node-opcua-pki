@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -21,8 +22,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 
 "use strict";
-Error.stackTraceLimit = 20;
-require("requirish")._(module);
+Error.stackTraceLimit = Infinity;
 
 var path = require("path");
 var fs = require("fs");
@@ -48,6 +48,7 @@ var getPublicKeyFromPrivateKey = toolbox.getPublicKeyFromPrivateKey;
 var make_path = toolbox.make_path;
 
 
+
 // ------------------------------------------------- some useful dates
 function get_offset_date(date, nb_days) {
     var d = new Date(date.getTime());
@@ -62,9 +63,17 @@ var next_year = get_offset_date(today, 365);
 
 var config;
 
-var default_certificateDir = make_path(__dirname, "../certificates/");
 
 var ca; // the Certificate Authority
+
+/***
+ *
+ * @method construct_CertificateAuthority
+ * @param callback {Function}
+ *
+ * prerequisites :
+ *   config.CAFolder : the folder of the CA
+ */
 function construct_CertificateAuthority(callback) {
 
     assert(_.isFunction(callback));
@@ -77,7 +86,16 @@ function construct_CertificateAuthority(callback) {
         callback();
     }
 }
+
 var certificateManager; // the Certificate Authority
+/***
+ *
+ * @method construct_CertificateManager
+ * @param callback {Function}
+ *
+ * prerequisites :
+ *   config.PKIFolder : the folder of the CA
+ */
 function construct_CertificateManager(callback) {
 
     assert(_.isFunction(callback));
@@ -131,18 +149,17 @@ function readConfiguration(argv, callback) {
         return toolbox.make_path(tmp);
     }
 
-
     // ---------------------------------------------------------------------------------------------------------------------
-    certificateDir = argv.root || default_certificateDir;
+    certificateDir = argv.root;
+    assert(typeof certificateDir === "string");
 
     certificateDir = prepare(certificateDir);
     mkdir(certificateDir);
     assert(fs.existsSync(certificateDir));
 
-
-
     // ---------------------------------------------------------------------------------------------------------------------
-    var default_config = path.join(certificateDir, path.basename(__filename, ".js") + "_config.js");
+    //xx var default_config = path.join(certificateDir, path.basename(__filename, ".js") + "_config.js");
+    var default_config = path.join(certificateDir, "config.js");
 
     var default_config_template = path.join(__dirname, path.basename(__filename, ".js") + "_config.example.js");
     if (!fs.existsSync(default_config) && fs.existsSync(default_config_template)) {
@@ -171,8 +188,6 @@ function readConfiguration(argv, callback) {
     if (argv.applicationUri) {
         config.applicationUri = performSubstitution(argv.applicationUri);
     }
-
-
     displayConfig(config);
     // ---------------------------------------------------------------------------------------------------------------------
 
@@ -329,6 +344,7 @@ var g_argv = require('yargs')
 
                     assert(ca instanceof pki.CertificateAuthority);
 
+                    assert(config);
                     var base_name = config.certificateDir;
                     assert(fs.existsSync(base_name));
 
@@ -375,21 +391,28 @@ var g_argv = require('yargs')
 
                 var del = require("del");
                 tasks.push(function (callback) {
-                    del(default_certificateDir+"/*.pem*").then(function() {
+                    assert(config);
+                    var certificateDir = config.certificateDir;
+                    del(certificateDir+"/*.pem*").then(function() {
                         callback()
                     });
                 });
                 tasks.push(function (callback) {
-                    del(default_certificateDir+"/*.pub").then(function() {
+                    assert(config);
+                    var certificateDir = config.certificateDir;
+                    del(certificateDir+"/*.pub").then(function() {
                         callback();
                     });
                 });
                 tasks.push(function (callback) {
-                    mkdir(default_certificateDir);
+                    assert(config);
+                    var certificateDir = config.certificateDir;
+                    mkdir(certificateDir);
                     console.log("   done");
                     callback();
                 });
             }
+
             tasks.push(displayTitle.bind(null, "create certificates"));
             tasks.push(createDefaultCertificates);
 
@@ -480,25 +503,24 @@ var g_argv = require('yargs')
         }
     })
 
-    // ----------------------------------------------- --new
+    // ----------------------------------------------- certificate
     .command("certificate", "create a new certificate", function (yargs, argv) {
 
-
         function command_certificate(local_argv) {
-
             var the_csr_file ;
             var certificate ;
             var tasks = [];
 
             var params;
-
             tasks.push(readConfiguration.bind(null, local_argv));
 
             tasks.push(function(callback) {
                 assert(fs.existsSync(config.CAFolder)," CA folder must exist");
                 callback();
             });
+
             tasks.push(construct_CertificateManager.bind(null));
+
             tasks.push(construct_CertificateAuthority.bind(null));
 
             tasks.push(function(callback){
@@ -526,12 +548,16 @@ var g_argv = require('yargs')
                     callback(err);
                 })
             });
+
             tasks.push(function(callback){
                 assert(_.isString(local_argv.output))
                 fs.writeFileSync(local_argv.output,fs.readFileSync(certificate,"ascii"));
                 callback();
             });
+
             async.series(tasks, function (err) {
+
+                console.log(" done ...");
             });
 
         }
@@ -558,6 +584,8 @@ var g_argv = require('yargs')
                 describe: "if true, certificate will be self-signed"
             }
         };
+        add_standard_option(options,"root");
+        add_standard_option(options,"CAFolder");
         add_standard_option(options,"PKIFolder");
         add_standard_option(options,"privateKey");
 
@@ -570,19 +598,61 @@ var g_argv = require('yargs')
             console.log(yargs.help());
         } else {
             command_certificate(local_argv);
-
         }
-
     })
 
-    // ----------------------------------------------- --revoke
+    // ----------------------------------------------- revoke
     .command("revoke", "revoke a existing certificate", function (yargs, argv) {
 
+        function revokeCertificateFromCommandLine(argv) {
+
+            function revoke_certificate(certificate, callback) {
+                ca.revokeCertificate(certificate, {}, callback);
+            }
+
+            // example : node bin\crypto_create_CA.js revoke my_certificate.pem
+            var certificate = path.resolve(argv._[1]);
+            console.log(" Certificate to revoke : ".yellow, certificate.cyan);
+
+            if (!fs.existsSync(certificate)) {
+                throw new Error("cannot find certificate to revoke " +certificate);
+
+            }
+            var tasks =[];
+
+            tasks.push(readConfiguration.bind(null, local_argv));
+            tasks.push(construct_CertificateAuthority.bind(null));
+            tasks.push(revoke_certificate.bind(null, certificate));
+
+            async.series(tasks, function (err) {
+                if (!err) {
+                    console.log("done ... ", err);
+                    console.log("\nyou should now publish the new Certificate Revocation List");
+                } else{
+                    console.log("done ... ", err.message);
+                }
+
+            });
+        }
+
+        var options = {};
+        add_standard_option(options,"root");
+        add_standard_option(options,"CAFolder");
+
         var local_argv = yargs.strict().wrap(132)
-            .help("usage : $0 --revoke  my_certificate.pem")
-            .options({});
-        config = readConfiguration(local_argv);
-        revokeCertificateFromCommandLine(local_argv);
+            .help("help")
+            .usage("$0 revoke  my_certificate.pem")
+            .options(options)
+            .demand(2)
+            .argv;
+
+
+        if (local_argv.help) {
+            console.log(yargs.help());
+        } else {
+            revokeCertificateFromCommandLine(local_argv);
+        }
+
     })
     .help("help")
     .strict()
@@ -590,44 +660,4 @@ var g_argv = require('yargs')
 
 if (g_argv._.length<1) {
     console.log( " use --help for more info")
-}
-function createCertificateFromCommandLine(argv, callback) {
-
-
-    //example : node bin\crypto_create_CA.js --new --selfSigned --applicationUri urn:localhost:MyProduct --prefix aa --force
-    //example : node bin\crypto_create_CA.js --new --privateKey my_private_key.pem --applicationUri urn:localhost:MyProduct --prefix aa --force
-
-    assert(_.isString(argv.applicationUri), "--new require applicationUri to be specified");
-    assert(_.isString(argv.prefix), "--new requires a prefix to be specified");
-
-    // urn:COMPUTERNAME:PRODUCT
-    assert(argv.applicationUri.length < 64, "applicationUri cannot exceed 64 characters");
-    var options = {
-        applicationUri: argv.applicationUri
-    };
-
-    options.prefix = argv.prefix;
-    options.privateKey = argv.privateKey;
-    options.selfSigned = argv.selfSigned;
-
-    createNewCertificate(options, function (err) {
-        console.log("Done ...");
-        callback(err);
-    });
-}
-
-function revokeCertificateFromCommandLine(argv) {
-
-    // example : node bin\crypto_create_CA.js --revoke my_certificate.pem
-    var certificate = path.resolve(argv.revoke);
-    console.log(" Certificate to revoke : ".yellow, certificate.cyan);
-    assert(fs.existsSync(certificate), "cannot find certificate to revoke");
-
-    async.series([
-        revoke_certificate.bind(null, certificate)
-    ], function (err) {
-        console.log("done ... ", err);
-        console.log("\nyou should now publish the new Certificate Revocation List");
-
-    });
 }

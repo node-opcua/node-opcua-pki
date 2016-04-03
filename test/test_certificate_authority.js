@@ -180,7 +180,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
 
             ca.signCertificateRequest(certificate_filename,self.certificate_request,params,function(err, certificate) {
 
-                console.log("Certificate = ",certificate);
+                //xx console.log("Certificate = ",certificate);
                 if (!err) {
                     fs.existsSync(certificate).should.eql(true);
                 }

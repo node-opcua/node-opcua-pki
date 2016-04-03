@@ -1,5 +1,5 @@
 ########################################################################################################################
-## SIMPLE OPENSSL CONFIG FILE FOR SELFSIGNED CERTIFICATE GENERATION
+## SIMPLE OPENSSL CONFIG FILE FOR SELF-SIGNED CERTIFICATE GENERATION
 ########################################################################################################################
 
 distinguished_name       = req_distinguished_name
@@ -29,13 +29,29 @@ DNS.1                     = $ENV::ALTNAME_DNS_1
 DNS.2                     = $ENV::ALTNAME_DNS_2
 DNS.3                     = $ENV::ALTNAME_DNS_3
 DNS.4                     = $ENV::ALTNAME_DNS_4
-IP.0                      = $ENV::ALTNAME_IP
+#IP.0                      = $ENV::ALTNAME_IP
+
+[ req ]
+days                      = 390
+req_extensions            = v3_req
+x509_extensions           = v3_ca
+
+[v3_req]
+basicConstraints       = CA:false
+keyUsage               = critical, cRLSign, keyCertSign
+subjectAltName         = @alt_names
+
+[ v3_selfsigned]
+basicConstraints          = critical, CA:FALSE
+keyUsage                  = nonRepudiation, digitalSignature, keyEncipherment, dataEncipherment, keyAgreement
+nsComment                 = "Self-signed certificate"
+subjectAltName            = @alt_names
 
 [ req_distinguished_name ]
-#0 countryName             = Country Name (2 letter code)
-# countryName_default     = FR
-# countryName_min         = 2
-# countryName_max         = 2
+countryName             = Country Name (2 letter code)
+countryName_default     = FR
+countryName_min         = 2
+countryName_max         = 2
 # stateOrProvinceName     = State or Province Name (full name)
 # stateOrProvinceName_default = Ile de France
 # localityName            = Locality Name (city, district)
@@ -50,3 +66,4 @@ commonName_default        = NodeOPCUA
 # emailAddress            = Email Address
 # emailAddress_max        = 40
 # emailAddress_default    = node-opcua (at) node-opcua (dot) com
+subjectAltName            = @alt_names

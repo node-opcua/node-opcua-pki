@@ -7,9 +7,7 @@ module.exports =  {
     state:              "IDF",
     country:            "FR", // Two letters
     validity:           365 * 15, // 15 years
-    keySize:            1024,
 
-
-
+    keySize:            2028 // default private key size
 };
 

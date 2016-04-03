@@ -21,7 +21,7 @@
     "better-assert": "^1.0.2",
     "byline": "^4.2.1",
     "colors": "^1.1.2",
-    "node-opcua-crypto": "0.0.2",
+    "node-opcua-crypto": "0.0.3",
     "progress": "^1.1.8",
     "requirish": "^0.3.0",
     "underscore": "^1.8.3",
@@ -34,5 +34,8 @@
     "del": "^2.2.0",
     "mocha": "^2.3.4",
     "should": "^8.0.2"
+  },
+  "bin": {
+    "pki": "./bin/crypto_create_CA.js"
   }
 }
