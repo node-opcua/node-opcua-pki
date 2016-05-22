@@ -6,4 +6,7 @@ bin/openssl*.zip
 .idea
 certificates
 coverage
-
+.travis.yml
+.codeclimate.yml
+.eslintignore
+.eslintrc
