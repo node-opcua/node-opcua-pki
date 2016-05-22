@@ -11,17 +11,15 @@ var toolbox = pki.toolbox;
 
 describe("Certificate Authority", function () {
 
-    this.timeout(400000);
 
     require("./helpers").beforeTest(this);
 
     var options = {};
-    var self;
+    var self = this;
     before(function () {
 
-        self = this;
         options = {
-            location: path.join(this.tmpFolder, "CA")
+            location: path.join(self.tmpFolder, "CA")
         };
     });
 
@@ -49,18 +47,16 @@ describe("Certificate Authority", function () {
 describe("Signing Certificate with Certificate Authority" ,function(){
 
 
-    this.timeout(400000);
-    require("./helpers").beforeTest(this);
+    var test =this;
 
-    var self;
+    require("./helpers").beforeTest(this);
 
     var ca,cm;
 
     before(function (done) {
 
-        self = this;
-        ca = new pki.CertificateAuthority({location: path.join(this.tmpFolder, "CA")});
-        cm = new pki.CertificateManager({location: path.join(self.tmpFolder, "PI")});
+        ca = new pki.CertificateAuthority({location: path.join(test.tmpFolder, "CA")});
+        cm = new pki.CertificateManager({location: path.join(test.tmpFolder, "PI")});
 
         async.series([
             function(callback){ cm.initialize(callback); },
@@ -121,7 +117,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
 
                 fs.existsSync(self.certificate_request).should.eql(true);
 
-                var certificate_filename = path.join(self.tmpFolder, "sample_certificate.pem");
+                var certificate_filename = path.join(test.tmpFolder, "sample_certificate.pem");
 
                 var params = {
                     applicationUri:  "BAD SHOULD BE IN REQUEST",
@@ -170,7 +166,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
 
             fs.existsSync(self.certificate_request).should.eql(true);
 
-            var certificate_filename = path.join(self.tmpFolder, "sample_certificate" + a + ".pem");
+            var certificate_filename = path.join(test.tmpFolder, "sample_certificate" + a + ".pem");
 
             var params = {
                 applicationUri:  "BAD SHOULD BE IN REQUEST",
@@ -215,7 +211,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
         //    - certificate can be revoked ??? to be checked.
 
         var privateKey = cm.privateKey;
-        var certificate = path.join(self.tmpFolder,"sample_self_signed_certificate.pem");
+        var certificate = path.join(test.tmpFolder,"sample_self_signed_certificate.pem");
 
         fs.existsSync(certificate).should.eql(false);
         ca.createSelfSignedCertificate(certificate,privateKey,{
@@ -250,7 +246,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
     it("T4 - should revoke a certificate",function(done) {
 
         var privateKey = cm.privateKey;
-        var certificate = path.join(self.tmpFolder,"certificate_to_be_revoked1.pem");
+        var certificate = path.join(test.tmpFolder,"certificate_to_be_revoked1.pem");
 
         var tasks = [
 

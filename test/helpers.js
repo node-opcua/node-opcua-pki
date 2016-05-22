@@ -16,21 +16,29 @@ module.exports.grep =
 
 
 var doneOnce = false;
-module.exports.beforeTest = function (self) {
+module.exports.beforeTest = function (self,optional_function) {
+
+    self.timeout("2 minutes");
 
     before(function (done) {
 
-        self.timeout(400000);
+        function __done() {
+            doneOnce = true;
+            if (optional_function) {
+                optional_function(done);
+            } else {
+                done();
+            }
+        }
 
-        this.tmpFolder = tmpFolder;
+        self.tmpFolder = tmpFolder;
         if (doneOnce) {
-            return done();
+            return __done();
         }
         var del = require("del");
         del(tmpFolder).then(function () {
             toolbox.mkdir(tmpFolder);
-            doneOnce = true;
-            done();
+            __done();
         });
     });
 
