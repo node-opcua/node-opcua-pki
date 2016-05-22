@@ -43,7 +43,6 @@ var mkdir = toolbox.mkdir;
 var displayChapter = toolbox.displayChapter;
 var displayTitle = toolbox.displayTitle;
 var displaySubtitle = toolbox.displaySubtitle;
-var createPrivateKey = toolbox.createPrivateKey;
 var getPublicKeyFromPrivateKey = toolbox.getPublicKeyFromPrivateKey;
 var make_path = toolbox.make_path;
 
@@ -63,7 +62,6 @@ var next_year = get_offset_date(today, 365);
 
 var config;
 
-
 var ca; // the Certificate Authority
 
 /***
@@ -77,7 +75,7 @@ var ca; // the Certificate Authority
 function construct_CertificateAuthority(callback) {
 
     assert(_.isFunction(callback));
-    assert(_.isString(config.CAFolder));
+    assert(_.isString(config.CAFolder)); // verify that config file has been loaded
 
     if (!ca) {
         ca = new pki.CertificateAuthority({location: config.CAFolder});
@@ -87,14 +85,14 @@ function construct_CertificateAuthority(callback) {
     }
 }
 
-var certificateManager; // the Certificate Authority
+var certificateManager; // the Certificate Manager
 /***
  *
  * @method construct_CertificateManager
  * @param callback {Function}
  *
  * prerequisites :
- *   config.PKIFolder : the folder of the CA
+ *   config.PKIFolder : the folder of the PKI
  */
 function construct_CertificateManager(callback) {
 
@@ -126,8 +124,6 @@ function readConfiguration(argv, callback) {
     if (argv.silent) {
         toolbox.g_config.silent = true;
     }
-
-
     var hostname = get_fully_qualified_domain_name();
 
     var certificateDir;
@@ -166,7 +162,13 @@ function readConfiguration(argv, callback) {
         // copy
         console.log(" Creating default config file ".yellow, default_config.cyan);
         fs.writeFileSync(default_config, fs.readFileSync(default_config_template));
+    } else {
+        console.log(" using  config file ".yellow, default_config.cyan);
     }
+
+    // see http://stackoverflow.com/questions/94445/using-openssl-what-does-unable-to-write-random-state-mean
+    // set random file to be random.rnd in the same folder as the config file
+    process.env["RANDFILE"] = path.join(path.dirname(default_config),"random.rnd");
 
     config = require(default_config);
 
@@ -178,9 +180,13 @@ function readConfiguration(argv, callback) {
     config.CAFolder = CAFolder;
 
     // ---------------------------------------------------------------------------------------------------------------------
+    config.PKIFolder = path.join(config.certificateDir,"PKI");;
     if (argv.PKIFolder) {
         config.PKIFolder = prepare(argv.PKIFolder);
     }
+    config.PKIFolder=  prepare(config.PKIFolder);
+
+
     if (argv.privateKey) {
         config.privateKey = prepare(argv.privateKey);
     }
@@ -246,100 +252,124 @@ function add_standard_option(options,optionName) {
         }
 }
 
+function createDefaultCertificate(base_name, prefix, key_length, applicationUri, dev, done) {
+
+    assert(key_length === 1024 || key_length === 2048 );
+
+    assert(_.isFunction(done));
+
+    var private_key_file                = make_path(base_name, prefix + "key_"             + key_length + ".pem");
+    var public_key_file                 = make_path(base_name, prefix + "public_key_"      + key_length + ".pub");
+    var certificate_file                = make_path(base_name, prefix + "cert_"            + key_length + ".pem");
+    var certificate_file_outofdate      = make_path(base_name, prefix + "cert_"            + key_length + "_outofdate.pem");
+    var certificate_file_not_active_yet = make_path(base_name, prefix + "cert_"            + key_length + "_not_active_yet.pem");
+    var certificate_revoked             = make_path(base_name, prefix + "cert_"            + key_length + "_revoked.pem");
+    var self_signed_certificate_file    = make_path(base_name, prefix + "selfsigned_cert_" + key_length + ".pem");
+
+    console.log(" urn = ", applicationUri);
+
+    var dns = [
+        "localhost"
+    ];
+    var ip = [];
+
+    function createCertificate(certificate, private_key, applicationUri, startDate, duration, callback) {
+
+        var crs_file = certificate + ".csr";
+
+        var configFile = make_path(base_name,"../certificates/PKI/own/openssl.cnf");
+
+        var params = {
+            privateKey: private_key,
+            rootDir: ".",
+            configFile: configFile
+        };
+
+        // create CSR
+        toolbox.createCertificateSigningRequest(crs_file, params, function (err) {
+
+            if (err) {
+                return callback(err);
+            }
+            ca.signCertificateRequest(certificate, crs_file, {
+                applicationUri: applicationUri,
+                dns: dns,
+                ip: ip,
+                startDate: startDate,
+                duration: duration
+            }, callback);
+
+        });
+    }
+
+    function createSelfSignedCertificate(certificate, private_key, applicationUri, startDate, duration, callback) {
+
+        ca.createSelfSignedCertificate(certificate, private_key, {
+            applicationUri: applicationUri,
+            dns: dns,
+            ip: ip,
+            startDate: startDate,
+            duration: duration
+        }, callback);
+    }
+
+    function revoke_certificate(certificate, callback) {
+        ca.revokeCertificate(certificate, {}, callback);
+    }
+    function createPrivateKey(privateKey,keyLength,callback) {
+
+        fs.exists(privateKey,function (exists){
+            if (exists) {
+                console.log("         privateKey".yellow, privateKey.cyan," already exists => skipping".yellow);
+                callback();
+            }else {
+                toolbox.createPrivateKey(privateKey,keyLength,callback);
+            }
+        });
+
+    }
+    var tasks1 = [
+
+        displaySubtitle.bind(null," create private key :" + private_key_file),
+        createPrivateKey.bind(null, private_key_file, key_length),
+
+        displaySubtitle.bind(null," extract public key " + public_key_file + " from private key "),
+        getPublicKeyFromPrivateKey.bind(null, private_key_file, public_key_file),
+
+        displaySubtitle.bind(null," create Certificate " + certificate_file ),
+        createCertificate.bind(null, certificate_file, private_key_file, applicationUri, yesterday, 365),
+
+        displaySubtitle.bind(null," create self signed Certificate " +self_signed_certificate_file ),
+        createSelfSignedCertificate.bind(null, self_signed_certificate_file, private_key_file, applicationUri, yesterday, 365),
+
+    ];
+
+    if (dev) {
+        var tasks2 = [
+            createCertificate.bind(null,  certificate_file_outofdate,      private_key_file, applicationUri, two_years_ago, 365),
+            createCertificate.bind(null,  certificate_file_not_active_yet, private_key_file, applicationUri, next_year, 365),
+            createCertificate.bind(null,  certificate_revoked,             private_key_file, applicationUri, yesterday, 365),
+            revoke_certificate.bind(null, certificate_revoked)
+        ];
+        tasks1 = tasks1.concat(tasks2);
+    }
+
+    async.series(tasks1, done);
+
+}
+
 var g_argv = require('yargs')
     .strict()
     .wrap(132)
     .command("demo", "create default certificate for node-opcua demos", function (yargs, argv) {
+
+
         function command_demo(local_argv) {
 
             function createDefaultCertificates(callback) {
                 function create_default_certificates(done) {
-
-                    function __create_default_certificates(base_name, prefix, applicationUri, done) {
-
-                        // Bad hack that ensures that paths with spaces are correctly interpreted.
-                        base_name = "\"" + base_name + "\"";
-
-                        assert(_.isFunction(done));
-
-                        var key_1024 = make_path(base_name, prefix + "key_1024.pem");
-                        var public_key_1024 = make_path(base_name, prefix + "public_key_1024.pub");
-
-                        var key_2048 = make_path(base_name, prefix + "key_2048.pem");
-                        var public_key_2048 = make_path(base_name, prefix + "public_key_2048.pub");
-
-                        console.log(" urn = ", applicationUri);
-
-                        var dns = [
-                            "localhost"
-                        ];
-                        var ip = [];
-
-                        function createCertificate(certificate, private_key, applicationUri, startDate, duration, callback) {
-
-                            var crs_file = certificate + ".csr";
-                            // create CSR
-                            toolbox.createCertificateSigningRequest(crs_file, private_key, function (err) {
-                                ca.signCertificateRequest(certificate, crs_file, {
-                                    applicationUri: applicationUri,
-                                    dns: dns,
-                                    ip: ip,
-                                    startDate: startDate,
-                                    duration: duration
-                                }, callback);
-                            });
-                        }
-
-                        function createSelfSignedCertificate(certificate, private_key, applicationUri, startDate, duration, callback) {
-
-                            ca.createSelfSignedCertificate(certificate, private_key, {
-                                applicationUri: applicationUri,
-                                dns: dns,
-                                ip: ip,
-                                startDate: startDate,
-                                duration: duration
-                            }, callback);
-                        }
-
-                        function revoke_certificate(certificate, callback) {
-                            ca.revokeCertificate(certificate, {}, callback);
-                        }
-
-                        var tasks1 = [
-
-                            createPrivateKey.bind(null, key_1024, 1024),
-                            getPublicKeyFromPrivateKey.bind(null, key_1024, public_key_1024),
-
-                            createPrivateKey.bind(null, key_2048, 2048),
-                            getPublicKeyFromPrivateKey.bind(null, key_2048, public_key_2048),
-
-                            createCertificate.bind(null, make_path(base_name, prefix + "cert_1024.pem"), key_1024, applicationUri, yesterday, 365),
-                            createCertificate.bind(null, make_path(base_name, prefix + "cert_2048.pem"), key_2048, applicationUri, yesterday, 365),
-
-                            createSelfSignedCertificate.bind(null, make_path(base_name, prefix + "selfsigned_cert_1024.pem"), key_1024, applicationUri, yesterday, 365),
-                            createSelfSignedCertificate.bind(null, make_path(base_name, prefix + "selfsigned_cert_2048.pem"), key_2048, applicationUri, yesterday, 365)
-
-                        ];
-
-                        if (local_argv.dev) {
-                            var tasks2 = [
-                                createCertificate.bind(null, make_path(base_name, prefix + "cert_1024_outofdate.pem"), key_1024, applicationUri, two_years_ago, 365),
-                                createCertificate.bind(null, make_path(base_name, prefix + "cert_2048_outofdate.pem"), key_2048, applicationUri, two_years_ago, 365),
-
-                                createCertificate.bind(null, make_path(base_name, prefix + "cert_1024_not_active_yet.pem"), key_1024, applicationUri, next_year, 365),
-                                createCertificate.bind(null, make_path(base_name, prefix + "cert_2048_not_active_yet.pem"), key_2048, applicationUri, next_year, 365),
-
-                                createCertificate.bind(null, make_path(base_name, prefix + "cert_1024_revoked.pem"), key_1024, applicationUri, yesterday, 365),
-                                revoke_certificate.bind(null, make_path(base_name, prefix + "cert_1024_revoked.pem")),
-
-                                createCertificate.bind(null, make_path(base_name, prefix + "cert_2048_revoked.pem"), key_2048, applicationUri, yesterday, 365),
-                                revoke_certificate.bind(null, make_path(base_name, prefix + "cert_2048_revoked.pem"))
-                            ];
-                            tasks1 = tasks1.concat(tasks2);
-                        }
-
-                        async.series(tasks1, done);
-
+                    function __create_default_certificates(base_name, prefix, key_length, applicationUri, done) {
+                        createDefaultCertificate(base_name,prefix,key_length,applicationUri,local_argv.dev,done);
                     }
 
                     assert(ca instanceof pki.CertificateAuthority);
@@ -351,20 +381,23 @@ var g_argv = require('yargs')
                     var hostname = get_fully_qualified_domain_name();
                     console.log("     hostname = ".yellow, hostname.cyan);
 
-                    var clientURN = makeApplicationUrn(hostname, "NodeOPCUA-Client");
-                    var serverURN = makeApplicationUrn(hostname, "NodeOPCUA-Server");
+                    var clientURN          = makeApplicationUrn(hostname, "NodeOPCUA-Client");
+                    var serverURN          = makeApplicationUrn(hostname, "NodeOPCUA-Server");
                     var discoveryServerURN = makeApplicationUrn(hostname, "NodeOPCUA-DiscoveryServer");
 
                     var task1 = [
 
                         displayTitle.bind(null, "Create  Application Certificate for Server & its private key"),
-                        __create_default_certificates.bind(null, base_name, "client_", clientURN),
+                        __create_default_certificates.bind(null, base_name, "client_", 1024, clientURN),
+                        __create_default_certificates.bind(null, base_name, "client_", 2048, clientURN),
 
                         displayTitle.bind(null, "Create  Application Certificate for Client & its private key"),
-                        __create_default_certificates.bind(null, base_name, "server_", serverURN),
+                        __create_default_certificates.bind(null, base_name, "server_", 1024, serverURN),
+                        __create_default_certificates.bind(null, base_name, "server_", 2048, serverURN),
 
                         displayTitle.bind(null, "Create  Application Certificate for DiscoveryServer & its private key"),
-                        __create_default_certificates.bind(null, base_name, "discoveryServer_", discoveryServerURN)
+                        __create_default_certificates.bind(null, base_name, "discoveryServer_", 1024, discoveryServerURN),
+                        __create_default_certificates.bind(null, base_name, "discoveryServer_", 2048, discoveryServerURN)
 
                     ];
                     async.series(task1, done);
@@ -372,6 +405,7 @@ var g_argv = require('yargs')
 
                 async.series([
                     construct_CertificateAuthority.bind(null),
+                    construct_CertificateManager.bind(null),
                     create_default_certificates.bind(null)
                 ], function (err) {
                     if (err) {
@@ -388,7 +422,6 @@ var g_argv = require('yargs')
             if (local_argv.clean) {
 
                 tasks.push(displayTitle.bind(null, "Cleaning old certificates"));
-
                 var del = require("del");
                 tasks.push(function (callback) {
                     assert(config);
@@ -416,8 +449,7 @@ var g_argv = require('yargs')
             tasks.push(displayTitle.bind(null, "create certificates"));
             tasks.push(createDefaultCertificates);
 
-            async.series(tasks, function (err) {
-            });
+            async.series(tasks, function (err) {});
         }
 
         var options  ={};
@@ -427,7 +459,7 @@ var g_argv = require('yargs')
         };
         options.clean = {
             type: "boolean",
-            describe: "Purge existing directory [use with care "
+            describe: "Purge existing directory [use with care!]"
         };
 
         add_standard_option(options,"silent");
@@ -437,7 +469,7 @@ var g_argv = require('yargs')
             .strict().wrap(132)
             .options(options)
             .usage("$0  demo [--dev] [--silent] [--clean]")
-            .example("$0  demo -dev")
+            .example("$0  demo --dev")
             .help("help")
             .argv;
 
@@ -531,7 +563,7 @@ var g_argv = require('yargs')
                         get_fully_qualified_domain_name()
                     ]
                 };
-
+                // create a Certificate Request from the certificate Manager
                 certificateManager.createCertificateRequest(params,function(err,csr_file){
                     if(err) { return callback(err); }
 
@@ -556,7 +588,6 @@ var g_argv = require('yargs')
             });
 
             async.series(tasks, function (err) {
-
                 console.log(" done ...");
             });
 
