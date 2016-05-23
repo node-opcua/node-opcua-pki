@@ -81,7 +81,7 @@ function construct_CertificateAuthority(callback) {
         ca = new pki.CertificateAuthority({location: config.CAFolder});
         ca.initialize(callback);
     } else {
-        callback();
+        return callback();
     }
 }
 
@@ -103,7 +103,7 @@ function construct_CertificateManager(callback) {
         certificateManager = new pki.CertificateManager({location: config.PKIFolder});
         certificateManager.initialize(callback);
     } else {
-        callback();
+        return callback();
     }
 }
 
@@ -180,7 +180,7 @@ function readConfiguration(argv, callback) {
     config.CAFolder = CAFolder;
 
     // ---------------------------------------------------------------------------------------------------------------------
-    config.PKIFolder = path.join(config.certificateDir,"PKI");;
+    config.PKIFolder = path.join(config.certificateDir,"PKI");
     if (argv.PKIFolder) {
         config.PKIFolder = prepare(argv.PKIFolder);
     }
@@ -197,7 +197,7 @@ function readConfiguration(argv, callback) {
     displayConfig(config);
     // ---------------------------------------------------------------------------------------------------------------------
 
-    callback();
+    return callback();
 }
 
 function add_standard_option(options,optionName) {
@@ -321,7 +321,7 @@ function createDefaultCertificate(base_name, prefix, key_length, applicationUri,
         fs.exists(privateKey,function (exists){
             if (exists) {
                 console.log("         privateKey".yellow, privateKey.cyan," already exists => skipping".yellow);
-                callback();
+                return callback();
             }else {
                 toolbox.createPrivateKey(privateKey,keyLength,callback);
             }
@@ -340,7 +340,7 @@ function createDefaultCertificate(base_name, prefix, key_length, applicationUri,
         createCertificate.bind(null, certificate_file, private_key_file, applicationUri, yesterday, 365),
 
         displaySubtitle.bind(null," create self signed Certificate " +self_signed_certificate_file ),
-        createSelfSignedCertificate.bind(null, self_signed_certificate_file, private_key_file, applicationUri, yesterday, 365),
+        createSelfSignedCertificate.bind(null, self_signed_certificate_file, private_key_file, applicationUri, yesterday, 365)
 
     ];
 
@@ -411,7 +411,7 @@ var g_argv = require('yargs')
                     if (err) {
                         console.log("ERROR ".red, err.message);
                     }
-                    callback(err);
+                    return callback(err);
                 });
             }
             var tasks = [];
@@ -427,14 +427,14 @@ var g_argv = require('yargs')
                     assert(config);
                     var certificateDir = config.certificateDir;
                     del(certificateDir+"/*.pem*").then(function() {
-                        callback()
+                        return callback()
                     });
                 });
                 tasks.push(function (callback) {
                     assert(config);
                     var certificateDir = config.certificateDir;
                     del(certificateDir+"/*.pub").then(function() {
-                        callback();
+                        return callback();
                     });
                 });
                 tasks.push(function (callback) {
@@ -442,7 +442,7 @@ var g_argv = require('yargs')
                     var certificateDir = config.certificateDir;
                     mkdir(certificateDir);
                     console.log("   done");
-                    callback();
+                    return callback();
                 });
             }
 
@@ -548,7 +548,7 @@ var g_argv = require('yargs')
 
             tasks.push(function(callback) {
                 assert(fs.existsSync(config.CAFolder)," CA folder must exist");
-                callback();
+                return callback();
             });
 
             tasks.push(construct_CertificateManager.bind(null));
@@ -569,7 +569,7 @@ var g_argv = require('yargs')
 
                     the_csr_file = csr_file;
                     console.log(" csr_file = ",csr_file);
-                    callback();
+                    return callback();
                 });
             });
             tasks.push(function(callback) {
@@ -577,14 +577,14 @@ var g_argv = require('yargs')
                 certificate = the_csr_file.replace(".csr",".pem");
                 assert(!fs.existsSync(certificate));
                 ca.signCertificateRequest(certificate,the_csr_file,params,function(err){
-                    callback(err);
+                    return callback(err);
                 })
             });
 
             tasks.push(function(callback){
-                assert(_.isString(local_argv.output))
+                assert(_.isString(local_argv.output));
                 fs.writeFileSync(local_argv.output,fs.readFileSync(certificate,"ascii"));
-                callback();
+                return callback();
             });
 
             async.series(tasks, function (err) {

@@ -6,7 +6,7 @@ env:
   amd: true
   browser: true
   es6: true
-  jquery: true
+  jquery: false
   node: true
 
 # http://eslint.org/docs/rules/
@@ -44,7 +44,7 @@ rules:
   # Best Practices
   accessor-pairs: 2
   block-scoped-var: 0
-  complexity: [2, 6]
+  complexity: [2, 10]
   consistent-return: 0
   curly: 0
   default-case: 0
@@ -57,7 +57,7 @@ rules:
   no-case-declarations: 2
   no-div-regex: 2
   no-else-return: 0
-  no-empty-label: 2
+  no-labels: 1
   no-empty-pattern: 2
   no-eq-null: 2
   no-eval: 2
@@ -69,7 +69,6 @@ rules:
   no-implied-eval: 2
   no-invalid-this: 0
   no-iterator: 2
-  no-labels: 0
   no-lone-blocks: 2
   no-loop-func: 2
   no-magic-number: 0
@@ -100,7 +99,7 @@ rules:
   yoda: 0
 
   # Strict
-  strict: 0
+  strict: 1
 
   # Variables
   init-declarations: 0
