@@ -138,6 +138,13 @@ describe("test certificate validation",function() {
             ],done)
         });
 
+        it("should detect null certificate",function(done) {
+            localCertificateManager.verifyCertificate(null, function (err, status) {
+                err.message.should.match("BadSecurityChecksFailed");
+                done();
+            });
+        });
+
         it("should detect out of date certificate",function(done) {
             localCertificateManager.verifyCertificate(cert1, function (err, status) {
                 err.message.should.match("BadCertificateTimeInvalid");
