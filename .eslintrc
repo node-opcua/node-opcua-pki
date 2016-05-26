@@ -1,11 +1,11 @@
 ecmaFeatures:
-  modules: true
-  jsx: true
+  modules: false
+  jsx: false
 
 env:
-  amd: true
-  browser: true
-  es6: true
+  amd: false
+  browser: false
+  es6: false
   jquery: false
   node: true
 
