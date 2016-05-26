@@ -20,11 +20,14 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
+"use strict";
 
 var child_process = require("child_process");
 var byline = require('byline');
 var fs = require("fs");
 var path = require("path");
+var unzip = require("unzip");
+
 require("colors");
 
 function execute(cmd, callback, cwd) {
@@ -126,7 +129,6 @@ function install_openssl(filename, callback) {
 
     var dirPath =  path.join(__dirname,'openssl');
 
-    var unzip = require("unzip");
     var stream = fs.createReadStream(filename);
 
     var unzipExtractor = new unzip.Extract({path: dirPath});
@@ -179,7 +181,7 @@ exports.install_prerequisite = function (callback) {
 
             } else {
                 console.log("openssl is already installed and have the expected version.".green);
-                callback(null);
+                return callback(null);
             }
         });
     }

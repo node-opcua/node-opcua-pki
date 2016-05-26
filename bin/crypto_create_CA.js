@@ -170,6 +170,7 @@ function readConfiguration(argv, callback) {
     // set random file to be random.rnd in the same folder as the config file
     process.env["RANDFILE"] = path.join(path.dirname(default_config),"random.rnd");
 
+    /* eslint global-require: 0*/
     config = require(default_config);
 
     config.certificateDir = certificateDir;
@@ -252,6 +253,11 @@ function add_standard_option(options,optionName) {
         }
 }
 
+function on_completion(err) {
+    if (err) {
+        console.log(err.message);
+    }
+}
 function createDefaultCertificate(base_name, prefix, key_length, applicationUri, dev, done) {
 
     assert(key_length === 1024 || key_length === 2048 );
@@ -449,7 +455,7 @@ var g_argv = require('yargs')
             tasks.push(displayTitle.bind(null, "create certificates"));
             tasks.push(createDefaultCertificates);
 
-            async.series(tasks, function (err) {});
+            async.series(tasks, on_completion);
         }
 
         var options  ={};
@@ -487,8 +493,7 @@ var g_argv = require('yargs')
             var tasks = [];
             tasks.push(readConfiguration.bind(null, local_argv));
             tasks.push(construct_CertificateAuthority.bind(null));
-            async.series(tasks, function (err) {
-            });
+            async.series(tasks,on_completion);
         }
 
         var options ={};
@@ -514,8 +519,7 @@ var g_argv = require('yargs')
             var tasks = [];
             tasks.push(readConfiguration.bind(null, local_argv));
             tasks.push(construct_CertificateManager.bind(null));
-            async.series(tasks, function (err) {
-            });
+            async.series(tasks, on_completion);
         }
 
         var options ={};
@@ -587,9 +591,7 @@ var g_argv = require('yargs')
                 return callback();
             });
 
-            async.series(tasks, function (err) {
-                console.log(" done ...");
-            });
+            async.series(tasks, on_completion);
 
         }
 
