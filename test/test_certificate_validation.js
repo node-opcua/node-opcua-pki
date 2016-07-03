@@ -72,6 +72,7 @@ describe("test certificate validation",function() {
     var certificate_not_yet_active;
     var certificate_valid;
     var certificate_valid_untrusted;
+    var certificate_valid_revoked;
 
     function prepare_test(done){
 
@@ -105,7 +106,25 @@ describe("test certificate validation",function() {
             function (callback) {
                 certificate_valid_untrusted = path.join(test.tmpFolder, "certificate_valid_untrusted.pem");
                 createCertificate(certificate_valid_untrusted,{applicationUri: "SOMEURI", startDate: yesterday, duration: 10 },callback)
+            },
+            /*
+            function (callback) {
+                certificate_valid_revoked = path.join(test.tmpFolder, "certificate_valid_revoked.pem");
+                createCertificate(certificate_valid_revoked,{applicationUri: "SOMEURI", startDate: yesterday, duration: 10 },callback)
+            },
+            function (callback) {
+                certificateAuthority.revokeCertificate(certificate_valid_revoked,{reason: "keyCompromise"},callback);
+            },
+            function (callback) {
+                var ca_with_crl_filename = certificateAuthority.caCertificateWithCrl;
+                fs.existsSync(ca_with_crl).should.eql(true);
+                var ca_with_crl = crypto_utils.readKeyPem(ca_with_crl_filename);
+                certificateManager.setCACertificate(ca_with_crl);
+                // simulate certificateManager receiving Certificate Revocation list
+                callback();
             }
+            */
+
         ],done);
     }
 
