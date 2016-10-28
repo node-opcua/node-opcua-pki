@@ -275,7 +275,8 @@ function createDefaultCertificate(base_name, prefix, key_length, applicationUri,
     console.log(" urn = ", applicationUri);
 
     var dns = [
-        "localhost"
+        "localhost",
+        get_fully_qualified_domain_name()
     ];
     var ip = [];
 
