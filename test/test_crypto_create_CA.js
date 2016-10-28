@@ -23,9 +23,8 @@ function create_demo_certificates(callback) {
     var child = child_process.exec(cmd,options,function(err) {
     });
 
-    console.log(" cmd = ",cmd);
-
-    child.stdout.pipe(process.stdout);
+    //xx console.log(" cmd = ",cmd);
+    //xx child.stdout.pipe(process.stdout);
 
     child.on('close', function(code) {
         the_code = code;
