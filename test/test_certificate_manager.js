@@ -98,7 +98,7 @@ describe("CertificateManager", function () {
 
                     fs.writeFileSync(path.join(test.tmpFolder, "dump_cert1.txt"),data);
 
-        
+
                     grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
                     grep(data,/DNS/).should.match(/DNS:localhost/);
                     grep(data,/DNS/).should.match(/DNS:my.domain.com/);
@@ -145,7 +145,7 @@ describe("CertificateManager managing certificate", function () {
         toolbox.execute_openssl("req " +
             "-x509 -days 365 -nodes -newkey rsa:1024 " +
             "-batch -keyout private_key.pem " +
-            "-outform der -out " + certificate+
+            "-outform der -out " + q(n(certificate)) +
             " -config " + default_openssl_conf,{},function(err){
             assert(fs.existsSync(certificate));
 

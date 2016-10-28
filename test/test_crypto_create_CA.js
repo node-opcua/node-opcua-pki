@@ -5,9 +5,15 @@ var child_process = require("child_process");
 var fs = require("fs");
 var should = require("should");
 
+
+var pki = require("../index");
+var toolbox = pki.toolbox;
+var q = toolbox.quote;
+var n = toolbox.make_path;
+
 function create_demo_certificates(callback) {
 
-    var cmd = "node " + path.join(__dirname,"../bin/crypto_create_CA demo --dev");
+    var cmd = "node " + q(n(path.join(__dirname,"../bin/crypto_create_CA.js"))) + " demo  --dev";
 
     var options = {
         cwd: path.join(__dirname,"../tmp")
@@ -17,7 +23,9 @@ function create_demo_certificates(callback) {
     var child = child_process.exec(cmd,options,function(err) {
     });
 
-    //xx child.stdout.pipe(process.stdout);
+    console.log(" cmd = ",cmd);
+
+    child.stdout.pipe(process.stdout);
 
     child.on('close', function(code) {
         the_code = code;
@@ -32,12 +40,15 @@ describe("testing test_crypto_create_CA",function() {
 
     it("should create a PKI",function(done){
 
-        fs.existsSync(path.join(__dirname,"../tmp/certificates/discoveryServer_cert_2048.pem")).should.eql(false);
+        fs.existsSync(
+          path.join(__dirname,"../tmp/certificates/discoveryServer_cert_2048.pem"))
+          .should.eql(false);
 
         create_demo_certificates(function(err){
-            fs.existsSync(path.join(__dirname,"../tmp/certificates/discoveryServer_cert_2048.pem")).should.eql(true);
+            fs.existsSync(
+              path.join(__dirname,"../tmp/certificates/discoveryServer_cert_2048.pem"))
+              .should.eql(true);
             done(err);
-        })
+        });
     });
-
 });
