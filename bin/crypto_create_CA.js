@@ -27,6 +27,7 @@ Error.stackTraceLimit = Infinity;
 var path = require("path");
 var fs = require("fs");
 var colors = require("colors");
+var del = require("del");
 
 var async = require("async");
 var _ = require("underscore");
@@ -429,7 +430,6 @@ var g_argv = require('yargs')
             if (local_argv.clean) {
 
                 tasks.push(displayTitle.bind(null, "Cleaning old certificates"));
-                var del = require("del");
                 tasks.push(function (callback) {
                     assert(config);
                     var certificateDir = config.certificateDir;
