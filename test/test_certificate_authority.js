@@ -9,6 +9,9 @@ require("should");
 var pki = require("index");
 var toolbox = pki.toolbox;
 
+var crypto_utils =require("node-opcua-crypto").crypto_utils;
+var crypto_explore_certificate=require("node-opcua-crypto").crypto_explore_certificate;
+
 describe("Certificate Authority", function () {
 
 
@@ -131,6 +134,10 @@ describe("Signing Certificate with Certificate Authority" ,function(){
 
                     //Serial Number: 4096 (0x1000)
 
+                    var certificateChain = crypto_utils.readCertificate(certificate);
+
+                    var elements = crypto_explore_certificate.split_der(certificateChain);
+                    elements.length.should.eql(2);
                     // should have 2 x -----BEGIN CERTIFICATE----- in the chain
 
                     callback(err);
@@ -260,13 +267,8 @@ describe("Signing Certificate with Certificate Authority" ,function(){
             function(callback) {
                 ca.revokeCertificate(certificate,{},callback);
             }
-
-
         ];
-
         async.series(tasks,done);
-
-
 
     });
 

@@ -9,6 +9,6 @@ module.exports =  {
     country:            "FR", // Two letters
     validity:           365 * 15, // 15 years
 
-    keySize:            2028 // default private key size
+    keySize:            2048 // default private key size
 };
 
