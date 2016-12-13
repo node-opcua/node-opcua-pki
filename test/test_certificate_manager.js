@@ -70,14 +70,15 @@ describe("CertificateManager", function () {
             var params = {
                 applicationUri: "MY:APPLICATION:URI",
                 // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
-                duration: 365 * 7,
+                validity: 365 * 7,
                 dns: [
                     "localhost",
                     "my.domain.com"
                 ],
                 ip: [
                    "192.123.145.121"
-                ]
+                ],
+                subject: "/CN=MyCommonName"
             };
             if (err) {
                 return done(err);

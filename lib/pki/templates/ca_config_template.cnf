@@ -12,7 +12,7 @@ certificate              = $dir/public/cacert.pem     # The root CA certificate
 private_key              = $dir/private/cakey.pem     # the CA private key
 
 x509_extensions          = usr_cert                   #
-default_days             = 3650                       # default duration : 10 years
+default_days             = 3650                       # default validity : 10 years
 
 # default_md               = sha1
 default_md                = sha256                      # The default digest algorithm

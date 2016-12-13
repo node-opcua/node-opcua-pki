@@ -93,24 +93,24 @@ describe("test certificate validation",function() {
             },
             function (callback) {
                 certificate_out_of_date = path.join(test.tmpFolder, "certificate_out_of_date.pem");
-                createCertificate(certificate_out_of_date,{applicationUri: "SOMEURI", startDate: lastYear, duration: 300 },callback)
+                createCertificate(certificate_out_of_date,{applicationUri: "SOMEURI", startDate: lastYear, validity: 300 },callback)
             },
             function (callback) {
                 certificate_not_yet_active = path.join(test.tmpFolder, "certificate_notyetactive.pem");
-                createCertificate(certificate_not_yet_active,{applicationUri: "SOMEURI", startDate: nextYear, duration: 10000 },callback)
+                createCertificate(certificate_not_yet_active,{applicationUri: "SOMEURI", startDate: nextYear, validity: 10000 },callback)
             },
             function (callback) {
                 certificate_valid = path.join(test.tmpFolder, "certificate_valid.pem");
-                createCertificate(certificate_valid,{applicationUri: "SOMEURI", startDate: yesterday, duration: 10 },callback)
+                createCertificate(certificate_valid,{applicationUri: "SOMEURI", startDate: yesterday, validity: 10 },callback)
             },
             function (callback) {
                 certificate_valid_untrusted = path.join(test.tmpFolder, "certificate_valid_untrusted.pem");
-                createCertificate(certificate_valid_untrusted,{applicationUri: "SOMEURI", startDate: yesterday, duration: 10 },callback)
+                createCertificate(certificate_valid_untrusted,{applicationUri: "SOMEURI", startDate: yesterday, validity: 10 },callback)
             },
             /*
             function (callback) {
                 certificate_valid_revoked = path.join(test.tmpFolder, "certificate_valid_revoked.pem");
-                createCertificate(certificate_valid_revoked,{applicationUri: "SOMEURI", startDate: yesterday, duration: 10 },callback)
+                createCertificate(certificate_valid_revoked,{applicationUri: "SOMEURI", startDate: yesterday, validity: 10 },callback)
             },
             function (callback) {
                 certificateAuthority.revokeCertificate(certificate_valid_revoked,{reason: "keyCompromise"},callback);

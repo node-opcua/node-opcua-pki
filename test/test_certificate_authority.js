@@ -73,14 +73,15 @@ describe("Signing Certificate with Certificate Authority" ,function(){
         var params = {
             applicationUri: "MY:APPLICATION:URI",
             // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
-            duration: 365 * 7,
+            validity: 365 * 7,
             dns: [
                 "localhost",
                 "my.domain.com"
             ],
             ip: [
                 "192.123.145.121"
-            ]
+            ],
+            subject: "/CN=MyCommonName"
         };
         cm.createCertificateRequest(params, function (err, certificate_request) {
             callback(err, certificate_request);
@@ -125,7 +126,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
                 var params = {
                     applicationUri:  "BAD SHOULD BE IN REQUEST",
                     startDate: new Date(2011,25,12),
-                    duration: 10* 365
+                    validity: 10* 365
                 };
 
                 ca.signCertificateRequest(certificate_filename,self.certificate_request,params,function(err, certificate) {
@@ -167,9 +168,9 @@ describe("Signing Certificate with Certificate Authority" ,function(){
         var next_year = (new Date());
         next_year.setFullYear(now.getFullYear()+1);
 
-        function sign(startDate,duration,callback) {
+        function sign(startDate,validity,callback) {
 
-            var a = toolbox.x509Date(startDate) + "_" + duration;
+            var a = toolbox.x509Date(startDate) + "_" + validity;
 
             fs.existsSync(self.certificate_request).should.eql(true);
 
@@ -178,7 +179,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
             var params = {
                 applicationUri:  "BAD SHOULD BE IN REQUEST",
                 startDate: startDate,
-                duration: duration
+                validity: validity
             };
 
             ca.signCertificateRequest(certificate_filename,self.certificate_request,params,function(err, certificate) {
@@ -239,11 +240,11 @@ describe("Signing Certificate with Certificate Authority" ,function(){
     function createSignedCertificate(certificate,privateKey,callback) {
 
         var startDate = new Date();
-        var duration = 1000;
+        var validity = 1000;
         var params = {
             applicationUri:  "BAD SHOULD BE IN REQUEST",
             startDate: startDate,
-            duration: duration
+            validity: validity
         };
         ca.createSelfSignedCertificate(certificate,privateKey,params, function(err) {
             console.log("signed_certificate = signed_certificate",certificate);

@@ -30,6 +30,10 @@ DNS.2                     = $ENV::ALTNAME_DNS_2
 DNS.3                     = $ENV::ALTNAME_DNS_3
 DNS.4                     = $ENV::ALTNAME_DNS_4
 #IP.0                      = $ENV::ALTNAME_IP
+#IP.1                      = $ENV::ALTNAME_IP_1
+#IP.2                      = $ENV::ALTNAME_IP_2
+#IP.3                      = $ENV::ALTNAME_IP_3
+#IP.4                      = $ENV::ALTNAME_IP_4
 
 [ req ]
 days                      = 390
