@@ -26,5 +26,14 @@ describe("Subject",function(){
         var subject = Subject.parse(str);
 
         subject.commonName.should.eql("Hello");
+    });
+    it("should parse a SubjectLine ",function() {
+
+        var str = "/DC=MYDOMAIN/CN=Hello";
+
+        var subject = Subject.parse(str);
+
+        subject.commonName.should.eql("Hello");
+        subject.domainComponent.should.eql("MYDOMAIN");
     })
 });

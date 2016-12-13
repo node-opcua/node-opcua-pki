@@ -609,7 +609,7 @@ var g_argv = require('yargs')
             var certificate;
             var tasks = [];
 
-            var params;
+
             tasks.push(readConfiguration.bind(null, local_argv));
 
             tasks.push(function(callback) {
@@ -623,6 +623,7 @@ var g_argv = require('yargs')
 
             tasks.push(function(callback){
 
+                g_config.privateKey = null; // use PKI private key
                 // create a Certificate Request from the certificate Manager
                 certificateManager.createCertificateRequest(g_config,function(err,csr_file){
                     if(err) { return callback(err); }
@@ -635,8 +636,19 @@ var g_argv = require('yargs')
             tasks.push(function(callback) {
 
                 certificate = the_csr_file.replace(".csr",".pem");
-                assert(!fs.existsSync(certificate));
-                g_certificateAuthority.signCertificateRequest(certificate,the_csr_file,params,function(err){
+
+                if (fs.existsSync(certificate)) {
+                    throw new Error(" File " +certificate + " already exist");
+                }
+
+                g_certificateAuthority.signCertificateRequest(certificate,the_csr_file,g_config,function(err){
+
+                    if (g_config.outputFile) {
+
+                        fs.readFileSync(certificate,function(err,data){
+                           fs.writeFileSync(g_config.outputFile,data);
+                        });
+                    }
                     return callback(err);
                 })
             });
@@ -650,6 +662,7 @@ var g_argv = require('yargs')
             async.series(tasks, on_completion);
 
         }
+
 
         var options = {
             "applicationUri": {
@@ -691,6 +704,7 @@ var g_argv = require('yargs')
                 describe: "the list of valid IP"
             }
         };
+        add_standard_option(options,"silent");
         add_standard_option(options,"root");
         add_standard_option(options,"CAFolder");
         add_standard_option(options,"PKIFolder");

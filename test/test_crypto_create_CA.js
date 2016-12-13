@@ -206,4 +206,20 @@ describe("testing test_crypto_create_CA", function () {
         });
     });
 
+
+    describe("certificates signed by Local CA Authority",function() {
+
+        it("should create a signed certificate - variation 1", function (done) {
+            var cwd = path.join(__dirname, "../tmp/yyy1");
+            fs.mkdirSync(cwd);
+
+            call_crypto_create_CA("certificate", cwd, function () {
+                fs.existsSync(path.join(cwd, "my_certificate.pem")).should.eql(true);
+                fs.existsSync(path.join(cwd, "my_certificate.pem.csr")).should.eql(false, "useless signing request shall be automatically removed");
+                done();
+            });
+        });
+
+    });
+
 });
