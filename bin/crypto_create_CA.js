@@ -612,14 +612,15 @@ var g_argv = require('yargs')
 
             tasks.push(readConfiguration.bind(null, local_argv));
 
+            tasks.push(construct_CertificateManager.bind(null));
+
+            tasks.push(construct_CertificateAuthority.bind(null));
+
             tasks.push(function(callback) {
                 assert(fs.existsSync(g_config.CAFolder)," CA folder must exist");
                 return callback();
             });
 
-            tasks.push(construct_CertificateManager.bind(null));
-
-            tasks.push(construct_CertificateAuthority.bind(null));
 
             tasks.push(function(callback){
 
@@ -643,8 +644,10 @@ var g_argv = require('yargs')
 
                 g_certificateAuthority.signCertificateRequest(certificate,the_csr_file,g_config,function(err){
 
+                    //xx    console.log("g_config",g_config);
                     if (g_config.outputFile) {
 
+                        //xx console.log(" COPYING file:=:",certificate,g_config.outputFile);
                         fs.readFileSync(certificate,function(err,data){
                            fs.writeFileSync(g_config.outputFile,data);
                         });

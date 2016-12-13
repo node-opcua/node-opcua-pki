@@ -214,12 +214,22 @@ describe("testing test_crypto_create_CA", function () {
             fs.mkdirSync(cwd);
 
             call_crypto_create_CA("certificate", cwd, function () {
-                fs.existsSync(path.join(cwd, "my_certificate.pem")).should.eql(true);
-                fs.existsSync(path.join(cwd, "my_certificate.pem.csr")).should.eql(false, "useless signing request shall be automatically removed");
+
+                 done();
+            });
+        });
+        it("ZZ0 should create a signed certificate - variation 2", function (done) {
+            var cwd = path.join(__dirname, "../tmp/yyy2");
+            fs.mkdirSync(cwd);
+            var expected_certificate = path.join(cwd, "mycert.pem");
+
+            call_crypto_create_CA("certificate -o "+ expected_certificate, cwd, function () {
+
+                fs.existsSync(expected_certificate).should.eql(true);
+
                 done();
             });
         });
-
     });
 
 });
