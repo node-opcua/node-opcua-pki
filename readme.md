@@ -35,3 +35,45 @@
 Options:
   --help  display help
 
+
+##### demo command
+```
+crypto_create_CA  demo [--dev] [--silent] [--clean]
+```
+
+Options:
+
+|               |                                                               |                  |
+|---------------|---------------------------------------------------------------|------------------|
+|  --help       | display help                                                  |                  |
+|  --dev        | create all sort of fancy certificates for dev testing purposes|                  |
+|  --clean      | Purge existing directory [use with care!]                     |                  | 
+|  --silent, -s | minimize output                                               |                  |
+|  --root, -r   | the location of the Certificate folder                        |{CWD}/certificates|
+
+Example:
+```
+$crypto_create_CA  demo --dev
+```
+
+##### certificate command
+
+```
+$crypto_create_CA certificate --help
+```
+
+Options:
+
+|                       |                                                        |                                 |
+|-----------------------|--------------------------------------------------------|----------------------------------|
+|  --help               | display help                                           |                                  |
+|  --applicationUri, -a | the application URI                                    |urn:{hostname}:Node-OPCUA-Server  |
+|  --output, -o         | the name of the generated certificate                  |my_certificate.pem                |
+|  --selfSigned, -s     | if true, certificate will be self-signed               |false                             |
+|  --validity, -v       | the certificate validity in days                       |                                  |
+|  --silent, -s         | minimize output                                        |                                  |
+|  --root, -r           | the location of the Certificate folder                 |{CWD}/certificates                |
+|  --CAFolder, -c       | the location of the Certificate Authority folder       |{root}/CA                         |
+|  --PKIFolder, -p      | the location of the Public Key Infrastructure          |{root}/PKI                        |
+|  --privateKey, -p     | optional:the private key to use to generate certificate|                                  |      
+
