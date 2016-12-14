@@ -225,7 +225,7 @@ describe("testing test_crypto_create_CA", function () {
 
             var expected_certificate = path.join(cwd, "mycert.pem");
 
-            call_crypto_create_CA("certificate -o "+ expected_certificate, cwd, function () {
+            call_crypto_create_CA("certificate -o "+ "mycert.pem", cwd, function () {
 
                 fs.existsSync(expected_certificate).should.eql(true);
 
