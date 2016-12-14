@@ -644,10 +644,13 @@ var g_argv = require('yargs')
 
                 g_certificateAuthority.signCertificateRequest(certificate,the_csr_file,g_config,function(err){
                     return callback(err);
-                })
+                });
             });
 
             tasks.push(function(callback){
+
+                console.error("g_config.outputFile=",g_config.outputFile);
+
                 assert(_.isString(g_config.outputFile));
                 fs.writeFileSync(g_config.outputFile,fs.readFileSync(certificate,"ascii"));
                 return callback();

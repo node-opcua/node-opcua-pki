@@ -218,7 +218,7 @@ describe("testing test_crypto_create_CA", function () {
                  done();
             });
         });
-        it("ZZ0 should create a signed certificate - variation 2", function (done) {
+        xit("ZZ0 should create a signed certificate - variation 2", function (done) {
 
             var cwd = path.join(__dirname, "../tmp/yyy2");
             fs.mkdirSync(cwd);
