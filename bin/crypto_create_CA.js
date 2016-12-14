@@ -648,9 +648,8 @@ var g_argv = require('yargs')
                     if (g_config.outputFile) {
 
                         //xx console.log(" COPYING file:=:",certificate,g_config.outputFile);
-                        fs.readFileSync(certificate,function(err,data){
-                           fs.writeFileSync(g_config.outputFile,data);
-                        });
+                        var data = fs.readFileSync(certificate);
+                        fs.writeFileSync(g_config.outputFile,data);
                     }
                     return callback(err);
                 })
