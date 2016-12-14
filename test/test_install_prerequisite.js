@@ -3,7 +3,7 @@ var install_prerequisite = require("../lib/misc/install_prerequisite").install_p
 describe("testing install_prerequisite",function() {
 
 
-    it("",function(done){
+    it("should verify prerequisite",function(done){
 
         install_prerequisite(function(err){
 

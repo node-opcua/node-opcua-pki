@@ -83,7 +83,7 @@ describe("testing test_crypto_create_CA", function () {
 
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
-                    grep(data, /Public-Key/).should.match(/Public-Key: \(2048 bit\)/);
+                    grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
                     //XX grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
                     //XX grep(data,/DNS/).should.match(/DNS:localhost/);
                     //XX grep(data,/DNS/).should.match(/DNS:my.domain.com/);
@@ -105,7 +105,7 @@ describe("testing test_crypto_create_CA", function () {
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
                     //xx console.log(data);
-                    grep(data, /Public-Key/).should.match(/Public-Key: \(2048 bit\)/);
+                    grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
                     grep(data, /URI/).should.match(/urn:MYSERVER:APPLICATION/);
                     //XX grep(data,/DNS/).should.match(/DNS:localhost/);
                     //XX grep(data,/DNS/).should.match(/DNS:my.domain.com/);
@@ -145,7 +145,7 @@ describe("testing test_crypto_create_CA", function () {
 
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
-                    grep(data, /Public-Key/).should.match(/Public-Key: \(2048 bit\)/);
+                    grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
                     var startDate = grep(data, /Not Before/).match(/Not Before:(.*)/)[1].trim();
                     var endDate = grep(data, /Not After/).match(/Not After :(.*)/)[1].trim();
                     startDate = new Date(Date.parse(startDate));
@@ -172,7 +172,7 @@ describe("testing test_crypto_create_CA", function () {
 
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
-                    grep(data, /Public-Key/).should.match(/Public-Key: \(2048 bit\)/);
+                    grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
                     grep(data, /DNS/).should.match(/DNS:HOST1/);
                     grep(data, /DNS/).should.match(/DNS:HOST2/);
 
@@ -195,7 +195,7 @@ describe("testing test_crypto_create_CA", function () {
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
                     console.log(data);
-                    grep(data, /Public-Key/).should.match(/Public-Key: \(2048 bit\)/);
+                    grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
                     grep(data, /IP/).should.match(/IP:128.12.13.13/);
                     grep(data, /IP/).should.match(/IP:128.128.128.128/);
 
