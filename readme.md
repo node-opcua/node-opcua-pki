@@ -19,19 +19,18 @@
     PKI\issuers\certs
 ```
 
-#### command
+#### commands
 
-Commands:
-  |command      |Help                                           |
-  |-------------|-----------------------------------------------|
-  |demo         |create default certificate for node-opcua demos|
-  |createCA     |create a Certificate Authority                 |
-  |createPKI    |create a Public Key Infrastructure             |
-  |certificate  |create a new certificate                       |
-  |revoke       |revoke a existing certificate                  |
-  |dump         |display a certificate                          |
-  |toder        |convert a certificate to a DER format          |
-  |fingerprint  |print the certifcate fingerprint               |
+|command      |Help                                           |
+|-------------|-----------------------------------------------|
+|demo         |create default certificate for node-opcua demos|
+|createCA     |create a Certificate Authority                 |
+|createPKI    |create a Public Key Infrastructure             |
+|certificate  |create a new certificate                       |
+|revoke       |revoke a existing certificate                  |
+|dump         |display a certificate                          |
+|toder        |convert a certificate to a DER format          |
+|fingerprint  |print the certifcate fingerprint               |
 
 Options:
   --help  display help
