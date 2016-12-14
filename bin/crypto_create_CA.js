@@ -643,14 +643,6 @@ var g_argv = require('yargs')
                 }
 
                 g_certificateAuthority.signCertificateRequest(certificate,the_csr_file,g_config,function(err){
-
-                    //xx    console.log("g_config",g_config);
-                    if (g_config.outputFile) {
-
-                        //xx console.log(" COPYING file:=:",certificate,g_config.outputFile);
-                        var data = fs.readFileSync(certificate);
-                        fs.writeFileSync(g_config.outputFile,data);
-                    }
                     return callback(err);
                 })
             });
