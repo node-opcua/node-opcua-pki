@@ -59,6 +59,11 @@ describe("CertificateManager", function () {
 
     it("should create its own self-signed certificate", function (done) {
 
+        function get_days(date1,date2) {
+            var ms_in_one_day = 24 * 3600000;
+            var diff = date1.getTime() - date2.getTime();
+            return Math.round(diff / ms_in_one_day);
+        }
         var options = {
             location: path.join(test.tmpFolder, "PKI1")
         };
@@ -67,10 +72,16 @@ describe("CertificateManager", function () {
 
         cm.initialize(function (err) {
 
+            var now = new Date();
+            var end_date = new Date(now.getFullYear()+7,10,10);
+            var duration =get_days(end_date,now);
+            //
+            //xx console.log(" duration = ",duration);
+
             var params = {
                 applicationUri: "MY:APPLICATION:URI",
                 // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
-                validity: 365 * 7,
+                validity: duration,
                 dns: [
                     "localhost",
                     "my.domain.com"
