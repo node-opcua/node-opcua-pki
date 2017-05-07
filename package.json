@@ -1,6 +1,6 @@
 {
   "name": "node-opcua-pki",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "PKI management for node-opcua",
   "main": "index.js",
   "directories": {
@@ -24,23 +24,23 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
-    "async": "^2.3.0",
+    "async": "^2.4.0",
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
     "cli-table": "^0.3.1",
     "colors": "^1.1.2",
     "del": "^2.2.2",
-    "node-opcua-crypto": "0.0.8",
+    "node-opcua-crypto": "0.0.9",
     "progress": "^2.0.0",
     "requirish": "^0.3.0",
     "underscore": "^1.8.3",
     "walk": "^2.3.9",
     "wget-improved": "^1.4.0",
-    "yargs": "^7.0.2",
-    "yauzl": "^2.7.0"
+    "yargs": "^8.0.1",
+    "yauzl": "^2.8.0"
   },
   "devDependencies": {
-    "mocha": "^3.2.0",
+    "mocha": "^3.3.0",
     "should": "^11.2.1"
   },
   "bin": {
