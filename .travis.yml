@@ -5,13 +5,13 @@ node_js:
   # - "0.12"
   - "4"
   - "6"
-  - "7"
+  - "8"
 
 
 before_script:
   - npm install -g istanbul
   - npm install -g coveralls
-  - npm install mocha
+  - npm install -g mocha colors
   - npm install -g codeclimate-test-reporter
   # memcpy only works with node version > 0.8 and <= 0.12, and not with io.js, at this time
   - if [[ `node --version` == v0.12 ]]; then npm i memcpy ; fi
