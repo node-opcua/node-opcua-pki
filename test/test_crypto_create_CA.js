@@ -1,5 +1,4 @@
 "use strict";
-var async = require("async");
 var path = require("path");
 var child_process = require("child_process");
 var fs = require("fs");
@@ -25,15 +24,16 @@ function call_crypto_create_CA(cmdArguments, cwd, callback) {
         cwd: cwd
     };
 
-    var the_code = 61;
     var child = child_process.exec(cmd, options, function (err) {
     });
 
-    //xx console.log(" cmd = ",cmd);
-    //xx child.stdout.pipe(process.stdout);
+    if (false) {
+        console.log(" cmd = ",cmd);
+        child.stdout.pipe(process.stdout);
+    }
+    child.stderr.pipe(process.stderr);
 
     child.on('close', function (code) {
-        the_code = code;
         //xx console.log("done ... (" + the_code + ")");
         callback();
     });
