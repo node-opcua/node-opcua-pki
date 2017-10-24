@@ -24,7 +24,7 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
-    "async": "^2.4.1",
+    "async": "^2.5.0",
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
     "cli-table": "^0.3.1",
@@ -36,12 +36,12 @@
     "underscore": "^1.8.3",
     "walk": "^2.3.9",
     "wget-improved": "^1.5.0",
-    "yargs": "^8.0.2",
+    "yargs": "^10.0.3",
     "yauzl": "^2.8.0"
   },
   "devDependencies": {
-    "mocha": "^3.4.2",
-    "should": "^11.2.1"
+    "mocha": "^4.0.1",
+    "should": "^13.1.2"
   },
   "bin": {
     "pki": "./bin/crypto_create_CA.js"
