@@ -25,6 +25,9 @@ function call_crypto_create_CA(cmdArguments, cwd, callback) {
     };
 
     var child = child_process.exec(cmd, options, function (err) {
+        if(err) {
+            console.log("ERR = ",err);
+        }
     });
 
     if (false) {
