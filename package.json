@@ -1,6 +1,6 @@
 {
   "name": "node-opcua-pki",
-  "version": "0.0.25",
+  "version": "0.0.26",
   "description": "PKI management for node-opcua",
   "main": "index.js",
   "directories": {
@@ -24,7 +24,7 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
-    "async": "^2.5.0",
+    "async": "^2.6.0",
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
     "cli-table": "^0.3.1",
