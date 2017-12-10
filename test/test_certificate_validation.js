@@ -77,7 +77,7 @@ describe("test certificate validation",function() {
     function prepare_test(done){
 
 
-        var optionsCA = {location: path.join(test.tmpFolder, "TEST_CA")};
+        var optionsCA = {keySize: 2048,location: path.join(test.tmpFolder, "TEST_CA")};
         certificateAuthority = new pki.CertificateAuthority(optionsCA);
 
         var optionsPKI = {location: path.join(test.tmpFolder, "TEST_PKI")};

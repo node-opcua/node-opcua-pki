@@ -18,22 +18,28 @@ function call_crypto_create_CA(cmdArguments, cwd, callback) {
 
     fs.existsSync(cwd).should.eql(true, " current folder shall exist");
 
-    var cmd = "node " + q(n(path.join(__dirname, "../bin/crypto_create_CA.js"))) + " " + cmdArguments;
+    var cmd = "node" ;
+    var args = n(path.join(__dirname, "../bin/crypto_create_CA.js")) + " " + cmdArguments;
+    args = args.replace("  "," ").split(" ");
 
     var options = {
         cwd: cwd
     };
 
-    var child = child_process.exec(cmd, options, function (err) {
+    var child = child_process.spawn(cmd, args, options, function (err) {
         if(err) {
             console.log("ERR = ",err);
         }
     });
 
-    if (false) {
-        console.log(" cmd = ",cmd);
-        child.stdout.pipe(process.stdout);
-    }
+    console.log(" cwd = ",cwd);
+    console.log(" cmd = ",cmd);
+    console.log(" args = ",args);
+    console.log("",cmd , args.join(" "));
+
+    child.stdout.on('data',function() {
+        ;
+    });
     child.stderr.pipe(process.stderr);
 
     child.on('close', function (code) {
@@ -184,7 +190,7 @@ describe("testing test_crypto_create_CA", function () {
                 });
             });
         });
-        xit("should create a self-signed certificate - variation 6 - --ip", function (done) {
+        it("should create a self-signed certificate - variation 6 - --ip", function (done) {
             var cwd = path.join(__dirname, "../tmp/zzz6");
             fs.mkdirSync(cwd);
 
@@ -197,10 +203,12 @@ describe("testing test_crypto_create_CA", function () {
 
                 toolbox.dumpCertificate(expected_certificate, function (err, data) {
 
-                    console.log(data);
+                    if (false) {
+                        console.log(data);
+                    }
                     grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-                    grep(data, /IP/).should.match(/IP:128.12.13.13/);
-                    grep(data, /IP/).should.match(/IP:128.128.128.128/);
+                    grep(data, /IP/).should.match(/IP Address:128.12.13.13/);
+                    grep(data, /IP/).should.match(/IP Address:128.128.128.128/);
 
 
                     done();
@@ -209,7 +217,24 @@ describe("testing test_crypto_create_CA", function () {
         });
     });
 
+    describe("createCA & PKI",function() {
+        it("@1 should create a CA and a PKI with 4096 bits keys",function(done) {
 
+            var cwd = path.join(__dirname, "../tmp/tmp4096");
+            fs.mkdirSync(cwd);
+            call_crypto_create_CA("createCA --keySize 4096", cwd, function () {
+
+                var ca_private_key = path.join(__dirname,"../tmp/tmp4096/certificates/CA/private/cakey.pem");
+                fs.existsSync(ca_private_key).should.eql(true);
+                call_crypto_create_CA("createPKI --keySize 4096", cwd, function() {
+                    var pki_private_key = path.join(__dirname,"../tmp/tmp4096/certificates/PKI/own/private/private_key.pem");
+                    fs.existsSync(pki_private_key).should.eql(true);
+
+                    done();
+                });
+            });
+        });
+    });
     describe("certificates signed by Local CA Authority",function() {
 
         it("should create a signed certificate - variation 1", function (done) {

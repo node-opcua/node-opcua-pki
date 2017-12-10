@@ -13,6 +13,6 @@ module.exports =  {
 
     validity:           365 * 15, // 15 years
 
-    keySize:            2048 // default private key size
+    keySize:            2048 // default private key size : 2048, 3072 or 4096 (avoid 1024 too weak)
 };
 

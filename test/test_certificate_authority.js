@@ -22,7 +22,8 @@ describe("Certificate Authority", function () {
     before(function () {
 
         options = {
-            location: path.join(self.tmpFolder, "CA")
+            location: path.join(self.tmpFolder, "CA"),
+            keySize: 2048
         };
     });
 
@@ -58,7 +59,7 @@ describe("Signing Certificate with Certificate Authority" ,function(){
 
     before(function (done) {
 
-        ca = new pki.CertificateAuthority({location: path.join(test.tmpFolder, "CA")});
+        ca = new pki.CertificateAuthority({keySize: 2048,location: path.join(test.tmpFolder, "CA")});
         cm = new pki.CertificateManager({location: path.join(test.tmpFolder, "PI")});
 
         async.series([
