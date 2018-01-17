@@ -22,9 +22,11 @@ describe("toolbox",function(){
 
     before(function(done) {
         toolbox.mkdir(tmpFolder);
-        toolbox.createPrivateKey(private_key,2048,function() {
-            fs.existsSync(private_key).should.eql(true);
-            done();
+        toolbox.ensure_openssl_installed(function() {
+            toolbox.createPrivateKey(private_key,2048,function() {
+                fs.existsSync(private_key).should.eql(true);
+                done();
+            });
         });
     });
 
