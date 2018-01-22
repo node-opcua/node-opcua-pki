@@ -31,16 +31,13 @@ before_script:
     fi;
   - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^openssl$ ]]; then
       brew install openssl;
-      echo 'export PATH="/usr/local/opt/openssl/bin:$PATH"' >> ~/.bash_profile;
-      source ~/.bash_profile;
+      export PATH=/usr/local/opt/openssl/bin:$PATH;
     fi;
   - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^libressl$ ]]; then
       brew install libressl;
-      echo 'export PATH="/usr/local/opt/libressl/bin:$PATH"' >> ~/.bash_profile;
-      source ~/.bash_profile;
+      export PATH=/usr/local/opt/libressl/bin:$PATH;
     fi;
   - openssl version
-  - echo $PATH
 
 after_success:
   - make test-cov
