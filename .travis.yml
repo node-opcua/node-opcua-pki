@@ -6,12 +6,39 @@ node_js:
   - "8"
   - "9"
 
+os:
+  - linux
+  - osx
+
+env:
+  - SSL_LIB=openssl
+  - SSL_LIB=libressl
 
 before_script:
   - npm install -g istanbul
   - npm install -g coveralls
   - npm install -g mocha colors
   - npm install -g codeclimate-test-reporter
+  - if [[ $TRAVIS_OS_NAME =~ ^linux$ && $SSL_LIB =~ ^libressl$ ]]; then
+      cd $HOME;
+      git clone https://github.com/libressl-portable/portable libressl;
+      cd libressl;
+      ./autogen.sh;
+      ./configure --prefix="${HOME}/opt/libressl";
+      make && make check;
+      make install;
+    fi;
+  - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^openssl$ ]]; then
+      brew install openssl;
+      echo 'export PATH="/usr/local/opt/openssl/bin:$PATH"' >> ~/.bash_profile;
+      source ~/.bash_profile;
+    fi;
+  - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^libressl$ ]]; then
+      brew install libressl;
+      echo 'export PATH="/usr/local/opt/libressl/bin:$PATH"' >> ~/.bash_profile;
+      source ~/.bash_profile;
+    fi;
+  - openssl version
 
 after_success:
   - make test-cov
