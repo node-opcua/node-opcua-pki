@@ -26,8 +26,8 @@ before_script:
       ./configure --prefix="${HOME}/opt/libressl";
       make && make check;
       make install;
-      export PATH="${HOME}/opt/libressl":$PATH;
-      cd $HOME;
+      export PATH=$HOME/opt/libressl/bin:$PATH;
+      cd $TRAVIS_BUILD_DIR;
     fi;
   - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^openssl$ ]]; then
       brew install openssl;
@@ -40,6 +40,7 @@ before_script:
       source ~/.bash_profile;
     fi;
   - openssl version
+  - echo $PATH
 
 after_success:
   - make test-cov
