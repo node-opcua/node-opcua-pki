@@ -1,12 +1,12 @@
 /* global: it,describe */
-require("requirish")._(module);
+
 
 var path = require("path");
 var async = require("async");
 var fs = require("fs");
 require("should");
 
-var pki = require("index");
+var pki = require("../index");
 var toolbox = pki.toolbox;
 
 var crypto_utils =require("node-opcua-crypto").crypto_utils;

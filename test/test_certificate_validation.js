@@ -1,6 +1,6 @@
 Error.stackTraceLimit = Infinity;
-require("requirish")._(module);
-var pki = require("index");
+
+var pki = require("../index");
 
 var crypto_utils = require("node-opcua-crypto").crypto_utils;
 

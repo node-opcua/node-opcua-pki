@@ -1,8 +1,7 @@
-require("requirish")._(module);
 
 Error.stackTraceLimit = Infinity;
 
-var pki = require("index");
+var pki = require("../index");
 var toolbox = pki.toolbox;
 
 var path = require("path");

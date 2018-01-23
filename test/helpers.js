@@ -1,6 +1,6 @@
 /* global: module, it,describe, before */
-require("requirish")._(module);
-var toolbox = require("lib/pki/toolbox");
+
+var toolbox = require("../lib/pki/toolbox");
 var path = require("path");
 
 var tmpFolder = path.join(__dirname, "../tmp");

@@ -1,6 +1,6 @@
-require("requirish")._(module);
 
-var pki = require("index");
+
+var pki = require("../index");
 var toolbox = pki.toolbox;
 
 var path = require("path");
