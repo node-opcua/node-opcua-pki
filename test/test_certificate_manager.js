@@ -148,7 +148,8 @@ describe("CertificateManager managing certificate", function () {
 
     function createSampleCertificateDer(certificate,callback) {
 
-        var default_openssl_conf = q(n(path.join(__dirname,"../tmp/PKI2/own/openssl.cnf")));
+        var default_openssl_conf_path = path.join(__dirname,"../tmp/PKI2/own/openssl.cnf");
+        var default_openssl_conf = toolbox.generateStaticConfig(default_openssl_conf_path);
         assert(_.isFunction(callback));
 
         certificate = toolbox.make_path(certificate);
@@ -158,7 +159,7 @@ describe("CertificateManager managing certificate", function () {
             "-x509 -days 365 -nodes -newkey rsa:1024 " +
             "-batch -keyout private_key.pem " +
             "-outform der -out " + q(n(certificate)) +
-            " -config " + default_openssl_conf,{},function(err){
+            " -config " + q(n(default_openssl_conf)),{},function(err){
             assert(fs.existsSync(certificate));
 
             callback(err);
