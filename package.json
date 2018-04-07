@@ -28,18 +28,18 @@
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
     "cli-table": "^0.3.1",
-    "colors": "^1.1.2",
+    "colors": "^1.2.1",
     "del": "^3.0.0",
     "node-opcua-crypto": "0.0.16",
     "progress": "^2.0.0",
     "underscore": "^1.8.3",
-    "walk": "^2.3.9",
+    "walk": "^2.3.13",
     "wget-improved": "^1.5.0",
-    "yargs": "^10.1.1",
+    "yargs": "^11.0.0",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
-    "mocha": "^5.0.0",
+    "mocha": "^5.0.5",
     "should": "^13.2.1"
   },
   "bin": {
