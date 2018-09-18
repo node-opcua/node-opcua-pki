@@ -1,10 +1,9 @@
 sudo: false
 language: node_js
 node_js:
-  - "4"
-  - "6"
   - "8"
   - "9"
+  - "10"
 
 os:
   - linux
@@ -17,8 +16,9 @@ env:
 before_script:
   - npm install -g istanbul
   - npm install -g coveralls
-  - npm install -g mocha colors
+  - npm install -g mocha typescript
   - npm install -g codeclimate-test-reporter
+  - tsc --version
   - if [[ $TRAVIS_OS_NAME =~ ^linux$ && $SSL_LIB =~ ^libressl$ ]]; then
       git clone https://github.com/libressl-portable/portable libressl;
       cd libressl;
@@ -43,6 +43,7 @@ after_success:
   - make test-cov
 
 script:
+  - npm run build
   - npm test
 
 addons:

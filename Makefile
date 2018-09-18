@@ -2,7 +2,7 @@
 test-cov: istanbul coveralls codeclimate
 
 istanbul:
-	istanbul cover -x "tmp/**" -x "bin/install_prerequisite.js" ./node_modules/mocha/bin/_mocha -- -R spec --recursive --timeout 100000 --bail test
+	istanbul cover -x "tmp/**" -x "bin/install_prerequisite.js" ./node_modules/mocha/bin/_mocha -- -R spec --recursive --timeout 100000 --bail test/*.ts
 
 coveralls: istanbul
 	cat ./coverage/lcov.info | coveralls --exclude tmp

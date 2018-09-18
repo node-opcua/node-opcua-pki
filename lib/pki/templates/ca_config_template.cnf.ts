@@ -1,5 +1,4 @@
-"use strict";
-module.exports = "#.........DO NOT MODIFY BY HAND .........................\n" +
+const config = "#.........DO NOT MODIFY BY HAND .........................\n" +
   "[ ca ]\n" +
   "default_ca               = CA_default\n" +
   "[ CA_default ]\n" +
@@ -90,7 +89,8 @@ module.exports = "#.........DO NOT MODIFY BY HAND .........................\n" +
   "#nsRenewalUrl             =\n" +
   "#nsCaPolicyUrl            =\n" +
   "#nsSslServerName          =\n" +
-  "keyUsage                  = critical, digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement, keyCertSign\n" +
+    "keyUsage                  = critical, digitalSignature, nonRepudiation," +
+    " keyEncipherment, dataEncipherment, keyAgreement, keyCertSign\n" +
   "extendedKeyUsage          = critical,serverAuth ,clientAuth\n" +
   "\n" +
   "[ v3_req ]\n" +
@@ -123,3 +123,4 @@ module.exports = "#.........DO NOT MODIFY BY HAND .........................\n" +
   "authorityKeyIdentifier    = keyid:always,issuer:always\n" +
   "#authorityInfoAccess       = @issuer_info";
 
+export default config;
