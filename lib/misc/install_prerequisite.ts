@@ -341,8 +341,8 @@ function install_and_check_win32_openssl_version(
                         opensslExecPath);
                     console.log("done ", err ? err : "");
 
-                    check_openssl_win32((err: Error | null, opensslOk?: boolean, opensslPath?: string) => {
-                        callback(err, opensslPath);
+                    check_openssl_win32((err: Error | null) => {
+                        callback(err, opensslExecPath);
                     });
                 });
 
