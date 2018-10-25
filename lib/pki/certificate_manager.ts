@@ -102,7 +102,7 @@ export class CertificateManager {
     public async getCertificateStatus(certificate: Buffer): Promise<CertificateStatus>;
     public getCertificateStatus(certificate: Buffer,
                                 callback: (err: Error | null, status?: CertificateStatus) => void): void;
-    public getCertificateStatus(certificate: Buffer, ...args: []): any {
+    public getCertificateStatus(certificate: Buffer, ...args: any[]): any {
 
         const callback = args[0] as (err: Error | null, status?: CertificateStatus) => void;
 
@@ -151,8 +151,8 @@ export class CertificateManager {
     /**
      * Verify certificate validity
      * @method verifyCertificate
-     * @param certificate {Buffer}
-     * @param callback  {Function}
+     * @param certificate
+     * @param callback
      */
     public verifyCertificate(certificate: Certificate, callback: ErrorCallback) {
 
@@ -293,20 +293,19 @@ export class CertificateManager {
      *
      *
      * @param params
-     * @param params.applicationUri {String}  the application URI
-     * @param params.altNames {String[]} array of alternate names
+     * @param params.applicationUri   the application URI
+     * @param params.altNames  array of alternate names
      * @param [params.outputFile="own/certs/self_signed_certificate.pem"]
-     * @param params.subject {Subject}
-     * @param params.subject.commonName: {String}
-     * @param params.subject.organization: {String}
-     * @param params.subject.organizationUnit: {String}
-     * @param params.subject.locality: {String}
-     * @param params.subject.state: {String}
-     * @param params.subject.country: {String}
-     * @param params.validity: {Number}
-     * @param params.dns: {String}
-     * @param params.ip: {String}
-     * @param callback
+     * @param params.subject
+     * @param params.subject.commonName
+     * @param params.subject.organization
+     * @param params.subject.organizationUnit
+     * @param params.subject.locality
+     * @param params.subject.state
+     * @param params.subject.country
+     * @param params.validity
+     * @param params.dns
+     * @param params.ip
      */
     public async createSelfSignedCertificate(
         params: Params,
@@ -465,7 +464,7 @@ export class CertificateManager {
                 _f.bind(this, path.join(this.rootDir, "rejected"), this._thumbs.rejected)
                     .call(null, callback);
             }
-        ], callback);
+        ], (err) => callback(err!));
     }
 }
 

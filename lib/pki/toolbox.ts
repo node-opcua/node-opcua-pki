@@ -36,7 +36,7 @@ import * as _ from "underscore";
 
 import {get_openssl_exec_path} from "../misc/install_prerequisite";
 import {Subject, SubjectOptions} from "../misc/subject";
-import {ErrorCallback, Filename} from "../pki/common";
+import {ErrorCallback, Filename} from "./common";
 
 import _ca_config_template from "./templates/ca_config_template.cnf";
 import _simple_config_template from "./templates/simple_config_template.cnf";
@@ -344,7 +344,7 @@ const n = make_path;
  * @method getPublicKeyFromPrivateKey
  * @param privateKeyFilename
  * @param publicKeyFilename
- * @param callback  {Function}
+ * @param callback
  */
 export function getPublicKeyFromPrivateKey(
     privateKeyFilename: string,
@@ -459,7 +459,7 @@ export function createCertificateSigningRequest(
                 callback(err ? err : undefined);
             });
         }
-    ], callback);
+    ], (err) => callback(err!));
 }
 
 export function x509Date(date: Date): string {
@@ -553,9 +553,9 @@ export function check_certificate_filename(certificateFile: string): boolean {
 /**
  *
  * @param params
- * @param params.applicationUri {String}
- * @param params.dns            {String[]}
- * @param params.ip             {String[]}
+ * @param params.applicationUri
+ * @param params.dns
+ * @param params.ip
  * @private
  */
 export function processAltNames(params: Params) {
@@ -580,10 +580,10 @@ export function processAltNames(params: Params) {
  * @param params.configFile
  * @param params.rootDir
  * @param params.privateKey
- * @param params.applicationUri   {String}
- * @param params.dns              {Array<String>}
- * @param params.ip               {Array<String>}
- * @param params.validity        {Number} certificate duration in days
+ * @param params.applicationUri
+ * @param params.dns
+ * @param params.ip
+ * @param params.validity certificate duration in days
  * @param [params.subject= "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=ZZNodeOPCUA"]
  * @param callback
  */
@@ -685,10 +685,8 @@ export const configurationFileTemplate: string = _ca_config_template;
 export const configurationFileSimpleTemplate: string = _simple_config_template;
 
 /**
- * @param certificate {String} - the certificate file in PEM format, file must exist
- * @param callback {Function}
- * @param callback.err    {null|Error}
- * @param callback.output {String} the output string
+ * @param certificate - the certificate file in PEM format, file must exist
+ * @param callback
  */
 export function dumpCertificate(
     certificate: Filename,
