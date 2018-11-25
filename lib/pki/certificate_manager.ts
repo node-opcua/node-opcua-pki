@@ -272,6 +272,14 @@ export class CertificateManager {
 
             fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
 
+            // note : openssl 1.1.1 has a bug that causes a failure if
+            // random file cannot be found. (should be fixed in 1.1.1.a)
+            // if this issue become important we may have to consider checking that rndFile exists and recreate
+            // it if not . this could be achieved with the command :
+            //      "openssl rand -writerand ${this.randomFile}"
+            //
+            // cf: https://github.com/node-opcua/node-opcua/issues/554
+
             fs.exists(this.privateKey, (exists: boolean) => {
                 if (!exists) {
                     debugLog("generating private key ...");
