@@ -44,23 +44,33 @@ function call_crypto_create_CA(
     }
 
     child.stdout.on("data", () => {
-        //   process.stdout.write(".");
+        if (process.env.DEBUG) {
+            process.stdout.write(".");
+        }
     });
-    child.stderr.pipe(process.stderr);
 
+    const doLog = false;
+    if (doLog) {
+        const logFile = path.join(__dirname, "../tmp/log.txt");
+        const logStream = fs.createWriteStream(logFile);
+        child.stdout.pipe(logStream);
+        child.stderr.pipe(logStream);
+    }
+
+    child.stderr.pipe(process.stderr);
     child.on("exit", (code: number) => {
         // xx console.log("done ... (" + the_code + ")");
         callback();
     });
 }
 
-describe("testing test_crypto_create_CA", function() {
+describe("testing test_crypto_create_CA", function () {
 
     this.timeout(2300000);
 
     const test = beforeTest(this);
 
-    it("should create a PKI", (done: ErrorCallback) => {
+    it("should create a PKI with demo certificates", (done: ErrorCallback) => {
 
         const cwd = path.join(__dirname, "../tmp");
 
@@ -68,11 +78,31 @@ describe("testing test_crypto_create_CA", function() {
             path.join(__dirname, "../tmp/certificates/discoveryServer_cert_2048.pem"))
             .should.eql(false);
 
+        console.log(" folder = ", path.join(__dirname, "../tmp/certificates/discoveryServer_cert_2048.pem"));
+
+        const date1 = new Date();
+
         create_demo_certificates(cwd, (err?: Error | null) => {
+
+            if (err) { return done(err); }
             fs.existsSync(
                 path.join(__dirname, "../tmp/certificates/discoveryServer_cert_2048.pem"))
                 .should.eql(true);
-            done(err);
+
+            // running a second time should be faster
+            const date2 =  new Date();
+            create_demo_certificates(cwd, (err?: Error | null) => {
+                const date3 =  new Date();
+                const initialTimeToConstructDemoCertificate = (date2.getTime() - date1.getTime());
+                console.log(" t1 = ", initialTimeToConstructDemoCertificate);
+                const timeToConstructDemoCertificateSecondTime = (date3.getTime() - date2.getTime());
+                console.log(" t2 = ", timeToConstructDemoCertificateSecondTime);
+
+                (initialTimeToConstructDemoCertificate / 5).should.be
+                    .greaterThan(timeToConstructDemoCertificateSecondTime);
+
+                done(err);
+            });
         });
     });
 
@@ -267,7 +297,7 @@ describe("testing test_crypto_create_CA", function() {
             const cwd = path.join(__dirname, "../tmp/yyy1");
             fs.mkdirSync(cwd);
             call_crypto_create_CA("certificate", cwd, () => {
-                 done();
+                done();
             });
         });
 

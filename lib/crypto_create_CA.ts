@@ -92,8 +92,6 @@ let g_certificateAuthority: CertificateAuthority; // the Certificate Authority
 
 /***
  *
- * @method construct_CertificateAuthority
- * @param callback {Function}
  *
  * prerequisites :
  *   g_config.CAFolder : the folder of the CA
@@ -120,8 +118,6 @@ function construct_CertificateAuthority(callback: ErrorCallback) {
 let certificateManager: CertificateManager; // the Certificate Manager
 /***
  *
- * @method construct_CertificateManager
- * @param callback {Function}
  *
  * prerequisites :
  *   g_config.PKIFolder : the folder of the PKI
@@ -405,6 +401,31 @@ function createDefaultCertificate(
     ];
     const ip: string[] = [];
 
+    function createCertificateIfNotExist(
+        certificate: Filename,
+        private_key: Filename,
+        applicationUri: string,
+        startDate: Date,
+        validity: number, callback: (err?: Error | null, certificate?: string) => void
+    ) {
+        fs.exists(certificate, (exists: boolean) => {
+            if (exists) {
+                console.log(
+                    chalk.yellow("         certificate"),
+                    chalk.cyan(certificate),
+                    chalk.yellow(" already exists => skipping"));
+                return callback();
+            } else {
+                createCertificate(
+                    certificate,
+                    private_key,
+                    applicationUri,
+                    startDate,
+                    validity, callback);
+            }
+        });
+    }
+
     function createCertificate(
         certificate: Filename,
         private_key: Filename,
@@ -498,25 +519,43 @@ function createDefaultCertificate(
             displaySubtitle(" create Certificate " + certificate_file, callback),
 
         (callback: ErrorCallback) =>
-            createCertificate(certificate_file, private_key_file, applicationUri, yesterday, 365, callback),
+            createCertificateIfNotExist(certificate_file, private_key_file, applicationUri, yesterday, 365, callback),
 
         (callback: ErrorCallback) =>
             displaySubtitle(" create self signed Certificate " + self_signed_certificate_file, callback),
 
-        (callback: ErrorCallback) =>
-            createSelfSignedCertificate(self_signed_certificate_file, private_key_file,
-                applicationUri, yesterday, 365, callback)
+        (callback: ErrorCallback) => {
+            fs.exists(self_signed_certificate_file, (exists: boolean) => {
+                if (!exists) {
+                    return callback();
+                }
+                createSelfSignedCertificate(self_signed_certificate_file, private_key_file,
+                    applicationUri, yesterday, 365, callback);
+            });
+        }
     ];
 
     if (dev) {
         const tasks2 = [
-            (callback: ErrorCallback) => createCertificate(certificate_file_outofdate,
+
+            (callback: ErrorCallback) => createCertificateIfNotExist(certificate_file_outofdate,
                 private_key_file, applicationUri, two_years_ago, 365, callback),
-            (callback: ErrorCallback) => createCertificate(certificate_file_not_active_yet,
+
+            (callback: ErrorCallback) => createCertificateIfNotExist(certificate_file_not_active_yet,
                 private_key_file, applicationUri, next_year, 365, callback),
-            (callback: ErrorCallback) => createCertificate(certificate_revoked,
-                private_key_file, applicationUri, yesterday, 365, callback),
-            (callback: ErrorCallback) => revoke_certificate(certificate_revoked, callback),
+
+            (callback: ErrorCallback) => {
+                fs.exists(certificate_revoked, (exists: boolean) => {
+                    if (!exists) {
+                        return callback();
+                    }
+                    createCertificate(
+                        certificate_revoked, private_key_file, applicationUri, yesterday, 365,
+                        (err: Error | null) => {
+                            revoke_certificate(certificate_revoked, callback);
+                    });
+                });
+            }
         ];
         tasks1 = tasks1.concat(tasks2);
     }
@@ -557,52 +596,66 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
 
         (callback: ErrorCallback) =>
             displayTitle("Create  Application Certificate for Server & its private key", callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "client_",
-                1024, clientURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "client_",
-                2048, clientURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "client_",
-                3072, clientURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "client_",
-                4096, clientURN, callback),
+        (callback: ErrorCallback) => {
+            async.parallelLimit([
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "client_",
+                        1024, clientURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "client_",
+                        2048, clientURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "client_",
+                        3072, clientURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "client_",
+                        4096, clientURN, callback),
 
+            ], 1, callback);
+        },
         (callback: ErrorCallback) =>
             displayTitle("Create  Application Certificate for Client & its private key", callback),
-
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "server_",
-                1024, serverURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "server_",
-                2048, serverURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "server_",
-                3072, serverURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "server_",
-                4096, serverURN, callback),
-
+        (callback: ErrorCallback) => {
+            async.parallelLimit([
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "server_",
+                        1024, serverURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "server_",
+                        2048, serverURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "server_",
+                        3072, serverURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "server_",
+                        4096, serverURN, callback),
+            ], 1, callback);
+        },
         (callback: ErrorCallback) =>
             displayTitle("Create  Application Certificate for DiscoveryServer & its private key", callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "discoveryServer_",
-                1024, discoveryServerURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "discoveryServer_",
-                2048, discoveryServerURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "discoveryServer_",
-                3072, discoveryServerURN, callback),
-        (callback: ErrorCallback) =>
-            __create_default_certificates(base_name, "discoveryServer_",
-                4096, discoveryServerURN, callback)
-
+        (callback: ErrorCallback) => {
+            async.parallelLimit([
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "discoveryServer_",
+                        1024, discoveryServerURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "discoveryServer_",
+                        2048, discoveryServerURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "discoveryServer_",
+                        3072, discoveryServerURN, callback),
+                (callback: ErrorCallback) =>
+                    __create_default_certificates(base_name, "discoveryServer_",
+                        4096, discoveryServerURN, callback)
+            ], 1, callback);
+        },
     ];
-    async.series(task1, done);
+    async.series(task1, (err) => {
+        if (err) {
+            console.log("ERROR FOUND => ", err.message);
+        }
+        done(err);
+    });
 }
 
 function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
@@ -842,7 +895,7 @@ commands.strict()
                 certificate = the_csr_file.replace(".csr", ".pem");
 
                 if (fs.existsSync(certificate)) {
-                    throw new Error(" File " + certificate + " already exist");
+                    return callback(new Error(" File " + certificate + " already exist"));
                 }
 
                 g_certificateAuthority.signCertificateRequest(
@@ -941,7 +994,7 @@ commands.strict()
             console.log(chalk.yellow(" Certificate to revoke : "), chalk.cyan(certificate));
 
             if (!fs.existsSync(certificate)) {
-                throw new Error("cannot find certificate to revoke " + certificate);
+                return done(new Error("cannot find certificate to revoke " + certificate));
 
             }
             const tasks = [];
