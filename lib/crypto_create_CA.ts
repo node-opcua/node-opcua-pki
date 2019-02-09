@@ -526,7 +526,8 @@ function createDefaultCertificate(
 
         (callback: ErrorCallback) => {
             fs.exists(self_signed_certificate_file, (exists: boolean) => {
-                if (!exists) {
+                if (exists) {
+                    // self_signed certificate already exists
                     return callback();
                 }
                 createSelfSignedCertificate(self_signed_certificate_file, private_key_file,
