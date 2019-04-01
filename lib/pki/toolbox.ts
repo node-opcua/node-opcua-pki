@@ -389,21 +389,59 @@ type KeyLength = 1024 | 2048 | 3072 | 4096;
 export function createPrivateKey(
     privateKeyFilename: string,
     keyLength: KeyLength,
-    callback: (err?: Error) => void) {
+    callback: ErrorCallback) {
     if (useRandFile()) {
         assert(hasEnv("RANDFILE"));
     }
 
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
-    execute_openssl("genrsa " +
-        " -out " + q(n(privateKeyFilename)) +
-        (useRandFile() ? " -rand " + q(n(exportedEnvVars.RANDFILE)) : "") +
-        " " + keyLength,
-        {},
+    const randomFile = q(n(exportedEnvVars.RANDFILE)) ? q(n(exportedEnvVars.RANDFILE)) : "random.rnd";
+    const tasks = [
+        (callback: ErrorCallback) =>
+            createRandomFileIfNotExist(randomFile, {}, callback),
+
+        (callback: ErrorCallback) => {
+            execute_openssl("genrsa " +
+                " -out " + q(n(privateKeyFilename)) +
+                (useRandFile() ? " -rand " + randomFile : "") +
+                " " + keyLength,
+                {},
+                (err: Error | null) => {
+                    callback(err ? err : undefined);
+                });
+        }
+    ];
+
+    async.series(tasks, callback);
+}
+
+export function createRandomFile(randomFile: string, options: ExecuteOptions, callback: (err?: Error) => void) {
+    if (!useRandFile()) {
+        return callback();
+    }
+    execute_openssl("rand " +
+        " -out " + randomFile + " -hex 256",
+        options,
         (err: Error | null) => {
             callback(err ? err : undefined);
         });
 }
+
+export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback) {
+    const randomFilePath = options.cwd ? path.join(options.cwd, randomFile): randomFile;
+    fs.exists(randomFilePath, (exists: boolean) => {
+        if (exists) {
+            console.log(
+                chalk.yellow("         randomFile"),
+                chalk.cyan(randomFile),
+                chalk.yellow(" already exists => skipping"));
+            return callback();
+        } else {
+            createRandomFile(randomFile, options, callback);
+        }
+    });
+}
+
 
 export interface CreateCertificateSigningRequestOptions extends Params {
     rootDir?: string;
