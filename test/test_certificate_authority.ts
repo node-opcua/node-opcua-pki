@@ -7,8 +7,8 @@ import {PrivateKey, readCertificate, split_der} from "node-opcua-crypto";
 import * as path from "path";
 
 import should = require("should");
-import * as pki from "../lib";
-import {ErrorCallback, execute_openssl, Filename, g_config, Params, x509Date} from "../lib";
+import * as pki from "..";
+import {ErrorCallback, execute_openssl, Filename, g_config, Params, x509Date} from "..";
 import {beforeTest} from "./helpers";
 
 const _should = should;

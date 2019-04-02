@@ -7,11 +7,11 @@ import {
     getPublicKeyFromCertificate,
     getPublicKeyFromPrivateKey,
     mkdir
-} from "../lib";
+} from "..";
 
 import {beforeTest} from "./helpers";
 
-describe("toolbox", function() {
+describe("toolbox", function(this: any) {
 
     this.timeout(400000);
 

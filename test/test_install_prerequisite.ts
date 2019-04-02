@@ -1,4 +1,4 @@
-import {ErrorCallback} from "../lib";
+import {ErrorCallback} from "..";
 import {install_prerequisite} from "../lib/misc/install_prerequisite";
 
 describe("testing install_prerequisite", () => {

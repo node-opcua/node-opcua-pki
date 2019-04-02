@@ -136,14 +136,14 @@ export function execute(
         callback(err, outputs.join(""));
     });
 
-    const stream2 = byline(child.stdout);
+    const stream2 = byline(child.stdout!);
     stream2.on("data", (line: string) => {
         outputs.push(line + "\n");
     });
 
     // istanbul ignore next
     if (!g_config.silent) {
-        const stream1 = byline(child.stderr);
+        const stream1 = byline(child.stderr!);
         stream1.on("data", (line: string) => {
             line = line.toString();
             if (displayError) {
@@ -329,6 +329,7 @@ export function make_path(folderName: string, filename?: string): string {
     if (filename) {
         s = path.join(path.normalize(folderName), filename);
     } else {
+        assert(folderName);
         s = folderName;
     }
     s = s.replace(/\\/g, "/");
@@ -391,11 +392,11 @@ export function createPrivateKey(
     keyLength: KeyLength,
     callback: ErrorCallback) {
     if (useRandFile()) {
-        assert(hasEnv("RANDFILE"));
+       /// assert(hasEnv("RANDFILE"));
     }
 
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
-    const randomFile = q(n(exportedEnvVars.RANDFILE)) ? q(n(exportedEnvVars.RANDFILE)) : "random.rnd";
+    const randomFile = exportedEnvVars.RANDFILE ? q(n(exportedEnvVars.RANDFILE)) : "random.rnd";
     const tasks = [
         (callback: ErrorCallback) =>
             createRandomFileIfNotExist(randomFile, {}, callback),

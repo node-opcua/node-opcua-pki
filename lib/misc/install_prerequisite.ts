@@ -68,7 +68,7 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
             callback(err ? err : null, {exitCode, output});
         });
 
-    const stream1 = byline(child.stdout);
+    const stream1 = byline(child.stdout!);
     stream1.on("data", (line: string) => {
         output += line + "\n";
         process.stdout.write("        stdout " + chalk.yellow(line) + "\n");

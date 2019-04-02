@@ -6,12 +6,11 @@
     "declaration": true,
     "outDir": "./dist",
     "sourceMap": true,
-    "strict": true
+    "strict": true,
+    "removeComments": true,
   },
   "files": [
     "lib/index.ts",
     "test/helpers.ts",
-    "test/test_certificate_authority.ts",
-    "test/test_certificate_manager.ts"
   ]
 }

@@ -9,7 +9,7 @@ import {promisify} from "util";
 import {beforeTest, grep} from "./helpers";
 
 import should = require("should");
-import * as pki from "../lib";
+import * as pki from "..";
 import {
     CertificateStatus,
     dumpCertificate,

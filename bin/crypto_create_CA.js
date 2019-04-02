@@ -21,7 +21,6 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 "use strict";
-require("../dist/lib/crypto_create_CA.js").main(process.argv.splice(2), function () {
+require("../dist/lib/crypto_create_CA.js").main(process.argv.splice(2), () => {
     console.log("Done ");
 });
-

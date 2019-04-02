@@ -1,15 +1,12 @@
 // tslint:disable:no-console
 import * as child_process from "child_process";
-import {Options, Spinner} from "cli-spinner";
 import * as fs from "fs";
 import * as path from "path";
-import {dumpCertificate, ErrorCallback, Filename} from "../lib";
-import * as pki from "../lib/index";
+import {dumpCertificate , ErrorCallback, Filename, make_path} from "..";
 import {beforeTest, grep} from "./helpers";
+import * as should from "should";
 
-import should = require("should");
-
-const n = pki.make_path;
+const n = make_path;
 
 function create_demo_certificates(cwd: Filename, callback: ErrorCallback) {
     call_crypto_create_CA("demo --dev", cwd, callback);
@@ -64,7 +61,7 @@ function call_crypto_create_CA(
     });
 }
 
-describe("testing test_crypto_create_CA", function () {
+describe("testing test_crypto_create_CA", function(this: any) {
 
     this.timeout(2300000);
 

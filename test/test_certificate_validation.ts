@@ -1,5 +1,7 @@
 // tslint:disable:variable-name
 // tslint:disable:no-shadowed-variable
+import {CertificateAuthority, CertificateManager} from "..";
+
 Error.stackTraceLimit = Infinity;
 import * as async from "async";
 import * as fs from "fs";
@@ -7,8 +9,7 @@ import {Certificate, readCertificate} from "node-opcua-crypto";
 import * as path from "path";
 
 import should = require("should");
-import * as pki from "../lib/index";
-import {CertificateAuthorityOptions, ErrorCallback, Filename, KeySize, Params} from "../lib/index";
+import {CertificateAuthorityOptions, ErrorCallback, Filename, KeySize, Params} from "..";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nb_days: number): Date {
@@ -36,10 +37,10 @@ describe("test certificate validation", function() {
             location: path.join(test.tmpFolder, "TEST_CA")
         };
 
-        certificateAuthority = new pki.CertificateAuthority(optionsCA);
+        certificateAuthority = new CertificateAuthority(optionsCA);
 
         const optionsPKI = {location: path.join(test.tmpFolder, "TEST_PKI")};
-        certificateManager = new pki.CertificateManager(optionsPKI);
+        certificateManager = new CertificateManager(optionsPKI);
 
         async.series([
 
@@ -93,14 +94,14 @@ describe("test certificate validation", function() {
 
     const test = require("./helpers").beforeTest(this, prepare_test);
 
-    let certificateManager: pki.CertificateManager;
-    let certificateAuthority: pki.CertificateAuthority;
+    let certificateManager: CertificateManager;
+    let certificateAuthority: CertificateAuthority;
 
     /**
      * @method createCertificate
      * @param params
-     * @param params.applicationUri {String}
-     * @param params.dns            {String[]}
+     * @param params.applicationUri
+     * @param params.dns
      * @param callback
      */
     function createCertificate(
@@ -143,7 +144,7 @@ describe("test certificate validation", function() {
 
     describe("should verify ", () => {
 
-        let localCertificateManager: pki.CertificateManager;
+        let localCertificateManager: CertificateManager;
 
         let cert1: Certificate;
         let cert2: Certificate;
@@ -152,7 +153,7 @@ describe("test certificate validation", function() {
 
         before((done: ErrorCallback) => {
             const optionsPKI2 = {location: path.join(test.tmpFolder, "TEST_PKI2")};
-            localCertificateManager = new pki.CertificateManager(optionsPKI2);
+            localCertificateManager = new CertificateManager(optionsPKI2);
             // get certificate
 
             cert1 = readCertificate(certificate_out_of_date);

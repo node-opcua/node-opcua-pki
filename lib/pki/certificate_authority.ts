@@ -256,12 +256,16 @@ export class CertificateAuthority {
         return make_path(this.rootDir, "./public/cacertificate_with_crl.pem");
     }
 
-    public initialize(callback: ErrorCallback) {
+    public async initialize(): Promise<void>;
+    public initialize(callback: ErrorCallback): void;
+    public initialize(callback?: ErrorCallback): any {
         assert(_.isFunction(callback));
-        construct_CertificateAuthority(this, callback);
+        construct_CertificateAuthority(this, callback!);
     }
 
-    public constructCACertificateWithCRL(callback: ErrorCallback) {
+    public async constructCACertificateWithCRL(): Promise<void>;
+    public constructCACertificateWithCRL(callback: ErrorCallback): void;
+    public constructCACertificateWithCRL(callback?: ErrorCallback): any {
 
         assert(_.isFunction(callback));
         const cacertWithCRL = this.caCertificateWithCrl;
@@ -284,14 +288,20 @@ export class CertificateAuthority {
                 fs.readFileSync(this.caCertificate)
             );
         }
-        callback();
-
+        callback!();
     }
 
+    public async constructCertificateChain(
+        certificate: Filename,
+    ): Promise<void>;
     public constructCertificateChain(
         certificate: Filename,
         callback: ErrorCallback
-    ) {
+    ): void;
+    public constructCertificateChain(
+        certificate: Filename,
+        callback?: ErrorCallback
+    ): any {
 
         assert(_.isFunction(callback));
         assert(fs.existsSync(certificate));
@@ -304,22 +314,33 @@ export class CertificateAuthority {
             + fs.readFileSync(this.caCertificate, "utf8")
             //   + fs.readFileSync(this.revocationList)
         );
-        callback();
+        callback!();
     }
 
+    public async createSelfSignedCertificate(
+        certificateFile: Filename,
+        privateKey: Filename,
+        params: Params,
+    ): Promise<void>;
     public createSelfSignedCertificate(
         certificateFile: Filename,
         privateKey: Filename,
         params: Params,
         callback: ErrorCallback
-    ) {
+    ): void;
+    public createSelfSignedCertificate(
+        certificateFile: Filename,
+        privateKey: Filename,
+        params: Params,
+        callback?: ErrorCallback
+    ): any {
 
         assert(typeof privateKey === "string");
         assert(fs.existsSync(privateKey));
         assert(_.isFunction(callback));
 
         if (!check_certificate_filename(certificateFile)) {
-            return callback();
+            return callback!();
         }
 
         adjustDate(params);
@@ -363,7 +384,7 @@ export class CertificateAuthority {
         tasks.push((callback: ErrorCallback) => fs.unlink(csrFile, callback));
 
         async.series(tasks, (err?: Error | null) => {
-            callback(err);
+            callback!(err);
         });
     }
 
@@ -371,17 +392,26 @@ export class CertificateAuthority {
      * revoke a certificate and update the CRL
      *
      * @method revokeCertificate
-     * @param certificate {String} the certificate to revoke
-     * @param params {Object}
-     * @paral [params.reason = "keyCompromise" {String}]
-     * @param callback {Function}
+     * @param certificate -  the certificate to revoke
+     * @param params
+     * @param [params.reason = "keyCompromise" {String}]
+     * @param callback
      * @async
      */
     public revokeCertificate(
         certificate: Filename,
         params: Params,
         callback: ErrorCallback
-    ) {
+    ): void;
+    public async revokeCertificate(
+        certificate: Filename,
+        params: Params
+    ): Promise<void>;
+    public revokeCertificate(
+        certificate: Filename,
+        params: Params,
+        callback?: ErrorCallback
+    ): any {
         assert(_.isFunction(callback));
 
         const crlReasons = [
@@ -460,27 +490,39 @@ export class CertificateAuthority {
 
         ];
 
-        async.series(tasks, callback);
+        async.series(tasks, callback!);
 
     }
 
     /**
      *
-     * @param certificate            {String} the certificate filename to generate
-     * @param certificateSigningRequestFilename               {String} the certificate signing request
-     * @param params                 {Object}
-     * @param params.applicationUri  {String} the applicationUri
-     * @param params.startDate       {Date}   startDate of the certificate
-     * @param params.validity        {Number} number of day of validity of the cerificate
-     * @param callback               {Function}
+     * @param certificate            - the certificate filename to generate
+     * @param certificateSigningRequestFilename   - the certificate signing request
+     * @param params                 - parameters
+     * @param params.applicationUri  - the applicationUri
+     * @param params.startDate       - startDate of the certificate
+     * @param params.validity        - number of day of validity of the certificate
+     * @param callback
      */
+    public async signCertificateRequest(
+        certificate: Filename,
+        certificateSigningRequestFilename: Filename,
+        params: Params
+    ): Promise<Filename>;
     public signCertificateRequest(
         certificate: Filename,
         certificateSigningRequestFilename: Filename,
         params: Params,
         callback: (err: Error | null, certificate?: Filename) => void
-    ) {
+    ): void;
+    public signCertificateRequest(
+        certificate: Filename,
+        certificateSigningRequestFilename: Filename,
+        params: Params,
+        callback?: (err: Error | null, certificate?: Filename) => void
+    ): any {
 
+        if (!callback) { throw new Error("Internal Error"); }
         assert(fs.existsSync(certificateSigningRequestFilename));
         assert(_.isFunction(callback));
         if (!check_certificate_filename(certificate)) {
@@ -539,10 +581,17 @@ export class CertificateAuthority {
 
     }
 
+    public async verifyCertificate(
+        certificate: Filename,
+    ): Promise<void>;
     public verifyCertificate(
         certificate: Filename,
         callback: ErrorCallback
-    ) {
+    ): void;
+    public verifyCertificate(
+        certificate: Filename,
+        callback?: ErrorCallback
+    ): any {
 
         // openssl verify crashes on windows! we cannot use it reliably
         // istanbul ignore next
@@ -560,10 +609,28 @@ export class CertificateAuthority {
                 "verify -verbose " +
                 " -CAfile " + q(n(this.caCertificateWithCrl)) +
                 " " + q(n(certificate)), options, (err: Error | null) => {
-                    callback(err ? err : undefined);
+                    callback!(err ? err : undefined);
                 });
         } else {
-            return callback();
+            return callback!();
         }
     }
 }
+
+// tslint:disable:no-var-requires
+const thenify = require("thenify");
+const opts = {multiArgs: false};
+CertificateAuthority.prototype.initialize
+    = thenify.withCallback(CertificateAuthority.prototype.initialize, opts);
+CertificateAuthority.prototype.constructCACertificateWithCRL
+    = thenify.withCallback(CertificateAuthority.prototype.constructCACertificateWithCRL, opts);
+CertificateAuthority.prototype.constructCertificateChain
+    = thenify.withCallback(CertificateAuthority.prototype.constructCertificateChain, opts);
+CertificateAuthority.prototype.createSelfSignedCertificate
+    = thenify.withCallback(CertificateAuthority.prototype.createSelfSignedCertificate, opts);
+CertificateAuthority.prototype.revokeCertificate
+    = thenify.withCallback(CertificateAuthority.prototype.revokeCertificate, opts);
+CertificateAuthority.prototype.verifyCertificate
+    = thenify.withCallback(CertificateAuthority.prototype.verifyCertificate, opts);
+CertificateAuthority.prototype.signCertificateRequest
+    = thenify.withCallback(CertificateAuthority.prototype.signCertificateRequest, opts);
