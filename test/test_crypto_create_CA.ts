@@ -75,10 +75,10 @@ describe("testing test_crypto_create_CA", function () {
         const cwd = path.join(__dirname, "../tmp");
 
         fs.existsSync(
-            path.join(__dirname, "../tmp/certificates/discoveryServer_cert_2048.pem"))
+            path.join(cwd, "certificates/discoveryServer_cert_2048.pem"))
             .should.eql(false);
 
-        console.log(" folder = ", path.join(__dirname, "../tmp/certificates/discoveryServer_cert_2048.pem"));
+        console.log(" folder = ", path.join(cwd, "certificates/discoveryServer_cert_2048.pem"));
 
         const date1 = new Date();
 
@@ -86,7 +86,7 @@ describe("testing test_crypto_create_CA", function () {
 
             if (err) { return done(err); }
             fs.existsSync(
-                path.join(__dirname, "../tmp/certificates/discoveryServer_cert_2048.pem"))
+                path.join(cwd, "certificates/discoveryServer_cert_2048.pem"))
                 .should.eql(true);
 
             // running a second time should be faster

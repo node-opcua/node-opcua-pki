@@ -47,7 +47,8 @@ import {
     quote,
     setEnv,
     useRandFile,
-    x509Date
+    x509Date,
+    createRandomFileIfNotExist
 } from "./toolbox";
 
 const config = {
@@ -147,7 +148,13 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
 
     const keySize = cauthority.keySize;
 
+    const randomFile = "random.rnd";
+
     const tasks = [
+        (callback: ErrorCallback) => displayTitle("Creating random file random.rnd", callback),
+
+        (callback: ErrorCallback) =>
+            createRandomFileIfNotExist(randomFile, options, callback),
 
         (callback: ErrorCallback) => displayTitle("Generate the CA private Key - " + keySize, callback),
 
@@ -156,7 +163,7 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
         // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
         (callback: ErrorCallback) => execute_openssl("genrsa " +
             " -out  private/cakey.pem" +
-            (useRandFile() ? " -rand random.rnd" : "") +
+            (useRandFile() ? " -rand " + randomFile : "") +
             " " + keySize, options, callback),
 
         (callback: ErrorCallback) => displayTitle("Generate a certificate request for the CA key", callback),

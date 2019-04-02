@@ -284,7 +284,7 @@ export class CertificateManager {
                 if (!exists) {
                     debugLog("generating private key ...");
                     setEnv("RANDFILE", this.randomFile);
-                    createPrivateKey(this.privateKey, this.keySize, (err?: Error) => {
+                    createPrivateKey(this.privateKey, this.keySize, (err?: Error | null | undefined) => {
                         return callback(err);
                     });
                 } else {
