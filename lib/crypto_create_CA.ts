@@ -35,12 +35,12 @@ import * as _ from "underscore";
 
 import {makeApplicationUrn} from "./misc/applicationurn";
 import {get_fully_qualified_domain_name} from "./misc/hostname";
-import {Subject} from "./misc/subject";
+import {Subject, SubjectOptions} from "./misc/subject";
 import {CertificateAuthority} from "./pki/certificate_authority";
 import {CertificateManager} from "./pki/certificate_manager";
 import {ErrorCallback, Filename, KeySize} from "./pki/common";
 import {
-    createCertificateSigningRequest,
+    createCertificateSigningRequest, CreateCertificateSigningRequestWithConfigOptions,
     createPrivateKey,
     displayChapter,
     displaySubtitle,
@@ -73,15 +73,23 @@ const next_year = get_offset_date(today, 365);
 interface LocalConfig {
     CAFolder?: string;
     PKIFolder?: string;
+
     keySize?: KeySize;
-    subject?: Subject;
+
+    subject?: SubjectOptions | string;
+
     certificateDir?: Filename;
+
     privateKey?: Filename;
+
     applicationUri?: string;
+
     outputFile?: string;
+
     altNames?: string[];
     dns?: string[];
     ip?: string[];
+
     validity?: number;
 
 }
@@ -438,7 +446,7 @@ function createDefaultCertificate(
 
         const configFile = make_path(base_name, "../certificates/PKI/own/openssl.cnf");
 
-        const params = {
+        const params: CreateCertificateSigningRequestWithConfigOptions = {
             privateKey: private_key,
             rootDir: ".",
             configFile
@@ -850,6 +858,7 @@ commands.strict()
             tasks.push((callback: ErrorCallback) => {
 
                 gLocalConfig.outputFile = gLocalConfig.outputFile || "self_signed_certificate.pem";
+
                 certificateManager.createSelfSignedCertificate(gLocalConfig, (err?: Error | null) => {
                     callback(err!);
                 });

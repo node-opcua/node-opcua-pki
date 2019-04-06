@@ -166,7 +166,8 @@ export function useRandFile() {
 
 function openssl_require2DigitYearInDate() {
     if (!g_config.opensslVersion) {
-        throw new Error("openssl_require2DigitYearInDate : please call ensure_openssl_installed(callback)");
+        throw new Error("openssl_require2DigitYearInDate : openssl version is not known:" +
+            "  please call ensure_openssl_installed(callback)");
     }
     return g_config.opensslVersion.match(/OpenSSL 0\.9/);
 }
@@ -392,7 +393,7 @@ export function createPrivateKey(
     keyLength: KeyLength,
     callback: ErrorCallback) {
     if (useRandFile()) {
-       /// assert(hasEnv("RANDFILE"));
+        /// assert(hasEnv("RANDFILE"));
     }
 
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
@@ -428,8 +429,12 @@ export function createRandomFile(randomFile: string, options: ExecuteOptions, ca
         });
 }
 
-export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback) {
-    const randomFilePath = options.cwd ? path.join(options.cwd, randomFile): randomFile;
+export function createRandomFileIfNotExist(
+    randomFile: string,
+    options: ExecuteOptions,
+    callback: ErrorCallback
+): void {
+    const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
     fs.exists(randomFilePath, (exists: boolean) => {
         if (exists) {
             console.log(
@@ -443,11 +448,15 @@ export function createRandomFileIfNotExist(randomFile: string, options: ExecuteO
     });
 }
 
+// tslint:disable-next:no-empty-interface
+export interface CreateCertificateSigningRequestOptions extends ProcessAltNamesParam {
+    subject?: SubjectOptions | string;
+}
 
-export interface CreateCertificateSigningRequestOptions extends Params {
-    rootDir?: string;
-    configFile?: string;
-    privateKey?: string;
+export interface CreateCertificateSigningRequestWithConfigOptions extends CreateCertificateSigningRequestOptions {
+    rootDir: Filename;
+    configFile: Filename;
+    privateKey: Filename;
 }
 
 /**
@@ -459,7 +468,7 @@ export interface CreateCertificateSigningRequestOptions extends Params {
  */
 export function createCertificateSigningRequest(
     certificateSigningRequestFilename: string,
-    params: CreateCertificateSigningRequestOptions,
+    params: CreateCertificateSigningRequestWithConfigOptions,
     callback: (err?: Error) => void
 ): void {
 
@@ -523,29 +532,41 @@ export function x509Date(date: Date): string {
     }
 }
 
-export interface Params {
+export interface ProcessAltNamesParam {
+    dns?: string[];
+    ip?: string[];
+    applicationUri?: string;
+}
 
-    subject?: SubjectOptions | string;
+export interface StartDateEndDateParam {
     startDate?: Date;
     endDate?: Date;
     validity?: number;
+}
 
-    applicationUri?: string;
+export interface CreateSelfSignCertificateParam extends ProcessAltNamesParam, StartDateEndDateParam {
+    subject?: SubjectOptions | string;
+}
 
-    dns?: string[];
-    ip?: string[];
+export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSignCertificateParam {
+    rootDir: Filename;
+    configFile: Filename;
+    privateKey: Filename;
+}
+
+export interface Params extends ProcessAltNamesParam, StartDateEndDateParam {
+
+    subject?: SubjectOptions | string;
 
     privateKey?: string;
-
     configFile?: string;
     rootDir?: string;
 
     outputFile?: string;
-
     reason?: string;
 }
 
-export function adjustDate(params: Params) {
+export function adjustDate(params: StartDateEndDateParam) {
 
     assert(params instanceof Object);
     params.startDate = params.startDate || new Date();
@@ -567,7 +588,6 @@ export function adjustDate(params: Params) {
         console.log(" start Date ", params.startDate.toUTCString(), x509Date(params.startDate));
         console.log(" end   Date ", params.endDate.toUTCString(), x509Date(params.endDate));
     }
-
 }
 
 export function adjustApplicationUri(params: Params) {
@@ -597,7 +617,7 @@ export function check_certificate_filename(certificateFile: string): boolean {
  * @param params.ip
  * @private
  */
-export function processAltNames(params: Params) {
+export function processAltNames(params: ProcessAltNamesParam) {
 
     params.dns = params.dns || [];
     params.ip = params.ip || [];
@@ -607,7 +627,6 @@ export function processAltNames(params: Params) {
     subjectAltName.push("URI:" + params.applicationUri);
     subjectAltName = ([] as string[]).concat(subjectAltName, params.dns.map((d: string) => "DNS:" + d));
     subjectAltName = ([] as string[]).concat(subjectAltName, params.ip.map((d: string) => "IP:" + d));
-
     const subjectAltNameString = subjectAltName.join(", ");
     setEnv("ALTNAME", subjectAltNameString);
 }
@@ -628,7 +647,7 @@ export function processAltNames(params: Params) {
  */
 export function createSelfSignCertificate(
     certificate: string,
-    params: Params,
+    params: CreateSelfSignCertificateWithConfigParam,
     callback: (err?: Error | null) => void
 ) {
 
@@ -637,9 +656,9 @@ export function createSelfSignCertificate(
      *       it is not possible to control the startDate of the certificate validity
      *       to achieve this the certificateAuthority tool shall be used.
      */
-    assert(fs.existsSync(params.configFile!));
-    assert(fs.existsSync(params.rootDir!));
-    assert(fs.existsSync(params.privateKey!));
+    assert(fs.existsSync(params.configFile));
+    assert(fs.existsSync(params.rootDir));
+    assert(fs.existsSync(params.privateKey));
     if (!params.subject) {
         return callback(new Error("Missing subject"));
     }
@@ -651,9 +670,8 @@ export function createSelfSignCertificate(
     processAltNames(params);
 
     adjustDate(params);
-
     assert(params.hasOwnProperty("validity"));
-    assert(params.hasOwnProperty("subject"));
+
     let subject = new Subject(params.subject);
     subject = subject.toString();
 
@@ -707,7 +725,6 @@ export function createSelfSignCertificate(
         (callback: ErrorCallback) => {
             fs.unlink(certificateRequestFilename, callback);
         }
-
     ];
     async.series(tasks, callback);
 }

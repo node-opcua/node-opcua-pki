@@ -36,15 +36,16 @@ import {
     createCertificateSigningRequest,
     createPrivateKey,
     createSelfSignCertificate,
+    CreateSelfSignCertificateParam,
+    CreateSelfSignCertificateWithConfigParam,
     debugLog,
     ensure_openssl_installed,
     make_path,
     mkdir,
-    Params,
     setEnv
 } from "./toolbox";
 
-import {CertificateStatus, ErrorCallback, KeySize, Thumbprint} from "./common";
+import {CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint} from "./common";
 
 // tslint:disable-next-line:no-var-requires
 const walk = require("walk");
@@ -54,11 +55,15 @@ export interface CertificateManagerOptions {
     location: string;
 }
 
+export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertificateParam {
+    outputFile?: Filename;
+}
+
 export class CertificateManager {
 
-    private keySize: KeySize;
-    private location: string;
-    private _thumbs: {
+    private readonly keySize: KeySize;
+    private readonly location: string;
+    private readonly _thumbs: {
         rejected: { [key: string]: any },
         trusted: { [key: string]: any },
     };
@@ -316,14 +321,14 @@ export class CertificateManager {
      * @param params.ip
      */
     public async createSelfSignedCertificate(
-        params: Params,
+        params: CreateSelfSignCertificateParam1,
     ): Promise<void>;
     public createSelfSignedCertificate(
-        params: Params,
+        params: CreateSelfSignCertificateParam1,
         callback: ErrorCallback
     ): void;
     public createSelfSignedCertificate(
-        params: Params,
+        params: CreateSelfSignCertificateParam1,
         ...args: any[]
     ): any {
         const callback = args[0];
@@ -336,44 +341,51 @@ export class CertificateManager {
         let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
         certificateFilename = params.outputFile || certificateFilename;
 
-        params.rootDir = self.rootDir;
-        params.configFile = self.configFile;
-        params.privateKey = self.privateKey;
+        const _params = params as CreateSelfSignCertificateWithConfigParam;
+        _params.rootDir = self.rootDir;
+        _params.configFile = self.configFile;
+        _params.privateKey = self.privateKey;
 
-        createSelfSignCertificate(certificateFilename, params, callback);
+        createSelfSignCertificate(certificateFilename, _params, callback);
     }
 
+    public async createCertificateRequest(
+        params: CreateSelfSignCertificateParam,
+    ): Promise<Filename>;
     public createCertificateRequest(
-        params: Params,
+        params: CreateSelfSignCertificateParam,
         callback: (err: Error | null, certificateSigningRequestFilename?: string) => void
-    ) {
+    ): void;
+    public createCertificateRequest(
+        params: CreateSelfSignCertificateParam,
+        callback?: (err: Error | null, certificateSigningRequestFilename?: string) => void
+    ): any {
 
+        assert(params);
         assert(_.isFunction(callback));
 
-        if (params.rootDir) {
-            throw new Error("rootDir should not be specified " + params.rootDir);
+        const _params = params as CreateSelfSignCertificateWithConfigParam;
+        if (_params.hasOwnProperty("rootDir")) {
+            throw new Error("rootDir should not be specified ");
         }
-        assert(params);
-        assert(!params.rootDir);
-        assert(!params.configFile);
-        assert(!params.privateKey);
-        params.rootDir = this.rootDir;
-        params.configFile = this.configFile;
-        params.privateKey = this.privateKey;
+        assert(!_params.rootDir);
+        assert(!_params.configFile);
+        assert(!_params.privateKey);
+        _params.rootDir = this.rootDir;
+        _params.configFile = this.configFile;
+        _params.privateKey = this.privateKey;
 
         // compose a file name for the request
         const now = new Date();
         const today = now.toISOString().slice(0, 10) + "_" + now.getTime();
         const certificateSigningRequestFilename = path.join(
-            params.rootDir,
+            this.rootDir,
             "own/certs", "certificate_" + today + ".csr");
-
-        // xx toolbox.processAltNames(params);
         createCertificateSigningRequest(
             certificateSigningRequestFilename,
-            params,
+            _params,
             (err?: Error) => {
-                return callback(err!, certificateSigningRequestFilename);
+                return callback!(err!, certificateSigningRequestFilename);
             });
     }
 
@@ -483,5 +495,6 @@ const opts = {multiArgs: false};
 CertificateManager.prototype.rejectCertificate = thenify.withCallback(CertificateManager.prototype.rejectCertificate, opts);
 CertificateManager.prototype.trustCertificate = thenify.withCallback(CertificateManager.prototype.trustCertificate, opts);
 CertificateManager.prototype.createSelfSignedCertificate = thenify.withCallback(CertificateManager.prototype.createSelfSignedCertificate, opts);
+CertificateManager.prototype.createCertificateRequest = thenify.withCallback(CertificateManager.prototype.createCertificateRequest, opts);
 CertificateManager.prototype.initialize = thenify.withCallback(CertificateManager.prototype.initialize, opts);
 CertificateManager.prototype.getCertificateStatus = thenify.withCallback(CertificateManager.prototype.getCertificateStatus, opts);

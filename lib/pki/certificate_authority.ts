@@ -34,6 +34,7 @@ import {
     adjustDate,
     check_certificate_filename,
     configurationFileTemplate,
+    createRandomFileIfNotExist,
     debugLog,
     displaySubtitle,
     displayTitle,
@@ -47,8 +48,7 @@ import {
     quote,
     setEnv,
     useRandFile,
-    x509Date,
-    createRandomFileIfNotExist
+    x509Date
 } from "./toolbox";
 
 const config = {
