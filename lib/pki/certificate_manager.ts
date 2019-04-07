@@ -45,6 +45,7 @@ import {
     setEnv
 } from "./toolbox";
 
+import {SubjectOptions} from "../misc/subject";
 import {CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint} from "./common";
 
 // tslint:disable-next-line:no-var-requires
@@ -56,7 +57,12 @@ export interface CertificateManagerOptions {
 }
 
 export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertificateParam {
-    outputFile?: Filename;
+    outputFile: Filename;
+    subject: SubjectOptions | string;
+    applicationUri: string;
+    dns: any[];
+    startDate: Date;
+    validity: number;
 }
 
 export class CertificateManager {
@@ -333,7 +339,7 @@ export class CertificateManager {
     ): any {
         const callback = args[0];
         const self = this;
-        assert(_.isString(params.applicationUri));
+        assert(_.isString(params.applicationUri), "expecting applicationUri");
         if (!fs.existsSync(self.privateKey)) {
             return callback(new Error("Cannot find private key " + self.privateKey));
         }
@@ -341,7 +347,7 @@ export class CertificateManager {
         let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
         certificateFilename = params.outputFile || certificateFilename;
 
-        const _params = params as CreateSelfSignCertificateWithConfigParam;
+        const _params = params as any as CreateSelfSignCertificateWithConfigParam;
         _params.rootDir = self.rootDir;
         _params.configFile = self.configFile;
         _params.privateKey = self.privateKey;
@@ -421,7 +427,7 @@ export class CertificateManager {
     }
 
     private _moveCertificate(
-        certificate: Buffer,
+        certificate: Certificate,
         newStatus: CertificateStatus,
         callback: ErrorCallback
     ) {
@@ -466,8 +472,12 @@ export class CertificateManager {
             walker.on("file", (root: string, stat: any, next: () => void) => {
 
                 const filename = path.join(root, stat.name);
-                const thumbprint = readThumbprint(filename);
-                index[thumbprint] = 1;
+                try {
+                    const thumbprint = readThumbprint(filename);
+                    index[thumbprint] = 1;
+                } catch (err) {
+                    debugLog("err : ", err.message);
+                }
                 next();
             });
             walker.on("end", () => {
