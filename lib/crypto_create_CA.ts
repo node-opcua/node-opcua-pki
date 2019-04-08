@@ -37,7 +37,7 @@ import {makeApplicationUrn} from "./misc/applicationurn";
 import {get_fully_qualified_domain_name} from "./misc/hostname";
 import {Subject, SubjectOptions} from "./misc/subject";
 import {CertificateAuthority} from "./pki/certificate_authority";
-import {CertificateManager} from "./pki/certificate_manager";
+import {CertificateManager, CreateSelfSignCertificateParam1} from "./pki/certificate_manager";
 import {ErrorCallback, Filename, KeySize} from "./pki/common";
 import {
     createCertificateSigningRequest, CreateCertificateSigningRequestWithConfigOptions,
@@ -90,6 +90,7 @@ interface LocalConfig {
     dns?: string[];
     ip?: string[];
 
+    startDate?: Date;
     validity?: number;
 
 }
@@ -857,9 +858,18 @@ commands.strict()
 
             tasks.push((callback: ErrorCallback) => {
 
-                gLocalConfig.outputFile = gLocalConfig.outputFile || "self_signed_certificate.pem";
+                const params: CreateSelfSignCertificateParam1 = {
+                    applicationUri: gLocalConfig.applicationUri || "",
+                    dns: gLocalConfig.dns || [],
+                    ip: gLocalConfig.ip || [],
+                    outputFile: gLocalConfig.outputFile || "self_signed_certificate.pem",
+                    startDate: gLocalConfig.startDate || new Date(),
+                    subject: gLocalConfig.subject!,
+                    validity: gLocalConfig.validity || 365,
 
-                certificateManager.createSelfSignedCertificate(gLocalConfig, (err?: Error | null) => {
+                };
+
+                certificateManager.createSelfSignedCertificate(params, (err?: Error | null) => {
                     callback(err!);
                 });
             });
