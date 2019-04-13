@@ -28,6 +28,7 @@ import chalk from "chalk";
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
+import { callbackify, promisify } from "util";
 
 import {Certificate, exploreCertificateInfo, makeSHA1Thumbprint, readCertificate, toPem} from "node-opcua-crypto";
 
@@ -48,6 +49,15 @@ import {
 import {SubjectOptions} from "../misc/subject";
 import {CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint} from "./common";
 
+type ReadFileFunc = (
+    filename: string, encoding: string,
+    callback: (err: Error | null, content?: Buffer) => void) => void;
+
+const fsFileExists = promisify(fs.exists);
+const fsWriteFile = promisify(fs.writeFile);
+const fsReadFile = promisify(fs.readFile as ReadFileFunc);
+const fsRemoveFile = promisify(fs.unlink);
+
 // tslint:disable-next-line:no-var-requires
 const walk = require("walk");
 
@@ -66,6 +76,8 @@ export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertifica
 }
 
 export class CertificateManager {
+
+    public untrustUnknownCertificate: boolean = true;
 
     private readonly keySize: KeySize;
     private readonly location: string;
@@ -110,6 +122,10 @@ export class CertificateManager {
         return path.join(this.rootDir, "own/private/random.rnd");
     }
 
+    /**
+     * returns the certificate status trusted/rejected
+     * @param certificate
+     */
     public async getCertificateStatus(certificate: Buffer): Promise<CertificateStatus>;
     public getCertificateStatus(certificate: Buffer,
                                 callback: (err: Error | null, status?: CertificateStatus) => void): void;
@@ -159,18 +175,64 @@ export class CertificateManager {
         this._moveCertificate(certificate, "trusted", callback);
     }
 
+    public get rejectedFolder(): string {
+        return path.join(this.rootDir, "rejected");
+    }
+    public get trustedFolder(): string {
+        return path.join(this.rootDir, "trusted");
+    }
+
+    public isCertificateTrusted(
+        certificate: Certificate,
+        callback: (err: Error | null, isTrusted: boolean
+    ) => void): void;
+    public async isCertificateTrusted(certificate: Certificate): Promise<boolean>;
+    public async isCertificateTrusted(certificate: Certificate): Promise<any> {
+
+        const thumbprint = makeSHA1Thumbprint(certificate);
+
+        const certificateFilenameInTrusted = path.join(this.trustedFolder, thumbprint.toString("hex") + ".pem");
+
+        const fileExist: boolean = await fsFileExists(certificateFilenameInTrusted);
+
+        if (fileExist) {
+            const content: Certificate = await readCertificate(certificateFilenameInTrusted);
+            if (content.toString("base64") !== certificate.toString("base64")) {
+                return "BadCertificateInvalid";
+            }
+            return "Good";
+        } else {
+            const certificateFilename = path.join(this.rejectedFolder, thumbprint.toString("hex") + ".pem");
+            if (!await fsFileExists(certificateFilename)) {
+                if (this.untrustUnknownCertificate) {
+                    await fsWriteFile(certificateFilename, toPem(certificate, "CERTIFICATE"));
+                } else {
+                    return "Good";
+                }
+            }
+            debugLog("certificate has never been seen before and is rejected untrusted ", certificateFilename);
+            return "BadCertificateUntrusted";
+        }
+    }
+
     /**
      * Verify certificate validity
      * @method verifyCertificate
      * @param certificate
-     * @param callback
      */
-    public verifyCertificate(certificate: Certificate, callback: ErrorCallback) {
-
+    public async verifyCertificate(certificate: Certificate): Promise<string>;
+    public verifyCertificate(
+        certificate: Certificate,
+        callback: (err: Error | null, status?: string) => void
+    ): void;
+    public verifyCertificate(
+        certificate: Certificate,
+        callback?: (err: Error | null, status?: string) => void
+    ): any {
         // Is the  signature on the SoftwareCertificate valid .?
         if (!certificate) {
             // missing certificate
-            return callback(new Error("BadSecurityChecksFailed"));
+            return callback!(null, "BadSecurityChecksFailed");
         }
         // -- var split_der = require("lib/misc/crypto_explore_certificate").split_der;
         // -- var chain = split_der(securityHeader.senderCertificate);
@@ -181,72 +243,51 @@ export class CertificateManager {
         const cert = exploreCertificateInfo(certificate);
         const now = new Date();
 
-        async.series([
-            // check that certificate is active
-            (callback: ErrorCallback) => {
-                if (cert.notBefore.getTime() > now.getTime()) {
-                    // certificate is not active yet
-                    debugLog(chalk.red("certificate is invalid : certificate is not active yet !") +
-                        "  not before date =" + cert.notBefore);
-                    return callback(new Error("BadCertificateTimeInvalid"));
-                } else {
-                    return callback();
-                }
-            },
+        // check that certificate is active
+        if (cert.notBefore.getTime() > now.getTime()) {
+            // certificate is not active yet
+            debugLog(chalk.red("certificate is invalid : certificate is not active yet !") +
+                "  not before date =" + cert.notBefore);
+            return callback!(null, "BadCertificateTimeInvalid");
+        }
 
-            //  check that certificate has not expired
-            (callback: ErrorCallback) => {
-                if (cert.notAfter.getTime() <= now.getTime()) {
-                    // certificate is obsolete
-                    debugLog(chalk.red("certificate is invalid : certificate has expired !")
-                        + " not after date =" + cert.notAfter);
-                    return callback(new Error("BadCertificateTimeInvalid"));
-                } else {
-                    return callback();
-                }
-            },
-            // check that certificate is not untrusted
-            (callback: ErrorCallback) => {
+        //  check that certificate has not expired
+        if (cert.notAfter.getTime() <= now.getTime()) {
+            // certificate is obsolete
+            debugLog(chalk.red("certificate is invalid : certificate has expired !")
+                + " not after date =" + cert.notAfter);
+            return callback!(null, "BadCertificateTimeInvalid");
+        }
 
-                this._getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
+        // _check_that_certificate_has_not_been_revoked_by_issuer
+        // Has SoftwareCertificate has  been revoked by the issuer ?
+        // TODO: check if certificate is revoked or not ...
+        // BadCertificateRevoked
 
-                    // istanbul ignore next
-                    if (err) {
-                        return callback(err);
-                    }
+        // check that issuer certificate has not been revoked by the CA authority
+        // is issuer Certificate valid and has not been revoked by the CA that issued it. ?
+        // TODO : check validity of issuer certificate
+        // BadCertificateIssuerRevoked
 
-                    if (status === "rejected") {
-                        return callback(new Error("BadCertificateUntrusted"));
-                    } else if (status === "trusted") {
-                        return callback(); // OK
-                    }
-                    assert(status === "unknown");
-                    return callback(new Error("BadCertificateUntrusted"));
+        // check that ApplicationDescription matches URI in certificate
+        // does the URI specified in the ApplicationDescription  match the URI in the Certificate ?
+        // TODO : check ApplicationDescription of issuer certificate
+        // return BadCertificateUriInvalid
 
-                });
-            },
-            // _check_that_certificate_has_not_been_revoked_by_issuer
-            (callback: ErrorCallback) => {
-                // Has SoftwareCertificate has  been revoked by the issuer ?
-                // TODO: check if certificate is revoked or not ...
-                // BadCertificateRevoked
-                return callback();
-            },
-            // check that issuer certificate has not been revoked by the CA authority
-            (callback: ErrorCallback) => {
-                // is issuer Certificate valid and has not been revoked by the CA that issued it. ?
-                // TODO : check validity of issuer certificate
-                // StatusCodes.BadCertificateIssuerRevoked
-                return callback();
-            },
-            // check that ApplicationDescription matches URI in certificate
-            (callback: ErrorCallback) => {
-                // does the URI specified in the ApplicationDescription  match the URI in the Certificate ?
-                // TODO : check ApplicationDescription of issuer certificate
-                // return StatusCodes.BadCertificateUriInvalid
-                return callback();
+        this._getCertificateStatus(certificate, (err?: Error | null, status?: CertificateStatus) => {
+
+            // istanbul ignore next
+            if (err) {
+                return callback!(err);
             }
-        ], callback);
+            if (status === "rejected") {
+                return callback!(null, "BadCertificateUntrusted");
+            } else if (status === "trusted") {
+                return callback!(null, "Good"); // OK
+            }
+            assert(status === "unknown");
+            return callback!(null, "BadCertificateUntrusted");
+        });
     }
 
     /*
@@ -508,3 +549,5 @@ CertificateManager.prototype.createSelfSignedCertificate = thenify.withCallback(
 CertificateManager.prototype.createCertificateRequest = thenify.withCallback(CertificateManager.prototype.createCertificateRequest, opts);
 CertificateManager.prototype.initialize = thenify.withCallback(CertificateManager.prototype.initialize, opts);
 CertificateManager.prototype.getCertificateStatus = thenify.withCallback(CertificateManager.prototype.getCertificateStatus, opts);
+CertificateManager.prototype.verifyCertificate = thenify.withCallback(CertificateManager.prototype.verifyCertificate, opts);
+CertificateManager.prototype.isCertificateTrusted = thenify.withCallback(callbackify(CertificateManager.prototype.isCertificateTrusted), opts);

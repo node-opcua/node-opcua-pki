@@ -171,42 +171,29 @@ describe("test certificate validation", function() {
             ], done);
         });
 
-        it("should detect null certificate", (done: ErrorCallback) => {
-            localCertificateManager.verifyCertificate(
-                null! as Buffer,
-                (err?: Error | null) => {
-                    should.exist(err);
-                    err!.message.should.match("BadSecurityChecksFailed");
-                    done();
-                });
+        it("should detect null certificate", async () => {
+            const status = await localCertificateManager.verifyCertificate(null! as Buffer);
+            status.toString().should.eql("BadSecurityChecksFailed");
         });
 
-        it("should detect out of date certificate", (done: ErrorCallback) => {
-            localCertificateManager.verifyCertificate(cert1, (err?: Error | null) => {
-                err!.message.should.match("BadCertificateTimeInvalid");
-                done();
-            });
+        it("should detect out of date certificate", async () => {
+            const status = await localCertificateManager.verifyCertificate(cert1);
+            status.toString().should.eql("BadCertificateTimeInvalid");
         });
 
-        it("should detect 'not active yet' certificate", (done: ErrorCallback) => {
-            localCertificateManager.verifyCertificate(cert2, (err?: Error | null) => {
-                err!.message.should.match("BadCertificateTimeInvalid");
-                done();
-            });
+        it("should detect 'not active yet' certificate", async () => {
+            const status = await localCertificateManager.verifyCertificate(cert2);
+            status.toString().should.eql("BadCertificateTimeInvalid");
         });
 
-        it("should detect a valid certificate", (done: ErrorCallback) => {
-            localCertificateManager.verifyCertificate(cert3, (err?: Error | null) => {
-                should(err).eql(null);
-                done();
-            });
+        it("should detect a valid certificate", async () => {
+            const status = await localCertificateManager.verifyCertificate(cert3);
+            status.toString().should.eql("Good");
         });
 
-        it("should detect untrusted certificate", (done: ErrorCallback) => {
-            localCertificateManager.verifyCertificate(certificate_valid_untrusted_A, (err?: Error | null) => {
-                err!.message.should.match("BadCertificateUntrusted");
-                done();
-            });
+        it("should detect untrusted certificate", async () => {
+            const status = await localCertificateManager.verifyCertificate(certificate_valid_untrusted_A);
+            status.toString().should.eql("BadCertificateUntrusted");
         });
     });
 });
