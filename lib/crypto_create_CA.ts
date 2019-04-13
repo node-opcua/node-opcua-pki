@@ -336,7 +336,6 @@ function add_standard_option(options: OptionMap, optionName: string) {
 
         case "PKIFolder":
             options.PKIFolder = {
-                alias: "p",
                 type: "string",
                 default: "{root}/PKI",
                 describe: "the location of the Public Key Infrastructure"
@@ -968,16 +967,14 @@ commands.strict()
                 describe: "the certificate validity in days"
             },
             dns: {
-                alias: "dns",
-                default: null,
+                default:  get_fully_qualified_domain_name(),
                 type: "string",
-                describe: "the list of valid domain name"
+                describe: "the list of valid domain name (comma separated)"
             },
             ip: {
-                alias: "ip",
-                default: null,
+                default: "",
                 type: "string",
-                describe: "the list of valid IP"
+                describe: "the list of valid IPs (comma separated"
             }
         };
         add_standard_option(options, "silent");
@@ -990,7 +987,6 @@ commands.strict()
             .options(options)
             .help("help")
             .argv;
-
         if (local_argv.help) {
             yargs.showHelp();
             done();
