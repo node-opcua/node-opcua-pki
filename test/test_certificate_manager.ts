@@ -301,13 +301,46 @@ describe("CertificateManager managing certificate", function() {
         await cm.trustCertificate(certificate);
 
         const status1 = await cm.getCertificateStatus(certificate);
-
         status1.should.eql("trusted");
+
+        const status1_a = await cm.isCertificateTrusted(certificate);
+        status1_a.should.eql("Good");
 
         await cm.rejectCertificate(certificate);
 
         const status2 = await cm.getCertificateStatus(certificate);
         status2.should.eql("rejected");
+
+        const status2_a = await cm.isCertificateTrusted(certificate);
+        status2_a.should.eql("BadCertificateUntrusted");
+
+        await cm.rejectCertificate(certificate);
+
+    });
+    it("Q5 - isCertificateTrusted with invalid certificate", async () => {
+
+        const badCertificate = Buffer.from("bad certificate");
+        const status2_a = await cm.isCertificateTrusted(badCertificate);
+        status2_a.should.eql("BadCertificateInvalid");
+
+    });
+    it("Q6 - isCertificateTrusted", async () => {
+
+        const fsReadFile = promisify(fs.readFile);
+
+        const certificate: Buffer = await fsReadFile(sample_certificate3_der);
+        const status = await cm.isCertificateTrusted(certificate);
+        status.should.eql("BadCertificateUntrusted");
+
+        await cm.trustCertificate(certificate);
+
+        const status1 = await cm.isCertificateTrusted(certificate);
+        status1.should.eql("Good");
+
+        await cm.rejectCertificate(certificate);
+
+        const status2 = await cm.isCertificateTrusted(certificate);
+        status2.should.eql("BadCertificateUntrusted");
 
         await cm.rejectCertificate(certificate);
 

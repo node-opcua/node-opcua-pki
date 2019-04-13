@@ -184,33 +184,43 @@ export class CertificateManager {
 
     public isCertificateTrusted(
         certificate: Certificate,
-        callback: (err: Error | null, isTrusted: boolean
+        callback: (err: Error | null, trustedStatus: string
     ) => void): void;
-    public async isCertificateTrusted(certificate: Certificate): Promise<boolean>;
-    public async isCertificateTrusted(certificate: Certificate): Promise<any> {
+    public async isCertificateTrusted(certificate: Certificate): Promise<string>;
+    public async isCertificateTrusted(certificate: Certificate): Promise<string> {
 
         const thumbprint = makeSHA1Thumbprint(certificate);
 
         const certificateFilenameInTrusted = path.join(this.trustedFolder, thumbprint.toString("hex") + ".pem");
 
-        const fileExist: boolean = await fsFileExists(certificateFilenameInTrusted);
+        const fileExistInTrustedFolder: boolean = await fsFileExists(certificateFilenameInTrusted);
 
-        if (fileExist) {
+        if (fileExistInTrustedFolder) {
             const content: Certificate = await readCertificate(certificateFilenameInTrusted);
             if (content.toString("base64") !== certificate.toString("base64")) {
                 return "BadCertificateInvalid";
             }
             return "Good";
         } else {
-            const certificateFilename = path.join(this.rejectedFolder, thumbprint.toString("hex") + ".pem");
-            if (!await fsFileExists(certificateFilename)) {
+            const certificateFilenameInRejected = path.join(this.rejectedFolder, thumbprint.toString("hex") + ".pem");
+            if (!await fsFileExists(certificateFilenameInRejected)) {
+
                 if (this.untrustUnknownCertificate) {
-                    await fsWriteFile(certificateFilename, toPem(certificate, "CERTIFICATE"));
+                    // Certificate should be mark as untrusted
+
+                    // let's first verify that certificate is valid ,as we don't want to write invalid data
+                    try {
+                        const info = exploreCertificateInfo(certificate);
+                    } catch (err) {
+                        return "BadCertificateInvalid";
+                    }
+                    await fsWriteFile(certificateFilenameInRejected, toPem(certificate, "CERTIFICATE"));
                 } else {
+
                     return "Good";
                 }
             }
-            debugLog("certificate has never been seen before and is rejected untrusted ", certificateFilename);
+            debugLog("certificate has never been seen before and is rejected untrusted ", certificateFilenameInRejected);
             return "BadCertificateUntrusted";
         }
     }
