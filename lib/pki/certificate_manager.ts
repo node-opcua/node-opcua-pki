@@ -67,7 +67,7 @@ export interface CertificateManagerOptions {
 }
 
 export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertificateParam {
-    outputFile: Filename;
+    outputFile?: Filename; // default : own/cert/self_signed_certificate.pem
     subject: SubjectOptions | string;
     applicationUri: string;
     dns: any[];
