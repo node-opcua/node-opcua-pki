@@ -7,7 +7,7 @@
     "outDir": "./dist",
     "sourceMap": true,
     "strict": true,
-    "removeComments": true,
+    "removeComments": false,
   },
   "files": [
     "lib/index.ts",

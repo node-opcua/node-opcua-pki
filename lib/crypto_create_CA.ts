@@ -34,7 +34,7 @@ import * as path from "path";
 import * as _ from "underscore";
 
 import {makeApplicationUrn} from "./misc/applicationurn";
-import {get_fully_qualified_domain_name} from "./misc/hostname";
+import {getFullyQualifiedDomainName} from "./misc/hostname";
 import {Subject, SubjectOptions} from "./misc/subject";
 import {CertificateAuthority} from "./pki/certificate_authority";
 import {CertificateManager, CreateSelfSignCertificateParam1} from "./pki/certificate_manager";
@@ -179,7 +179,7 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
     if (argv.silent) {
         g_config.silent = true;
     }
-    const hostname = get_fully_qualified_domain_name();
+    const hostname = getFullyQualifiedDomainName();
 
     let certificateDir: string;
 
@@ -282,7 +282,7 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
         gLocalConfig.altNames = argv.altNames.split(";");
     }
     gLocalConfig.dns = [
-        get_fully_qualified_domain_name()
+        getFullyQualifiedDomainName()
     ];
     if (argv.dns) {
         gLocalConfig.dns = argv.dns.split(",");
@@ -404,8 +404,9 @@ function createDefaultCertificate(
     console.log(" urn = ", applicationUri);
 
     const dns: string[] = [
-        "localhost",
-        get_fully_qualified_domain_name()
+         // for conformance reason, localhost shall not be present in the DNS field of COP
+        // ***FORBIDEN** "localhost",
+        getFullyQualifiedDomainName()
     ];
     const ip: string[] = [];
 
@@ -594,7 +595,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
     const base_name = gLocalConfig.certificateDir!;
     assert(fs.existsSync(base_name));
 
-    const hostname = get_fully_qualified_domain_name();
+    const hostname = getFullyQualifiedDomainName();
     console.log(chalk.yellow("     hostname = "), chalk.cyan(hostname));
 
     const clientURN = makeApplicationUrn(hostname, "NodeOPCUA-Client");
@@ -967,7 +968,7 @@ commands.strict()
                 describe: "the certificate validity in days"
             },
             dns: {
-                default:  get_fully_qualified_domain_name(),
+                default:  getFullyQualifiedDomainName(),
                 type: "string",
                 describe: "the list of valid domain name (comma separated)"
             },

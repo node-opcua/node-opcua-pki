@@ -98,6 +98,8 @@ describe("CertificateManager", function() {
                 subject: "/CN=MyCommonName",
                 // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
                 validity: duration,
+
+                startDate: now,
             };
 
             cm.createSelfSignedCertificate(params, (err?: Error | null) => {

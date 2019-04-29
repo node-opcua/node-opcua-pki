@@ -147,7 +147,7 @@ export class CertificateManager {
                         const certificateName = path.join(this.rootDir, "rejected", thumbprint + ".pem");
 
                         const pem = toPem(certificate, "CERTIFICATE");
-                        fs.writeFile(certificateName, pem, (err?: Error) => {
+                        fs.writeFile(certificateName, pem, (err?: Error | null) => {
                             if (err) {
                                 return callback(err);
                             }
@@ -495,7 +495,7 @@ export class CertificateManager {
                 const certificateSrc = path.join(this.rootDir, status!, thumbprint + ".pem");
                 const certificateDest = path.join(this.rootDir, newStatus, thumbprint + ".pem");
 
-                fs.rename(certificateSrc, certificateDest, (err?: Error) => {
+                fs.rename(certificateSrc, certificateDest, (err?: Error | null) => {
 
                     delete (this._thumbs as any)[status!][thumbprint];
                     (this._thumbs as any)[newStatus][thumbprint] = 1;

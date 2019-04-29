@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import {should} from "should";
 import {
     createPrivateKey,
     ensure_openssl_installed,

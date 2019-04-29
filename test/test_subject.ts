@@ -1,4 +1,5 @@
 import {Subject} from "../lib/misc/subject";
+import {should} from "should";
 
 describe("Subject", () => {
 
