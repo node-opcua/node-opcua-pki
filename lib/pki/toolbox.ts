@@ -592,8 +592,9 @@ export function adjustDate(params: StartDateEndDateParam) {
 
 export function adjustApplicationUri(params: Params) {
     const applicationUri = params.applicationUri;
-    assert(typeof applicationUri === "string");
-    assert(applicationUri!.length <= 64, "Openssl doesn't support urn with length greater than 64 ");
+    if (applicationUri!.length > 200) {
+        throw new Error("Openssl doesn't support urn with length greater than 200" + applicationUri);
+    }
 }
 
 export function check_certificate_filename(certificateFile: string): boolean {

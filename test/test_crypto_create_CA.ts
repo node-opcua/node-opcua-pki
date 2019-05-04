@@ -24,6 +24,7 @@ function call_crypto_create_CA(
 
     const rootFolder = process.cwd();
     const cmd = "node";
+ 
     const args1: string = n(path.join(rootFolder, "./bin/crypto_create_CA.js")) + " " + cmdArguments;
     const args = args1.replace("  ", " ").split(" ");
 
@@ -56,7 +57,9 @@ function call_crypto_create_CA(
 
     child.stderr.pipe(process.stderr);
     child.on("exit", (code: number) => {
-        // xx console.log("done ... (" + the_code + ")");
+        if (process.env.DEBUG) {
+            console.log("done ... (" + code + ")");
+        }
         callback();
     });
 }
@@ -71,20 +74,18 @@ describe("testing test_crypto_create_CA", function(this: any) {
 
         const cwd = path.join(__dirname, "../tmp");
 
-        fs.existsSync(
-            path.join(cwd, "certificates/discoveryServer_cert_2048.pem"))
-            .should.eql(false);
+        const certificate_file = path.join(cwd, "certificates/discoveryServer_cert_2048.pem");
 
-        console.log(" folder = ", path.join(cwd, "certificates/discoveryServer_cert_2048.pem"));
+        fs.existsSync(certificate_file).should.eql(false);
+
+        console.log(" certificate_file = ", certificate_file);
 
         const date1 = new Date();
 
         create_demo_certificates(cwd, (err?: Error | null) => {
 
             if (err) { return done(err); }
-            fs.existsSync(
-                path.join(cwd, "certificates/discoveryServer_cert_2048.pem"))
-                .should.eql(true);
+            fs.existsSync(certificate_file).should.eql(true);
 
             // running a second time should be faster
             const date2 =  new Date();
@@ -109,12 +110,15 @@ describe("testing test_crypto_create_CA", function(this: any) {
             const cwd = path.join(__dirname, "../tmp/zzz1");
             fs.mkdirSync(cwd);
 
-            call_crypto_create_CA("certificate --selfSigned", cwd, () => {
+            const csrFile = path.join(cwd, "my_certificate.pem.csr");
+            const certificateFile = path.join(cwd, "my_certificate.pem");
+            call_crypto_create_CA("certificate --selfSigned --silent=false", cwd, () => {
 
-                fs.existsSync(path.join(cwd, "my_certificate.pem"))
-                    .should.eql(true);
-                fs.existsSync(path.join(cwd, "my_certificate.pem.csr"))
-                    .should.eql(false, "useless signing request shall be automatically removed");
+                fs.existsSync(certificateFile).should.eql(true,
+                     "file " + certificateFile + " should exist");
+                
+                fs.existsSync(csrFile).should.eql(false, 
+                    "useless signing request shall be automatically removed (" + csrFile + ")");
                 done();
             });
         });
