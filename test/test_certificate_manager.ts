@@ -63,7 +63,7 @@ describe("CertificateManager", function() {
         });
     });
 
-    it("should create its own self-signed certificate", (done: ErrorCallback) => {
+    it("should create its own self-signed certificate", async () => {
 
         function get_days(date1: Date, date2: Date): number {
             const ms_in_one_day = 24 * 3600000;
@@ -77,66 +77,62 @@ describe("CertificateManager", function() {
 
         const cm = new pki.CertificateManager(options);
 
-        cm.initialize((err?: Error) => {
-            if (err) {
-                return done(err);
-            }
-            const now = new Date();
-            const endDate = new Date(now.getFullYear() + 7, 10, 10);
-            const duration = get_days(endDate, now);
+        await cm.initialize();
 
-            const params = {
-                applicationUri: "MY:APPLICATION:URI",
+        const now = new Date();
+        const endDate = new Date(now.getFullYear() + 7, 10, 10);
+        const duration = get_days(endDate, now);
 
-                dns: [
-                    "localhost",
-                    "my.domain.com"
-                ],
-                ip: [
-                    "192.123.145.121"
-                ],
-                subject: "/CN=MyCommonName",
-                // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
-                validity: duration,
+        const params = {
+            applicationUri: "MY:APPLICATION:URI",
 
-                startDate: now,
-            };
+            dns: [
+                "some.other.domain.com",
+                "my.domain.com"
+            ],
+            ip: [
+                "192.123.145.121"
+            ],
+            subject: "/CN=MyCommonName",
+            // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
+            validity: duration,
 
-            cm.createSelfSignedCertificate(params, (err?: Error | null) => {
+            startDate: now,
+        };
 
-                if (err) {
-                    return done(err);
-                }
+        await cm.createSelfSignedCertificate(params);
+        
+        const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
+        fs.existsSync(expectedCertificate).should.eql(true);
 
-                const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
-                fs.existsSync(expectedCertificate).should.eql(true);
+        const data = await promisify(dumpCertificate)(expectedCertificate);
 
-                dumpCertificate(expectedCertificate, (err: Error | null, data?: string) => {
+        fs.writeFileSync(path.join(test.tmpFolder, "dump_cert1.txt"), data!);
 
-                    if (err || !data) {
-                        return done(err || new Error("No Data"));
-                    }
-                    fs.writeFileSync(path.join(test.tmpFolder, "dump_cert1.txt"), data!);
+        grep(data, /URI/).should.match(/URI:MY:APPLICATION:URI/);
+        grep(data, /DNS/).should.match(/DNS:some.other.domain.com/);
+        grep(data, /DNS/).should.match(/DNS:my.domain.com/);
 
-                    grep(data, /URI/).should.match(/URI:MY:APPLICATION:URI/);
-                    grep(data, /DNS/).should.match(/DNS:localhost/);
-                    grep(data, /DNS/).should.match(/DNS:my.domain.com/);
+        if (g_config.opensslVersion.match(/1.0.2/)) {
+            // note openssl version 1.0.1 does support sha256 signature
+            grep(data, /Signature Algorithm/).should.match(/Signature Algorithm: sha256WithRSAEncryption/);
+        }
+        grep(data, /Self-signed/).should.match(/Self-signed/);
 
-                    if (g_config.opensslVersion.match(/1.0.2/)) {
-                        // note openssl version 1.0.1 does support sha256 signature
-                        grep(data, /Signature Algorithm/).should.match(/Signature Algorithm: sha256WithRSAEncryption/);
-                    }
-                    grep(data, /SelfSigned/).should.match(/SelfSigned/);
+        // the self-signed certificate should contain
+        //     Digital Signature, Non Repudiation, Key Encipherment, Data Encipherment, Key Agreement
+        grep(data, /Digital Signature/).should.match(/Digital Signature/);
+        grep(data, /Key Encipherment/).should.match(/Key Encipherment/);
+        grep(data, /Data Encipherment/).should.match(/Data Encipherment/);
 
-                    const y = (new Date()).getFullYear();
-                    grep(data, /Not Before/).should.match(new RegExp(y.toString() + " GMT"));
-                    grep(data, /Not After/).should.match(new RegExp((y + 7).toString() + " GMT"));
+        // the self-signed certificate should not contain Certificate Sign or CRL Sing
+        grep(data, /Certificate Sign/).should.eql("");
+        grep(data, /CRL Sign/).should.eql("");
+        
+        const y = (new Date()).getFullYear();
+        grep(data, /Not Before/).should.match(new RegExp(y.toString() + " GMT"));
+        grep(data, /Not After/).should.match(new RegExp((y + 7).toString() + " GMT"));
 
-                    done();
-                });
-
-            });
-        });
     });
 
 });

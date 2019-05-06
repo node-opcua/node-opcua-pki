@@ -40,6 +40,8 @@ import {ErrorCallback, Filename} from "./common";
 
 import _ca_config_template from "./templates/ca_config_template.cnf";
 import _simple_config_template from "./templates/simple_config_template.cnf";
+import { stringify } from "querystring";
+import { Certificate } from 'node-opcua-crypto';
 
 const exportedEnvVars: any = {};
 
@@ -548,10 +550,17 @@ export interface CreateSelfSignCertificateParam extends ProcessAltNamesParam, St
     subject?: SubjectOptions | string;
 }
 
+export enum CertificatePurpose {
+    NotSpecified = 0,
+    ForCertificateAuthority  = 1,
+    ForApplication = 2,
+    ForUserAuthentication = 3, // X509
+}
 export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSignCertificateParam {
     rootDir: Filename;
     configFile: Filename;
     privateKey: Filename;
+    purpose: CertificatePurpose;
 }
 
 export interface Params extends ProcessAltNamesParam, StartDateEndDateParam {
@@ -643,6 +652,7 @@ export function processAltNames(params: ProcessAltNamesParam) {
  * @param params.dns
  * @param params.ip
  * @param params.validity certificate duration in days
+ * @param params.purpose
  * @param [params.subject= "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=ZZNodeOPCUA"]
  * @param callback
  */
@@ -652,6 +662,8 @@ export function createSelfSignCertificate(
     callback: (err?: Error | null) => void
 ) {
 
+    params.purpose = params.purpose || CertificatePurpose.ForApplication;
+    assert(params.purpose, "Please provide a Certificate Purpose");
     /**
      * note: due to a limitation of openssl ,
      *       it is not possible to control the startDate of the certificate validity
@@ -681,6 +693,19 @@ export function createSelfSignCertificate(
     const configFile = generateStaticConfig(params.configFile!);
     const configOption = " -config " + q(n(configFile));
 
+    let extension: string;
+    switch(params.purpose) {
+        case CertificatePurpose.ForApplication:
+          extension = "v3_selfsigned";
+          break;
+        case CertificatePurpose.ForCertificateAuthority:
+          extension = "v3_ca";
+          break;
+        case CertificatePurpose.ForUserAuthentication:
+        default:
+          extension = "v3_selfsigned";
+    }
+
     const tasks = [
 
         (callback: ErrorCallback) => {
@@ -695,7 +720,7 @@ export function createSelfSignCertificate(
             execute_openssl("req -new" +
                 " -sha256 " +
                 " -text " +
-                " -extensions v3_ca" +
+                " -extensions " + extension + " " +
                 configOption +
                 " -key " + q(n(params.privateKey!)) +
                 " -out " + q(n(certificateRequestFilename)) +
@@ -713,7 +738,7 @@ export function createSelfSignCertificate(
         (callback: ErrorCallback) => {
             execute_openssl(" x509 -req " +
                 " -days " + params.validity +
-                " -extensions v3_ca" +
+                " -extensions " + extension + " " +
                 " -extfile " + q(n(configFile)) +
                 " -in " + q(n(certificateRequestFilename)) +
                 " -signkey " + q(n(params.privateKey!)) +
