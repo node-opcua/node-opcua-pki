@@ -28,7 +28,7 @@ const _should = should;
 const q = quote;
 const n = make_path;
 
-describe("CertificateManager", function() {
+describe("CertificateManager", function () {
 
     this.timeout(400000);
 
@@ -101,11 +101,11 @@ describe("CertificateManager", function() {
         };
 
         await cm.createSelfSignedCertificate(params);
-        
+
         const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
         fs.existsSync(expectedCertificate).should.eql(true);
 
-        const data = await promisify(dumpCertificate)(expectedCertificate);
+        const data = (await promisify(dumpCertificate)(expectedCertificate))!;
 
         fs.writeFileSync(path.join(test.tmpFolder, "dump_cert1.txt"), data!);
 
@@ -125,10 +125,9 @@ describe("CertificateManager", function() {
         grep(data, /Key Encipherment/).should.match(/Key Encipherment/);
         grep(data, /Data Encipherment/).should.match(/Data Encipherment/);
 
-        // the self-signed certificate should not contain Certificate Sign or CRL Sing
-        grep(data, /Certificate Sign/).should.eql("");
+        // the self-signed certificate should not contain CRL Sing
         grep(data, /CRL Sign/).should.eql("");
-        
+
         const y = (new Date()).getFullYear();
         grep(data, /Not Before/).should.match(new RegExp(y.toString() + " GMT"));
         grep(data, /Not After/).should.match(new RegExp((y + 7).toString() + " GMT"));
@@ -137,7 +136,7 @@ describe("CertificateManager", function() {
 
 });
 
-describe("CertificateManager managing certificate", function() {
+describe("CertificateManager managing certificate", function () {
 
     this.timeout(400000);
 
@@ -203,21 +202,21 @@ describe("CertificateManager managing certificate", function() {
             certificate.should.be.instanceOf(Buffer);
 
             async.series([
-            (callback: ErrorCallback) => {
-                execute_openssl("x509 -inform der -in " + q(n(sample_certificate1_der)) + " " +
-                    "-fingerprint -noout ", {}, (err: Error | null) => {
-                    callback(err!);
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm._getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                    status!.should.eql("unknown");
-                    callback();
-                });
-            }
-        ], done);
+                (callback: ErrorCallback) => {
+                    execute_openssl("x509 -inform der -in " + q(n(sample_certificate1_der)) + " " +
+                        "-fingerprint -noout ", {}, (err: Error | null) => {
+                        callback(err!);
+                    });
+                },
+                (callback: ErrorCallback) => {
+                    cm._getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
+                        status!.should.eql("unknown");
+                        callback();
+                    });
+                }
+            ], done);
 
-    });
+        });
 
     it("Q2 - CertificateManager#getCertificateStatus should store unknown certificate into the untrusted folder",
         (done: ErrorCallback) => {
@@ -225,20 +224,20 @@ describe("CertificateManager managing certificate", function() {
             const certificate: Buffer = fs.readFileSync(sample_certificate2_der);
 
             async.series([
-            (callback: ErrorCallback) => {
-                cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                    status!.should.eql("rejected");
-                    callback();
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                    status!.should.eql("rejected");
-                    callback();
-                });
-            }
-        ], done);
-    });
+                (callback: ErrorCallback) => {
+                    cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
+                        status!.should.eql("rejected");
+                        callback();
+                    });
+                },
+                (callback: ErrorCallback) => {
+                    cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
+                        status!.should.eql("rejected");
+                        callback();
+                    });
+                }
+            ], done);
+        });
 
     it("Q3 - CertificateManager#trustCertificate  should store in trusted folder", (done: ErrorCallback) => {
 

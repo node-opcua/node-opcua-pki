@@ -40,8 +40,8 @@ import {ErrorCallback, Filename} from "./common";
 
 import _ca_config_template from "./templates/ca_config_template.cnf";
 import _simple_config_template from "./templates/simple_config_template.cnf";
-import { stringify } from "querystring";
-import { Certificate } from 'node-opcua-crypto';
+import {stringify} from "querystring";
+import {Certificate} from 'node-opcua-crypto';
 
 const exportedEnvVars: any = {};
 
@@ -552,10 +552,11 @@ export interface CreateSelfSignCertificateParam extends ProcessAltNamesParam, St
 
 export enum CertificatePurpose {
     NotSpecified = 0,
-    ForCertificateAuthority  = 1,
+    ForCertificateAuthority = 1,
     ForApplication = 2,
     ForUserAuthentication = 3, // X509
 }
+
 export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSignCertificateParam {
     rootDir: Filename;
     configFile: Filename;
@@ -694,16 +695,16 @@ export function createSelfSignCertificate(
     const configOption = " -config " + q(n(configFile));
 
     let extension: string;
-    switch(params.purpose) {
+    switch (params.purpose) {
         case CertificatePurpose.ForApplication:
-          extension = "v3_selfsigned";
-          break;
+            extension = "v3_selfsigned";
+            break;
         case CertificatePurpose.ForCertificateAuthority:
-          extension = "v3_ca";
-          break;
+            extension = "v3_ca";
+            break;
         case CertificatePurpose.ForUserAuthentication:
         default:
-          extension = "v3_selfsigned";
+            extension = "v3_selfsigned";
     }
 
     const tasks = [
@@ -773,7 +774,7 @@ export const configurationFileSimpleTemplate: string = _simple_config_template;
 export function dumpCertificate(
     certificate: Filename,
     callback: (err: Error | null, output?: string) => void
-) {
+): void {
 
     assert(fs.existsSync(certificate));
     assert(_.isFunction(callback));
