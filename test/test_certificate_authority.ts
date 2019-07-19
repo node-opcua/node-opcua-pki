@@ -148,7 +148,11 @@ describe("Signing Certificate with Certificate Authority", function() {
                     self.certificateRequest,
                     params,
                     (err: Error | null, certificate?: Filename) => {
-                        fs.existsSync(certificate!).should.eql(true);
+
+                        if (err) {
+                            return callback(err);
+                        }
+                        fs.existsSync(certificate!).should.eql(true, "certificate file " + certificate + " must exist");
 
                         // Serial Number: 4096 (0x1000)
 
