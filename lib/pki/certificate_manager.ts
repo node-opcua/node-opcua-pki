@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2018 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2019 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -24,13 +24,13 @@
 
 import * as assert from "assert";
 import * as async from "async";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
 import { callbackify, promisify } from "util";
 
-import {Certificate, exploreCertificateInfo, makeSHA1Thumbprint, readCertificate, toPem} from "node-opcua-crypto";
+import { Certificate, exploreCertificateInfo, makeSHA1Thumbprint, readCertificate, toPem } from "node-opcua-crypto";
 
 import {
     configurationFileSimpleTemplate,
@@ -46,8 +46,8 @@ import {
     setEnv
 } from "./toolbox";
 
-import {SubjectOptions} from "../misc/subject";
-import {CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint} from "./common";
+import { SubjectOptions } from "../misc/subject";
+import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "./common";
 
 type ReadFileFunc = (
     filename: string, encoding: string,
@@ -128,7 +128,7 @@ export class CertificateManager {
      */
     public async getCertificateStatus(certificate: Buffer): Promise<CertificateStatus>;
     public getCertificateStatus(certificate: Buffer,
-                                callback: (err: Error | null, status?: CertificateStatus) => void): void;
+        callback: (err: Error | null, status?: CertificateStatus) => void): void;
     public getCertificateStatus(certificate: Buffer, ...args: any[]): any {
 
         const callback = args[0] as (err: Error | null, status?: CertificateStatus) => void;
@@ -185,7 +185,7 @@ export class CertificateManager {
     public isCertificateTrusted(
         certificate: Certificate,
         callback: (err: Error | null, trustedStatus: string
-    ) => void): void;
+        ) => void): void;
     public async isCertificateTrusted(certificate: Certificate): Promise<string>;
     public async isCertificateTrusted(certificate: Certificate): Promise<string> {
 
@@ -518,7 +518,7 @@ export class CertificateManager {
 
         function _f(folder: string, index: any, callback: (err?: Error) => void) {
 
-            const walker = walk.walk(folder, {followLinks: false});
+            const walker = walk.walk(folder, { followLinks: false });
 
             walker.on("file", (root: string, stat: any, next: () => void) => {
 
@@ -552,7 +552,7 @@ export class CertificateManager {
 // tslint:disable:no-var-requires
 // tslint:disable:max-line-length
 const thenify = require("thenify");
-const opts = {multiArgs: false};
+const opts = { multiArgs: false };
 CertificateManager.prototype.rejectCertificate = thenify.withCallback(CertificateManager.prototype.rejectCertificate, opts);
 CertificateManager.prototype.trustCertificate = thenify.withCallback(CertificateManager.prototype.trustCertificate, opts);
 CertificateManager.prototype.createSelfSignedCertificate = thenify.withCallback(CertificateManager.prototype.createSelfSignedCertificate, opts);

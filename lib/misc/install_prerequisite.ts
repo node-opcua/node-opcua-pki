@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2018 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2019 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -24,7 +24,7 @@
 
 import * as  assert from "assert";
 import * as  byline from "byline";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import * as child_process from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -34,7 +34,7 @@ import * as  _ from "underscore";
 import * as yauzl from "yauzl";
 
 import Table = require("cli-table");
-import {Readable} from "stream";
+import { Readable } from "stream";
 
 declare interface WgetInterface {
     download(url: string, outputFilename: string, options: any): any;
@@ -65,7 +65,7 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
         options,
         (err: child_process.ExecException | null/*, stdout: string, stderr: string*/) => {
             const exitCode = err === null ? 0 : err!.code!;
-            callback(err ? err : null, {exitCode, output});
+            callback(err ? err : null, { exitCode, output });
         });
 
     const stream1 = byline(child.stdout!);
@@ -227,8 +227,8 @@ function install_and_check_win32_openssl_version(
         //         : "http://indy.fulgan.com/SSL/openssl-1.0.2o-i386-win32.zip"
         //     ;
         const url = (win32or64() === 64)
-                ? "https://github.com/node-opcua/node-opcua-pki/releases/download/v1.1.0/openssl-1.0.2r-x64_86-win64.zip"
-                : "https://github.com/node-opcua/node-opcua-pki/releases/download/v1.1.0/openssl-1.0.2r-i386-win32.zip";
+            ? "https://github.com/node-opcua/node-opcua-pki/releases/download/v1.1.0/openssl-1.0.2r-x64_86-win64.zip"
+            : "https://github.com/node-opcua/node-opcua-pki/releases/download/v1.1.0/openssl-1.0.2r-i386-win32.zip";
 
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
@@ -265,7 +265,7 @@ function install_and_check_win32_openssl_version(
 
         const opensslFolder = get_openssl_folder_win32();
 
-        yauzl.open(zipFilename, {lazyEntries: true}, (err?: Error | null, zipFile?: yauzl.ZipFile) => {
+        yauzl.open(zipFilename, { lazyEntries: true }, (err?: Error | null, zipFile?: yauzl.ZipFile) => {
 
             if (err) {
                 return callback(err);

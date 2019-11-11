@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2018 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2019 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -22,7 +22,7 @@
 // tslint:disable:no-shadowed-variable
 import * as assert from "assert";
 import * as async from "async";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
@@ -140,7 +140,7 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
     // http://www.akadia.com/services/ssh_test_certificate.html
     const subject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
-    const options = {cwd: caRootDir};
+    const options = { cwd: caRootDir };
     processAltNames({} as Params);
 
     const configFile = generateStaticConfig("conf/caconfig.cnf", options);
@@ -422,7 +422,7 @@ export class CertificateAuthority {
 
         const configFile = generateStaticConfig(
             "conf/caconfig.cnf",
-            {cwd: this.rootDir}
+            { cwd: this.rootDir }
         );
 
         const options = {
@@ -532,7 +532,7 @@ export class CertificateAuthority {
         adjustApplicationUri(params);
         processAltNames(params);
 
-        const options = {cwd: this.rootDir};
+        const options = { cwd: this.rootDir };
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
         const configOption = " -config " + configFile;
         const tasks = [];
@@ -599,7 +599,7 @@ export class CertificateAuthority {
 
         // istanbul ignore next
         if (isImplemented) {
-            const options = {cwd: this.rootDir};
+            const options = { cwd: this.rootDir };
             const configFile = generateStaticConfig("conf/caconfig.cnf", options);
 
             setEnv("OPENSSL_CONF", make_path(configFile));
@@ -619,7 +619,7 @@ export class CertificateAuthority {
 
 // tslint:disable:no-var-requires
 const thenify = require("thenify");
-const opts = {multiArgs: false};
+const opts = { multiArgs: false };
 CertificateAuthority.prototype.initialize
     = thenify.withCallback(CertificateAuthority.prototype.initialize, opts);
 CertificateAuthority.prototype.constructCACertificateWithCRL

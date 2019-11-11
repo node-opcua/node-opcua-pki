@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2018 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2019 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -27,7 +27,7 @@
 
 import * as assert from "assert";
 import * as async from "async";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import * as del from "del";
 import * as fs from "fs";
 import * as path from "path";
@@ -516,7 +516,7 @@ function createDefaultCertificate(
 
         (callback: ErrorCallback) => createPrivateKeyIfNotExist(private_key_file, key_length, callback),
 
-        (callback: ErrorCallback) => 
+        (callback: ErrorCallback) =>
             displaySubtitle(" extract public key " + public_key_file + " from private key ", callback),
 
         (callback: ErrorCallback) => getPublicKeyFromPrivateKey(private_key_file, public_key_file, callback),
@@ -526,7 +526,7 @@ function createDefaultCertificate(
         (callback: ErrorCallback) =>
             createCertificateIfNotExist(certificate_file, private_key_file, applicationUri, yesterday, 365, callback),
 
-        (callback: ErrorCallback) => 
+        (callback: ErrorCallback) =>
             displaySubtitle(" create self signed Certificate " + self_signed_certificate_file, callback),
 
         (callback: ErrorCallback) => {
@@ -615,7 +615,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
     let discoveryServerURN: string;
     const task1 = [
         (callback: ErrorCallback) => {
-            callbackify(extractFullyQualifiedDomainName)((err: Error|null, fqdn?: string) => {
+            callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn?: string) => {
                 // xx console.log("FQDN = ", fqdn, err ? err.message : "");
                 callback();
             });
@@ -630,9 +630,9 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
             setImmediate(callback);
         },
 
-        (callback: ErrorCallback) => 
+        (callback: ErrorCallback) =>
             displayTitle("Create  Application Certificate for Server & its private key", callback),
-        
+
         (callback: ErrorCallback) => {
 
             async.parallelLimit(
@@ -646,7 +646,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
                 callback
             );
         },
-        (callback: ErrorCallback) => 
+        (callback: ErrorCallback) =>
             displayTitle("Create  Application Certificate for Client & its private key", callback),
         (callback: ErrorCallback) => {
             async.parallelLimit(
@@ -679,7 +679,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
             );
         }
     ];
-    async.series(task1, (err?: Error| null) => {
+    async.series(task1, (err?: Error | null) => {
         if (err) {
             console.log("ERROR FOUND => ", err.message);
         }
@@ -866,7 +866,7 @@ commands
             const tasks = [];
 
             tasks.push((callback: ErrorCallback) => {
-                callbackify(extractFullyQualifiedDomainName)((err: Error|null, fqdn?: string) => {
+                callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn?: string) => {
                     // xx console.log("FQDN = ", fqdn, err ? err.message : "");
                     callback();
                 });

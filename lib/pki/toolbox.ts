@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2018 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2019 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -27,21 +27,21 @@ import * as assert from "assert";
 
 import * as async from "async";
 import * as  byline from "byline";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import * as  child_process from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as _ from "underscore";
 
-import {get_openssl_exec_path} from "../misc/install_prerequisite";
-import {Subject, SubjectOptions} from "../misc/subject";
-import {ErrorCallback, Filename} from "./common";
+import { get_openssl_exec_path } from "../misc/install_prerequisite";
+import { Subject, SubjectOptions } from "../misc/subject";
+import { ErrorCallback, Filename } from "./common";
 
 import _ca_config_template from "./templates/ca_config_template.cnf";
 import _simple_config_template from "./templates/simple_config_template.cnf";
-import {stringify} from "querystring";
-import {Certificate} from 'node-opcua-crypto';
+import { stringify } from "querystring";
+import { Certificate } from 'node-opcua-crypto';
 
 const exportedEnvVars: any = {};
 
@@ -189,7 +189,7 @@ export function ensure_openssl_installed(callback: (err?: Error) => void) {
             }
 
             execute_openssl(
-                "version", {cwd: "."},
+                "version", { cwd: "." },
                 (err: Error | null, outputs?: string) => {
                     if (err) {
                         return callback(err);
@@ -306,7 +306,7 @@ export function displaySubtitle(str: string, callback: (err?: Error) => void) {
 
 export function getEnvironmentVarNames(): any[] {
     return Object.keys(exportedEnvVars).map((varName: string) => {
-        return {key: varName, pattern: "\\$ENV\\:\\:" + varName};
+        return { key: varName, pattern: "\\$ENV\\:\\:" + varName };
     });
 }
 
@@ -316,7 +316,7 @@ export function generateStaticConfig(
 ) {
     const prePath = options && options.cwd || "";
     const staticConfigPath = configPath + ".tmp";
-    let staticConfig = fs.readFileSync(path.join(prePath, configPath), {encoding: "utf8"});
+    let staticConfig = fs.readFileSync(path.join(prePath, configPath), { encoding: "utf8" });
     for (const envVar of getEnvironmentVarNames()) {
         staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), exportedEnvVars[envVar.key]);
     }
@@ -487,7 +487,7 @@ export function createCertificateSigningRequest(
     // note : this openssl command requires a config file
     processAltNames(params);
     const configFile = generateStaticConfig(params.configFile!);
-    const options = {cwd: params.rootDir, openssl_conf: configFile};
+    const options = { cwd: params.rootDir, openssl_conf: configFile };
 
     const configOption = " -config " + q(n(configFile));
 
@@ -506,8 +506,8 @@ export function createCertificateSigningRequest(
                 configOption +
                 " -key " + q(n(params.privateKey!)) +
                 " -out " + q(n(certificateSigningRequestFilename)), options, (err: Error | null) => {
-                callback(err ? err : undefined);
-            });
+                    callback(err ? err : undefined);
+                });
         }
     ], (err) => callback(err!));
 }
@@ -799,7 +799,7 @@ export function toDer(
 }
 
 export function fingerprint(certificatePem: string, callback: (err: Error | null, output?: string) => void) {
-// openssl x509 -in my_certificate.pem -hash -dates -noout -fingerprint
+    // openssl x509 -in my_certificate.pem -hash -dates -noout -fingerprint
     assert(fs.existsSync(certificatePem));
     execute_openssl("x509  " +
         " -fingerprint " +
