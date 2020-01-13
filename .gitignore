@@ -37,4 +37,5 @@ lib-cov
 build/Release
 
 *.pem
-dist
+dist/
+pkg/

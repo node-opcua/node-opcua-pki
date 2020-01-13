@@ -37,7 +37,7 @@ import * as _ from "underscore";
 import { get_openssl_exec_path } from "../misc/install_prerequisite";
 import { Subject, SubjectOptions } from "../misc/subject";
 import { ErrorCallback, Filename } from "./common";
-
+    
 import _ca_config_template from "./templates/ca_config_template.cnf";
 import _simple_config_template from "./templates/simple_config_template.cnf";
 import { stringify } from "querystring";

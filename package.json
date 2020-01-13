@@ -12,7 +12,12 @@
     "test": "npx mocha -t 700000 test/**/*.ts",
     "cover": "npx istanbul cover -x \"bin/**\" node_modules/mocha/bin/_mocha",
     "cost-of-modules": "npx cost-of-modules --no-install",
-    "release-it": "npx release-it"
+    "release-it": "npx release-it",
+    "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.js"
+  },
+  "pkg": {
+    "scripts": "build/**/*.js",
+    "assets": "./crypo_create_CA_config.example.js"
   },
   "repository": {
     "type": "git",

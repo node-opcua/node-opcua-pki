@@ -158,7 +158,46 @@ function displayConfig(config: any) {
     });
 }
 
+function default_template_content(): string {
+    if ((process as any).pkg && (process as any).pkg.entrypoint) {
+        // we are uning PKG compiled pacakge !
+
+        // console.log("___filename", __filename);
+        // console.log("__dirname", __dirname);
+        // console.log("process.pkg.entrypoint", (process as any).pkg.entrypoint);
+        const a = fs.readFileSync(path.join(__dirname, "../../bin/crypto_create_CA_config.example.js"), "utf8");
+        console.log(a);
+        return a;
+    }
+    function find_default_config_template() {
+        const rootFolder = find_module_root_folder();
+        let default_config_template = path.join(rootFolder, "bin", path.basename(__filename, ".js") + "_config.example.js");
+
+        if (!fs.existsSync(default_config_template)) {
+            default_config_template = path.join(__dirname, "..", path.basename(__filename, ".js") + "_config.example.js");
+
+            if (!fs.existsSync(default_config_template)) {
+                default_config_template = path.join(
+                    __dirname,
+                    "../bin/" + path.basename(__filename, ".js") + "_config.example.js"
+                );
+            }
+        }
+        return default_config_template;
+    }
+    const default_config_template = find_default_config_template();
+    assert(fs.existsSync(default_config_template));
+    const default_config_template_content = fs.readFileSync(default_config_template, "utf8");
+    return default_config_template_content;
+}
+
+
+
+/**
+ *
+ */
 function find_module_root_folder() {
+
     let rootFolder = path.join(__dirname);
 
     for (let i = 0; i < 4; i++) {
@@ -167,7 +206,9 @@ function find_module_root_folder() {
         }
         rootFolder = path.join(rootFolder, "..");
     }
-    assert(fs.existsSync(path.join(rootFolder, "package.json")));
+
+    assert(fs.existsSync(path.join(rootFolder, "package.json")),
+        "root folder must have a package.json file");
     return rootFolder;
 }
 
@@ -214,30 +255,12 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
         // ------------------------------------------------------------------------------------------------------------
         const default_config = path.join(certificateDir, "config.js");
 
-        function find_default_config_template() {
-            const rootFolder = find_module_root_folder();
-            let default_config_template = path.join(rootFolder, "bin", path.basename(__filename, ".js") + "_config.example.js");
-
-            if (!fs.existsSync(default_config_template)) {
-                default_config_template = path.join(__dirname, "..", path.basename(__filename, ".js") + "_config.example.js");
-
-                if (!fs.existsSync(default_config_template)) {
-                    default_config_template = path.join(
-                        __dirname,
-                        "../bin/" + path.basename(__filename, ".js") + "_config.example.js"
-                    );
-                }
-            }
-            return default_config_template;
-        }
-
-        const default_config_template = find_default_config_template();
-        assert(fs.existsSync(default_config_template));
 
         if (!fs.existsSync(default_config)) {
             // copy
             console.log(chalk.yellow(" Creating default g_config file "), chalk.cyan(default_config));
-            fs.writeFileSync(default_config, fs.readFileSync(default_config_template));
+            const default_config_template_content = default_template_content();
+            fs.writeFileSync(default_config, default_config_template_content);
         } else {
             console.log(chalk.yellow(" using  g_config file "), chalk.cyan(default_config));
         }
