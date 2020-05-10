@@ -967,7 +967,7 @@ commands
             });
 
             tasks.push((callback: ErrorCallback) => {
-                console.error("g_config.outputFile=", gLocalConfig.outputFile);
+                // console.error("g_config.outputFile=", gLocalConfig.outputFile);
 
                 assert(_.isString(gLocalConfig.outputFile));
                 fs.writeFileSync(gLocalConfig.outputFile!, fs.readFileSync(certificate, "ascii"));

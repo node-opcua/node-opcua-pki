@@ -1,15 +1,23 @@
 // tslint:disable:variable-name
 // tslint:disable:no-shadowed-variable
-import {CertificateAuthority, CertificateManager} from "..";
 
 Error.stackTraceLimit = Infinity;
-import * as async from "async";
 import * as fs from "fs";
-import {Certificate, readCertificate} from "node-opcua-crypto";
 import * as path from "path";
-
 import should = require("should");
-import {CertificateAuthorityOptions, ErrorCallback, Filename, KeySize, Params} from "..";
+
+import { Certificate, readCertificate } from "node-opcua-crypto";
+import {
+    CertificateAuthorityOptions,
+    ErrorCallback,
+    Filename,
+    KeySize,
+    Params,
+    CertificateAuthority,
+    CertificateManager,
+    CertificatePurpose
+} from "../lib";
+import { beforeTest } from "./helpers";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nb_days: number): Date {
@@ -23,79 +31,23 @@ const lastYear = get_offset_date(today, -365);
 const nextYear = get_offset_date(today, 365);
 const yesterday = get_offset_date(today, -1);
 
-describe("test certificate validation", function() {
+describe("test certificate validation", function (this: Mocha.Suite) {
+
+
+    let certificateAuthority: CertificateAuthority;
+
+    let otherCertificateAuthority: CertificateAuthority;
 
     let certificate_out_of_date: Filename;
     let certificate_not_yet_active: Filename;
     let certificate_valid: Filename;
     let certificate_valid_untrusted: Filename;
+    let certificate_valid_signed_with_other_CA: Filename;
 
-    function prepare_test(done: ErrorCallback) {
 
-        const optionsCA: CertificateAuthorityOptions = {
-            keySize: 2048 as KeySize,
-            location: path.join(test.tmpFolder, "TEST_CA")
-        };
-
-        certificateAuthority = new CertificateAuthority(optionsCA);
-
-        const optionsPKI = {location: path.join(test.tmpFolder, "TEST_PKI")};
-        certificateManager = new CertificateManager(optionsPKI);
-
-        async.series([
-
-            (callback: ErrorCallback) => {
-                certificateAuthority.initialize(callback);
-            },
-            (callback: ErrorCallback) => {
-                certificateManager.initialize(callback);
-            },
-            (callback: ErrorCallback) => {
-                certificate_out_of_date = path.join(test.tmpFolder, "certificate_out_of_date.pem");
-                createCertificate(certificate_out_of_date,
-                    {applicationUri: "SOMEURI", startDate: lastYear, validity: 300}, callback);
-            },
-            (callback: ErrorCallback) => {
-                certificate_not_yet_active = path.join(test.tmpFolder, "certificate_notyetactive.pem");
-                createCertificate(certificate_not_yet_active,
-                    {applicationUri: "SOMEURI", startDate: nextYear, validity: 10000}, callback);
-            },
-            (callback: ErrorCallback) => {
-                certificate_valid = path.join(test.tmpFolder, "certificate_valid.pem");
-                createCertificate(certificate_valid,
-                    {applicationUri: "SOMEURI", startDate: yesterday, validity: 10}, callback);
-            },
-            (callback: ErrorCallback) => {
-                certificate_valid_untrusted = path.join(test.tmpFolder, "certificate_valid_untrusted.pem");
-                createCertificate(certificate_valid_untrusted,
-                    {applicationUri: "SOMEURI", startDate: yesterday, validity: 10}, callback);
-            },
-            /*
-            (callback: ErrorCallback) => {
-                certificate_valid_revoked = path.join(test.tmpFolder, "certificate_valid_revoked.pem");
-                createCertificate(certificate_valid_revoked,
-                     {applicationUri: "SOMEURI", startDate: yesterday, validity: 10 },callback)
-            },
-            (callback: ErrorCallback) => {
-                certificateAuthority.revokeCertificate(certificate_valid_revoked,{reason: "keyCompromise"},callback);
-            },
-            (callback: ErrorCallback) => {
-                const ca_with_crl_filename = certificateAuthority.caCertificateWithCrl;
-                fs.existsSync(ca_with_crl).should.eql(true);
-                const ca_with_crl = crypto_utils.readKeyPem(ca_with_crl_filename);
-                certificateManager.setCACertificate(ca_with_crl);
-                // simulate certificateManager receiving Certificate Revocation list
-                callback();
-            }
-            */
-
-        ], done);
-    }
-
-    const test = require("./helpers").beforeTest(this, prepare_test);
+    const testData = beforeTest(this);
 
     let certificateManager: CertificateManager;
-    let certificateAuthority: CertificateAuthority;
 
     /**
      * @method createCertificate
@@ -104,43 +56,90 @@ describe("test certificate validation", function() {
      * @param params.dns
      * @param callback
      */
-    function createCertificate(
+    async function createSignedCertificate(
         certificate: Filename,
         params: Params,
-        callback: (err?: Error | null) => void
+        certificateAuthority: CertificateAuthority
     ) {
 
-        let theCertificateRequest: string;
-        async.series([
+        // create a signing request
+        const theCertificateRequest = await certificateManager.createCertificateRequest(params);
 
-            (callback: ErrorCallback) => {
-                // lets create
-                certificateManager.createCertificateRequest(
-                    params,
-                    (err: Error | null, csr_file?: Filename) => {
-                        if (err) {
-                            return callback(err);
-                        }
-                        theCertificateRequest = csr_file!;
-                        callback();
-                    });
-            },
-            (callback: ErrorCallback) => {
+        fs.existsSync(certificate).should.eql(false, certificate + " should not exist");
+        fs.existsSync(theCertificateRequest).should.eql(true);
 
-                fs.existsSync(certificate).should.eql(false);
-                fs.existsSync(theCertificateRequest).should.eql(true);
-                certificateAuthority.signCertificateRequest(
-                    certificate,
-                    theCertificateRequest,
-                    params,
-                    (err: Error | null) => {
-                        fs.existsSync(theCertificateRequest).should.eql(true);
-                        fs.existsSync(certificate).should.eql(true);
-                        callback(err!);
-                    });
-            }
-        ], callback);
+        // ask the Certificate Authority to sign the certificate
+        await certificateAuthority.signCertificateRequest(
+            certificate,
+            theCertificateRequest,
+            params);
+
+
+        fs.existsSync(theCertificateRequest).should.eql(true);
+        fs.existsSync(certificate).should.eql(true);
     }
+
+    before(async () => {
+
+
+        const optionsCA: CertificateAuthorityOptions = {
+            keySize: 2048 as KeySize,
+            location: path.join(testData.tmpFolder, "TEST_CA")
+        };
+        certificateAuthority = new CertificateAuthority(optionsCA);
+        await certificateAuthority.initialize();
+
+        // create an other certificate authority
+        otherCertificateAuthority = new CertificateAuthority({ keySize: 2048, location: path.join(testData.tmpFolder, "OTHER_CA") });
+        await otherCertificateAuthority.initialize();
+
+
+        const optionsPKI = { location: path.join(testData.tmpFolder, "TEST_PKI") };
+        certificateManager = new CertificateManager(optionsPKI);
+
+        await certificateManager.initialize();
+
+        certificate_out_of_date = path.join(testData.tmpFolder, "certificate_out_of_date.pem");
+        await createSignedCertificate(certificate_out_of_date,
+            { applicationUri: "SOMEURI", startDate: lastYear, validity: 300 }, certificateAuthority);
+
+        certificate_not_yet_active = path.join(testData.tmpFolder, "certificate_notyetactive.pem");
+        await createSignedCertificate(certificate_not_yet_active,
+            { applicationUri: "SOMEURI", startDate: nextYear, validity: 10000 }, certificateAuthority);
+
+        certificate_valid = path.join(testData.tmpFolder, "certificate_valid.pem");
+        await createSignedCertificate(certificate_valid,
+            { applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
+
+        certificate_valid_untrusted = path.join(testData.tmpFolder, "certificate_valid_untrusted.pem");
+        await createSignedCertificate(certificate_valid_untrusted,
+            { applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
+
+        certificate_valid_signed_with_other_CA = path.join(testData.tmpFolder, "certificate_valid_from_other_CA.pem");
+        await createSignedCertificate(certificate_valid_signed_with_other_CA,
+            { applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, otherCertificateAuthority);
+
+        /*
+    (callback: ErrorCallback) => {
+        certificate_valid_revoked = path.join(test.tmpFolder, "certificate_valid_revoked.pem");
+        createCertificate(certificate_valid_revoked,
+             {applicationUri: "SOMEURI", startDate: yesterday, validity: 10 },callback)
+    },
+    (callback: ErrorCallback) => {
+        certificateAuthority.revokeCertificate(certificate_valid_revoked,{reason: "keyCompromise"},callback);
+    },
+    (callback: ErrorCallback) => {
+        const ca_with_crl_filename = certificateAuthority.caCertificateWithCrl;
+        fs.existsSync(ca_with_crl).should.eql(true);
+        const ca_with_crl = crypto_utils.readKeyPem(ca_with_crl_filename);
+        certificateManager.setCACertificate(ca_with_crl);
+        // simulate certificateManager receiving Certificate Revocation list
+        callback();
+    }
+    */
+    });
+
+
 
     describe("should verify ", () => {
 
@@ -150,25 +149,27 @@ describe("test certificate validation", function() {
         let cert2: Certificate;
         let cert3: Certificate;
         let certificate_valid_untrusted_A: Certificate;
+        let caCertificateBuf: Buffer;
 
-        before((done: ErrorCallback) => {
-            const optionsPKI2 = {location: path.join(test.tmpFolder, "TEST_PKI2")};
+        before(async () => {
+            const optionsPKI2 = { location: path.join(testData.tmpFolder, "TEST_PKI2") };
+
             localCertificateManager = new CertificateManager(optionsPKI2);
-            // get certificate
+            await localCertificateManager.initialize();
 
+            caCertificateBuf = readCertificate(certificateAuthority.caCertificate);
+            const status = await localCertificateManager.addIssuer(caCertificateBuf);
+            status.should.eql("Good");
+
+            // get certificate
             cert1 = readCertificate(certificate_out_of_date);
             cert2 = readCertificate(certificate_not_yet_active);
             cert3 = readCertificate(certificate_valid);
             certificate_valid_untrusted_A = readCertificate(certificate_valid_untrusted);
 
-            async.series([
-                (callback: ErrorCallback) => {
-                    localCertificateManager.trustCertificate(cert3, callback);
-                },
-                (callback: ErrorCallback) => {
-                    localCertificateManager.rejectCertificate(certificate_valid_untrusted_A, callback);
-                }
-            ], done);
+            await localCertificateManager.trustCertificate(cert3);
+            await localCertificateManager.rejectCertificate(certificate_valid_untrusted_A);
+
         });
 
         it("should detect null certificate", async () => {
@@ -195,5 +196,14 @@ describe("test certificate validation", function() {
             const status = await localCertificateManager.verifyCertificate(certificate_valid_untrusted_A);
             status.toString().should.eql("BadCertificateUntrusted");
         });
+
+        it("should find issuer of certificate 1", async () => {
+            const issuerCertificate = await localCertificateManager.findIssuerCertificate(cert1);
+            if (!issuerCertificate) {
+                throw new Error("Cannot find issuer certificate");
+            }
+            issuerCertificate!.toString("hex").should.eql(caCertificateBuf.toString("hex"));
+        })
+
     });
 });

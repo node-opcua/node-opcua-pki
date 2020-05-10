@@ -1,7 +1,7 @@
 import * as del from "del";
 import * as path from "path";
-
-import {ErrorCallback, g_config, mkdir} from "../lib";
+import * as rimraf from "rimraf";
+import { ErrorCallback, g_config, mkdir } from "../lib";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 
@@ -20,33 +20,35 @@ interface TestData {
     tmpFolder: string;
 }
 
-export function beforeTest(self: any, f?: (callback: ErrorCallback) => void): TestData {
+export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData {
 
     self.timeout("5 minutes");
 
     const testData: TestData = {
-        tmpFolder: ""
+        tmpFolder
     };
 
-    before((done: ErrorCallback) => {
+    before(async () => {
 
-        function __done() {
+        if (process.env.PKITEST === "NOCLEAN") {
             doneOnce = true;
+        }
+        // tslint:disable-next-line: no-console
+
+        async function __done() {
             if (f) {
-                f(done);
-            } else {
-                done();
+                await f();
             }
         }
 
         testData.tmpFolder = tmpFolder;
-        if (doneOnce) {
-            return __done();
+        if (!doneOnce) {
+            doneOnce = true;
+            console.log("    .... cleaning temporary folders ...");
+            await new Promise((resolve, reject) => rimraf(tmpFolder, (err) => err ? reject(err) : resolve()));
+            await mkdir(tmpFolder);
         }
-        del(tmpFolder).then(() => {
-            mkdir(tmpFolder);
-            __done();
-        });
+        await __done();
     });
     return testData;
 }

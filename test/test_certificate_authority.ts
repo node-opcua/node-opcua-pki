@@ -1,19 +1,20 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as async from "async";
 import * as fs from "fs";
-import {PrivateKey, readCertificate, split_der} from "node-opcua-crypto";
 import * as path from "path";
+import { PrivateKey, readCertificate, split_der } from "node-opcua-crypto";
 
 import should = require("should");
-import * as pki from "..";
-import {ErrorCallback, execute_openssl, Filename, g_config, Params, x509Date} from "..";
-import {beforeTest} from "./helpers";
+
+import * as pki from "../lib";
+import { ErrorCallback, execute_openssl, Filename, g_config, Params, x509Date } from "../lib";
+
+import { beforeTest } from "./helpers";
 
 const _should = should;
 
-describe("Certificate Authority", function() {
+describe("Certificate Authority", function (this: Mocha.Suite) {
 
     const testData = beforeTest(this);
     let options: any = {};
@@ -27,7 +28,7 @@ describe("Certificate Authority", function() {
     it("should read openssl version", (done: ErrorCallback) => {
 
         execute_openssl("version",
-            {cwd: "."},
+            { cwd: "." },
             (err: Error | null, output?: string) => {
                 if (err) {
                     return done(err);
@@ -38,24 +39,20 @@ describe("Certificate Authority", function() {
             });
     });
 
-    it("should create a CertificateAuthority", (done: ErrorCallback) => {
-
+    it("should create a CertificateAuthority", async () => {
         const ca = new pki.CertificateAuthority(options);
-        ca.initialize((err?: Error | null) => {
-            done(err);
-        });
+        await ca.initialize();
     });
-
 });
 
-describe("Signing Certificate with Certificate Authority", function() {
+describe("Signing Certificate with Certificate Authority", function (this: Mocha.Suite) {
 
     const testData = beforeTest(this);
 
     let ca: pki.CertificateAuthority;
     let cm: pki.CertificateManager;
 
-    before((done: ErrorCallback) => {
+    before(async () => {
 
         ca = new pki.CertificateAuthority({
             keySize: 2048,
@@ -66,19 +63,11 @@ describe("Signing Certificate with Certificate Authority", function() {
             location: path.join(testData.tmpFolder, "PI")
         });
 
-        async.series([
-            (callback: ErrorCallback) => {
-                cm.initialize(callback);
-            },
-            (callback: ErrorCallback) => {
-                ca.initialize(callback);
-            }
-        ], done);
+        await cm.initialize();
+        await ca.initialize();
     });
 
-    function createCertificateRequest(
-        callback: (err: Error | null, certificateRequest?: string) => void
-    ) {
+    async function createCertificateRequest(): Promise<string> {
 
         // let create a certificate request
         const params = {
@@ -94,90 +83,61 @@ describe("Signing Certificate with Certificate Authority", function() {
             // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
             validity: 365 * 7,
         };
-        cm.createCertificateRequest(
-            params,
-            (err: Error | null, certificateSigningRequestFilename?: string) => {
-                callback(err, certificateSigningRequestFilename);
-            });
-
+        const certificateSigningRequestFilename = await cm.createCertificateRequest(params);
+        return certificateSigningRequestFilename;
     }
 
-    it("T0 - should have a CA Certificate", (done: ErrorCallback) => {
+    it("T0 - should have a CA Certificate", async () => {
         fs.existsSync(ca.caCertificate).should.eql(true);
-        done();
     });
 
-    it("T1 - should have a CA Certificate with a CRL", (done: ErrorCallback) => {
-        ca.constructCACertificateWithCRL(() => {
-            fs.existsSync(ca.caCertificateWithCrl).should.eql(true);
-            done();
-        });
+    it("T1 - should have a CA Certificate with a CRL", async () => {
+        await ca.constructCACertificateWithCRL();
+        fs.existsSync(ca.caCertificateWithCrl).should.eql(true);
     });
 
-    it("T2 - should sign a Certificate Request", (done: ErrorCallback) => {
+    it("T2 - should sign a Certificate Request", async () => {
 
         const self = {
             certificateRequest: ""
         };
 
-        async.series([
+        // create a Certificate Signing Request
+        self.certificateRequest = await createCertificateRequest();
 
-            (callback: ErrorCallback) => {
-                // create a Certificate Signing Request
-                createCertificateRequest((err: Error | null, certificateSigningRequestFilename?: Filename) => {
-                    self.certificateRequest = certificateSigningRequestFilename!;
-                    fs.existsSync(self.certificateRequest).should.eql(true);
-                    callback(err!);
-                });
-            },
+        fs.existsSync(self.certificateRequest).should.eql(true);
 
-            (callback: ErrorCallback) => {
+        const certificateFilename = path.join(testData.tmpFolder, "sample_certificate.pem");
 
-                fs.existsSync(self.certificateRequest).should.eql(true);
+        const params = {
+            applicationUri: "BAD SHOULD BE IN REQUEST",
+            startDate: new Date(2011, 25, 12),
+            validity: 10 * 365
+        };
 
-                const certificateFilename = path.join(testData.tmpFolder, "sample_certificate.pem");
+        await ca.signCertificateRequest(
+            certificateFilename,
+            self.certificateRequest,
+            params);
 
-                const params = {
-                    applicationUri: "BAD SHOULD BE IN REQUEST",
-                    startDate: new Date(2011, 25, 12),
-                    validity: 10 * 365
-                };
+        fs.existsSync(certificateFilename!).should.eql(true, "certificate file " + certificateFilename + " must exist");
 
-                ca.signCertificateRequest(
-                    certificateFilename,
-                    self.certificateRequest,
-                    params,
-                    (err: Error | null, certificate?: Filename) => {
+        // Serial Number: 4096 (0x1000)
 
-                        if (err) {
-                            return callback(err);
-                        }
-                        fs.existsSync(certificate!).should.eql(true, "certificate file " + certificate + " must exist");
+        const certificateChain = readCertificate(certificateFilename);
+        const elements = split_der(certificateChain);
+        elements.length.should.eql(2);
+        // should have 2 x -----BEGIN CERTIFICATE----- in the chain
 
-                        // Serial Number: 4096 (0x1000)
-
-                        const certificateChain = readCertificate(certificate!);
-                        const elements = split_der(certificateChain);
-                        elements.length.should.eql(2);
-                        // should have 2 x -----BEGIN CERTIFICATE----- in the chain
-                        callback(err ? err : undefined);
-                    });
-            },
-
-            (callback: ErrorCallback) => {
-                // should verify that certificate is valid
-                // todo
-                callback();
-            }
-        ], done);
+        // should verify that certificate is valid
+        // todo
     });
 
-    function sign(
+    async function sign(
         certificateRequest: Filename,
         startDate: Date,
         validity: number,
-        callback: (err: Error | null, certfile?: Filename) => void
-    ) {
+    ): Promise<string> {
 
         const a = x509Date(startDate) + "_" + validity;
 
@@ -192,22 +152,16 @@ describe("Signing Certificate with Certificate Authority", function() {
             validity
         };
 
-        ca.signCertificateRequest(
+        const certificate = await ca.signCertificateRequest(
             certificateFilename,
             certificateRequest,
-            params,
-            (err: Error | null, certificate?: Filename) => {
+            params);
 
-                // xx console.log("Certificate = ",certificate);
-                if (!err) {
-                    fs.existsSync(certificate!).should.eql(true);
-                }
-                // Serial Number: 4096 (0x1000)
+        fs.existsSync(certificate!).should.eql(true);
+        // Serial Number: 4096 (0x1000)
 
-                // should have 2 x -----BEGIN CERTIFICATE----- in the chain
-                callback(err, certificateFilename);
-
-            });
+        // should have 2 x -----BEGIN CERTIFICATE----- in the chain
+        return certificate;
     }
 
     const now = new Date();
@@ -215,42 +169,20 @@ describe("Signing Certificate with Certificate Authority", function() {
     lastYear.setFullYear(now.getFullYear() - 1);
     const nextYear = (new Date());
     nextYear.setFullYear(now.getFullYear() + 1);
-    it("T3 - should create various Certificates signed by the CA authority", (done: ErrorCallback) => {
 
-        let certificateRequest = "";
+    it("T3 - should create various Certificates signed by the CA authority", async () => {
 
-        async.series([
-
-            (callback: ErrorCallback) => {
-                // create a Certificate Signing Request
-                createCertificateRequest(
-                    (err: Error | null, _certificateRequest?: Filename) => {
-
-                        certificateRequest = _certificateRequest!;
-                        fs.existsSync(certificateRequest).should.eql(true,
-                            "certificate request " + certificateRequest + " must exist");
-                        callback(err!);
-                    });
-            },
-            (callback: ErrorCallback) => {
-                sign(certificateRequest, lastYear, 200,
-                    (err: Error | null) => callback(err!)); // outdated
-            },
-            (callback: ErrorCallback) => {
-                sign(certificateRequest, lastYear, 10 * 365,  // valid
-                    (err: Error | null) => callback(err!));
-            },
-
-            (callback: ErrorCallback) => {
-                sign(certificateRequest, nextYear, 365,  // not started yet
-                    (err: Error | null) => callback(err!));
-
-            }
-        ], done);
+        // create a Certificate Signing Request
+        const certificateRequest = await createCertificateRequest();
+        fs.existsSync(certificateRequest).should.eql(true,
+            "certificate request " + certificateRequest + " must exist");
+        await sign(certificateRequest, lastYear, 200);
+        await sign(certificateRequest, lastYear, 10 * 365);  // valid
+        await sign(certificateRequest, nextYear, 365);  // not started yet
 
     });
 
-    it("T4 - should create various self-signed Certificates using the CA", (done: ErrorCallback) => {
+    it("T4 - should create various self-signed Certificates using the CA", async () => {
 
         // using a CA to construct self-signed certificates provides the following benefits:
         //    - startDate can be easily specified in the past or the future
@@ -259,17 +191,17 @@ describe("Signing Certificate with Certificate Authority", function() {
         const privateKey = cm.privateKey;
         const certificate = path.join(testData.tmpFolder, "sample_self_signed_certificate.pem");
 
-        fs.existsSync(certificate).should.eql(false);
-        ca.createSelfSignedCertificate(
+        fs.existsSync(certificate).should.eql(false, certificate + " must not exist");
+
+        await ca.createSelfSignedCertificate(
             certificate,
             privateKey,
             {
                 applicationUri: "SomeUri"
-            },
-            (err?: Error | null) => {
-                fs.existsSync(certificate).should.eql(true);
-                done(err!);
             });
+
+        fs.existsSync(certificate).should.eql(true);
+
     });
 
     /**
@@ -278,11 +210,10 @@ describe("Signing Certificate with Certificate Authority", function() {
      * @param privateKey
      * @param callback
      */
-    function createSelfSignedCertificate(
+    async function createSelfSignedCertificate(
         certificate: Filename,
-        privateKey: Filename,
-        callback: (err: Error | null, certificate?: Filename) => void
-    ) {
+        privateKey: Filename
+    ): Promise<string> {
 
         const startDate = new Date();
         const validity = 1000;
@@ -291,83 +222,44 @@ describe("Signing Certificate with Certificate Authority", function() {
             startDate,
             validity
         };
-        ca.createSelfSignedCertificate(
+        await ca.createSelfSignedCertificate(
             certificate,
             privateKey,
-            params,
-            (err?: Error | null) => {
-                console.log("signed_certificate = signed_certificate", certificate);
-                callback(err!, certificate);
-            });
+            params);
+
+        // console.log("signed_certificate = signed_certificate", certificate);
+        return certificate;
     }
 
-    it("T5 - should revoke a self-signed certificate", (done: ErrorCallback) => {
+    it("T5 - should revoke a self-signed certificate", async () => {
 
         const privateKey = cm.privateKey;
         const certificate = path.join(testData.tmpFolder, "certificate_to_be_revoked1.pem");
 
-        const tasks = [
+        await createSelfSignedCertificate(certificate, privateKey);
+        fs.existsSync(certificate).should.eql(true);
 
-            (callback: ErrorCallback) => {
-                createSelfSignedCertificate(certificate, privateKey, (err: Error | null) => {
-                    fs.existsSync(certificate).should.eql(true);
-                    callback(err!);
-                });
-            },
-
-            (callback: ErrorCallback) => {
-                ca.revokeCertificate(certificate, {}, callback);
-            }
-        ];
-        async.series(tasks, done);
+        await ca.revokeCertificate(certificate, {});
     });
 
-    function createCertificateFromCA(
-        callback: (err: Error | null, certificate?: Filename) => void
-    ) {
-        let certificateRequest = "";
-        let signedCertificate = "";
-        async.series([
-            (callback: ErrorCallback) => {
-                // create a Certificate Signing Request
-                createCertificateRequest((err: Error | null, _certificateRequest?: Filename) => {
-                    certificateRequest = _certificateRequest!;
-                    callback(err!);
-                });
-            },
-            (callback: ErrorCallback) => {
-                sign(
-                    certificateRequest,
-                    lastYear,
-                    10 * 365 + 10,
-                    (err: Error | null, _signedCertificate?: string) => {
-                        signedCertificate = _signedCertificate!;
-                        callback(err!);
-                    });
-            }
-        ], (err?: Error | null) => {
-            callback(err!, signedCertificate);
-        });
+    async function createCertificateFromCA(): Promise<string> {
+
+        const certificateRequest = await createCertificateRequest();
+
+        const signedCertificate = await sign(
+            certificateRequest,
+            lastYear,
+            10 * 365 + 10);
+
+        return signedCertificate;
     }
 
-    it("T6 - should revoke a certificate emitted by the CA", (done: ErrorCallback) => {
+    it("T6 - should revoke a certificate emitted by the CA", async () => {
 
-        let certificate = "";
-        const tasks = [
+        const certificate = await createCertificateFromCA();
+        fs.existsSync(certificate).should.eql(true);
 
-            (callback: ErrorCallback) => {
-                createCertificateFromCA((err: Error | null, _certificate?: Filename) => {
-                    certificate = _certificate!;
-                    fs.existsSync(certificate).should.eql(true);
-                    callback(err!);
-                });
-            },
+        await ca.revokeCertificate(certificate, {});
 
-            (callback: ErrorCallback) => {
-                ca.revokeCertificate(certificate, {}, callback);
-            }
-        ];
-        async.series(tasks, done);
     });
-
 });

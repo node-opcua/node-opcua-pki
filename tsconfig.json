@@ -1,16 +1,15 @@
 {
-  "compilerOptions": {
-    "skipLibCheck": true,
-    "target": "es6",
-    "module": "commonjs",
-    "declaration": true,
-    "outDir": "./dist",
-    "sourceMap": true,
-    "strict": true,
-    "removeComments": false,
-  },
-  "files": [
-    "lib/index.ts",
-    "test/helpers.ts",
-  ]
+    "compilerOptions": {
+        "skipLibCheck": true,
+        "target": "es6",
+        "module": "commonjs",
+        "declaration": true,
+        "outDir": "./dist",
+        "sourceMap": true,
+        "strict": true,
+        "composite": true,
+        "incremental": true,
+        "removeComments": false
+    },
+    "include": ["lib/**/*.ts"]
 }

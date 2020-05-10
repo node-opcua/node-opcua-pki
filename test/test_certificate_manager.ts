@@ -4,12 +4,12 @@ Error.stackTraceLimit = Infinity;
 import * as async from "async";
 import * as fs from "fs";
 import * as path from "path";
-import {promisify} from "util";
+import { promisify } from "util";
 
-import {beforeTest, grep} from "./helpers";
+import { beforeTest, grep } from "./helpers";
 
 import should = require("should");
-import * as pki from "..";
+import * as pki from "../lib";
 import {
     CertificateStatus,
     dumpCertificate,
@@ -20,7 +20,8 @@ import {
     generateStaticConfig,
     make_path,
     processAltNames,
-    quote
+    quote,
+    executeOpensslAsync
 } from "../lib";
 
 const _should = should;
@@ -28,39 +29,37 @@ const _should = should;
 const q = quote;
 const n = make_path;
 
-describe("CertificateManager", function () {
+describe("CertificateManager", function (this: Mocha.Suite) {
 
-    this.timeout(400000);
+    this.timeout(40000);
 
-    const test = beforeTest(this);
+    const testData = beforeTest(this);
 
-    it("should create a certificateManager", (done: ErrorCallback) => {
+    it("should create a certificateManager", async () => {
 
         const options = {
-            location: path.join(test.tmpFolder, "PKI")
+            location: path.join(testData.tmpFolder, "PKI")
         };
 
         const cm = new pki.CertificateManager(options);
 
-        cm.initialize((err?: Error) => {
+        await cm.initialize();
 
-            fs.existsSync(path.join(options.location)).should.eql(true);
-            fs.existsSync(path.join(options.location, "trusted")).should.eql(true);
-            fs.existsSync(path.join(options.location, "rejected")).should.eql(true);
-            fs.existsSync(path.join(options.location, "own")).should.eql(true);
-            fs.existsSync(path.join(options.location, "own/certs")).should.eql(true);
-            fs.existsSync(path.join(options.location, "own/private")).should.eql(true);
+        fs.existsSync(path.join(options.location)).should.eql(true);
+        fs.existsSync(path.join(options.location, "trusted")).should.eql(true);
+        fs.existsSync(path.join(options.location, "rejected")).should.eql(true);
+        fs.existsSync(path.join(options.location, "own")).should.eql(true);
+        fs.existsSync(path.join(options.location, "own/certs")).should.eql(true);
+        fs.existsSync(path.join(options.location, "own/private")).should.eql(true);
 
-            fs.existsSync(path.join(options.location, "own/openssl.cnf")).should.eql(true);
-            fs.existsSync(path.join(options.location, "own/private/private_key.pem")).should.eql(true);
+        fs.existsSync(path.join(options.location, "own/openssl.cnf")).should.eql(true);
+        fs.existsSync(path.join(options.location, "own/private/private_key.pem")).should.eql(true);
 
-            const data = fs.readFileSync(path.join(options.location, "own/openssl.cnf"), "ascii");
+        const data = fs.readFileSync(path.join(options.location, "own/openssl.cnf"), "ascii");
 
-            // config file must have a distinguish name section
-            grep(data, /distinguished_name/).should.match(/distinguished_name/);
+        // config file must have a distinguish name section
+        grep(data, /distinguished_name/).should.match(/distinguished_name/);
 
-            done(err);
-        });
     });
 
     it("should create its own self-signed certificate", async () => {
@@ -72,7 +71,7 @@ describe("CertificateManager", function () {
         }
 
         const options = {
-            location: path.join(test.tmpFolder, "PKI1")
+            location: path.join(testData.tmpFolder, "PKI1")
         };
 
         const cm = new pki.CertificateManager(options);
@@ -107,7 +106,7 @@ describe("CertificateManager", function () {
 
         const data = (await promisify(dumpCertificate)(expectedCertificate))!;
 
-        fs.writeFileSync(path.join(test.tmpFolder, "dump_cert1.txt"), data!);
+        fs.writeFileSync(path.join(testData.tmpFolder, "dump_cert1.txt"), data!);
 
         grep(data, /URI/).should.match(/URI:MY:APPLICATION:URI/);
         grep(data, /DNS/).should.match(/DNS:some.other.domain.com/);
@@ -136,33 +135,28 @@ describe("CertificateManager", function () {
 
 });
 
-describe("CertificateManager managing certificate", function () {
+describe("CertificateManager managing certificate", function (this: Mocha.Suite) {
 
     this.timeout(400000);
 
-    const test = beforeTest(this);
+    const testData = beforeTest(this);
     let cm: pki.CertificateManager;
 
-    function createSampleCertificateDer(
-        certificate: Filename,
-        callback: (err: Error | null) => void
-    ) {
-        processAltNames({applicationUri: "T"});
+    async function createSampleCertificateDer(
+        certificate: Filename
+    ): Promise<void> {
+        processAltNames({ applicationUri: "T" });
         const defaultOpensslConfPath = path.join(__dirname, "../tmp/PKI2/own/openssl.cnf");
         const defaultOpensslConf = generateStaticConfig(defaultOpensslConfPath);
 
         certificate = make_path(certificate);
         // openssl req -x509 -days 365 -nodes -newkey rsa:1024 \
         //         -keyout private_key.pem -outform der -out certificate.der"
-
-        execute_openssl("req " +
+        await executeOpensslAsync("req " +
             "-x509 -days 365 -nodes -newkey rsa:1024 " +
             "-batch -keyout private_key.pem " +
             "-outform der -out " + q(n(certificate)) +
-            " -config " + q(n(defaultOpensslConf)), {}, (err: Error | null) => {
-
-            callback(err);
-        });
+            " -config " + q(n(defaultOpensslConf)), {});
     }
 
     const sample_certificate1_der = path.join(__dirname, "fixtures/sample_certificate1.der");
@@ -170,118 +164,59 @@ describe("CertificateManager managing certificate", function () {
     const sample_certificate3_der = path.join(__dirname, "fixtures/sample_certificate3.der");
     const sample_certificate4_der = path.join(__dirname, "fixtures/sample_certificate4.der");
 
-    before((done: ErrorCallback) => {
+    before(async () => {
         const options = {
-            location: path.join(test.tmpFolder, "PKI2")
+            location: path.join(testData.tmpFolder, "PKI2")
         };
         cm = new pki.CertificateManager(options);
 
-        async.series([
-            (callback: ErrorCallback) => {
-                cm.initialize(callback);
-            },
-            (callback: ErrorCallback) => {
-                createSampleCertificateDer(sample_certificate1_der, (err: Error | null) => callback(err!));
-            },
-            (callback: ErrorCallback) => {
-                createSampleCertificateDer(sample_certificate2_der, (err: Error | null) => callback(err!));
-            },
-            (callback: ErrorCallback) => {
-                createSampleCertificateDer(sample_certificate3_der, (err: Error | null) => callback(err!));
-            },
-            (callback: ErrorCallback) => {
-                createSampleCertificateDer(sample_certificate4_der, (err: Error | null) => callback(err!));
-            },
-        ], done);
+        await cm.initialize();
+        await createSampleCertificateDer(sample_certificate1_der);
+        await createSampleCertificateDer(sample_certificate2_der);
+        await createSampleCertificateDer(sample_certificate3_der);
+        await createSampleCertificateDer(sample_certificate4_der);
+
     });
 
-    it("Q1 - CertificateManager#_getCertificateStatus should return 'unknown' if the certificate is first seen",
-        (done: ErrorCallback) => {
+    it("Q1 - CertificateManager#_getCertificateStatus should return 'unknown' if the certificate is first seen", async () => {
 
-            const certificate: Buffer = fs.readFileSync(sample_certificate1_der);
-            certificate.should.be.instanceOf(Buffer);
+        const certificate: Buffer = fs.readFileSync(sample_certificate1_der);
+        certificate.should.be.instanceOf(Buffer);
+        await executeOpensslAsync("x509 -inform der -in " + q(n(sample_certificate1_der)) + " " +
+            "-fingerprint -noout ", {});
+        const status: CertificateStatus = await cm._checkRejectedOrTrusted(certificate);
+        status.should.eql("unknown");
+    });
 
-            async.series([
-                (callback: ErrorCallback) => {
-                    execute_openssl("x509 -inform der -in " + q(n(sample_certificate1_der)) + " " +
-                        "-fingerprint -noout ", {}, (err: Error | null) => {
-                        callback(err!);
-                    });
-                },
-                (callback: ErrorCallback) => {
-                    cm._getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                        status!.should.eql("unknown");
-                        callback();
-                    });
-                }
-            ], done);
+    it("Q2 - CertificateManager#getCertificateStatus should store unknown certificate into the untrusted folder", async () => {
 
-        });
+        const certificate: Buffer = fs.readFileSync(sample_certificate2_der);
 
-    it("Q2 - CertificateManager#getCertificateStatus should store unknown certificate into the untrusted folder",
-        (done: ErrorCallback) => {
+        const status1: CertificateStatus = await cm.getCertificateStatus(certificate);
+        status1.should.eql("rejected");
 
-            const certificate: Buffer = fs.readFileSync(sample_certificate2_der);
+        const status2: CertificateStatus = await cm.getCertificateStatus(certificate);
+        status2.should.eql("rejected");
 
-            async.series([
-                (callback: ErrorCallback) => {
-                    cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                        status!.should.eql("rejected");
-                        callback();
-                    });
-                },
-                (callback: ErrorCallback) => {
-                    cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                        status!.should.eql("rejected");
-                        callback();
-                    });
-                }
-            ], done);
-        });
+    });
 
-    it("Q3 - CertificateManager#trustCertificate  should store in trusted folder", (done: ErrorCallback) => {
+    it("Q3 - CertificateManager#trustCertificate  should store in trusted folder", async () => {
 
         const certificate: Buffer = fs.readFileSync(sample_certificate3_der);
 
-        async.series([
-            (callback: ErrorCallback) => {
-                cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                    status!.should.eql("rejected");
-                    callback();
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm.trustCertificate(certificate, (err?: Error | null) => {
-                    should(err).eql(null);
-                    callback();
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                    status!.should.eql("trusted");
-                    callback();
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm.rejectCertificate(certificate, (err?: Error | null) => {
-                    should(err).eql(null);
-                    callback();
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
-                    status!.should.eql("rejected");
-                    callback();
-                });
-            },
-            (callback: ErrorCallback) => {
-                cm.rejectCertificate(certificate, (err?: Error | null) => {
-                    // already rejectied
-                    should(err).eql(undefined);
-                    callback();
-                });
-            }
-        ], done);
+        const status1: CertificateStatus = await cm.getCertificateStatus(certificate);
+        status1.should.eql("rejected");
+
+        await cm.trustCertificate(certificate);
+        const status2: CertificateStatus = await cm.getCertificateStatus(certificate);
+        status2.should.eql("trusted");
+
+        await cm.rejectCertificate(certificate);
+
+        const status3: CertificateStatus = await cm.getCertificateStatus(certificate);
+        status3.should.eql("rejected");
+
+        await cm.rejectCertificate(certificate);
 
     });
 

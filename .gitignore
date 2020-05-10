@@ -39,3 +39,5 @@ build/Release
 *.pem
 dist/
 pkg/
+
+random.rnd

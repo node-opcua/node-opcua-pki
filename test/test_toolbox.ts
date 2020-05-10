@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import {should} from "should";
+import { should } from "should";
 import {
     createPrivateKey,
     ensure_openssl_installed,
@@ -8,21 +8,21 @@ import {
     getPublicKeyFromCertificate,
     getPublicKeyFromPrivateKey,
     mkdir
-} from "..";
+} from "../lib";
 
-import {beforeTest} from "./helpers";
+import { beforeTest } from "./helpers";
 
-describe("toolbox", function(this: any) {
+describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
 
     this.timeout(400000);
 
-    const test = beforeTest(this);
+    const testData = beforeTest(this);
 
-    const tmpFolder = path.join(__dirname, "../tmp");
-    const privateKey = path.join(tmpFolder, "some_private_key");
-
+    let privateKey: string;
     before((done: ErrorCallback) => {
-        mkdir(tmpFolder);
+
+        privateKey = path.join(testData.tmpFolder, "some_private_key");
+        mkdir(testData.tmpFolder);
         ensure_openssl_installed(() => {
             createPrivateKey(privateKey, 2048, () => {
                 fs.existsSync(privateKey).should.eql(true);
@@ -33,7 +33,7 @@ describe("toolbox", function(this: any) {
 
     it("should getPublicKeyFromPrivateKey", (done: ErrorCallback) => {
 
-        const publicKey = path.join(tmpFolder, "some_public_key");
+        const publicKey = path.join(testData.tmpFolder, "some_public_key");
         getPublicKeyFromPrivateKey(privateKey, publicKey, (err: Error | null) => {
             fs.existsSync(publicKey).should.eql(true);
 
@@ -50,7 +50,7 @@ describe("toolbox", function(this: any) {
     it("should getPublicKeyFromCertificate", (done: ErrorCallback) => {
 
         const sampleCertificate = path.join(__dirname, "fixtures/sample_self_signed_certificate.pem");
-        const publicKey = path.join(tmpFolder, "some_public_key2");
+        const publicKey = path.join(testData.tmpFolder, "some_public_key2");
 
         getPublicKeyFromCertificate(sampleCertificate, publicKey, (err: Error | null) => {
             fs.existsSync(publicKey).should.eql(true);

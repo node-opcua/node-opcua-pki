@@ -2,9 +2,9 @@
 import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import {should} from "should";
-import {dumpCertificate , ErrorCallback, Filename, make_path} from "..";
-import {beforeTest, grep} from "./helpers";
+import { should } from "should";
+import { dumpCertificate, ErrorCallback, Filename, make_path } from "../lib";
+import { beforeTest, grep } from "./helpers";
 
 const n = make_path;
 
@@ -24,7 +24,7 @@ function call_crypto_create_CA(
 
     const rootFolder = process.cwd();
     const cmd = "node";
- 
+
     const args1: string = n(path.join(rootFolder, "./bin/crypto_create_CA.js")) + " " + cmdArguments;
     const args = args1.replace("  ", " ").split(" ");
 
@@ -64,21 +64,22 @@ function call_crypto_create_CA(
     });
 }
 
-describe("testing test_crypto_create_CA", function(this: any) {
+describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
     this.timeout(2300000);
 
-    const test = beforeTest(this);
+    const testData = beforeTest(this);
 
     it("should create a PKI with demo certificates", (done: ErrorCallback) => {
 
+        console.log("    .... be patient ... demo certificates are being created ...");
         const cwd = path.join(__dirname, "../tmp");
 
         const certificate_file = path.join(cwd, "certificates/discoveryServer_cert_2048.pem");
 
         fs.existsSync(certificate_file).should.eql(false);
 
-        console.log(" certificate_file = ", certificate_file);
+        // console.log(" certificate_file = ", certificate_file);
 
         const date1 = new Date();
 
@@ -88,9 +89,9 @@ describe("testing test_crypto_create_CA", function(this: any) {
             fs.existsSync(certificate_file).should.eql(true);
 
             // running a second time should be faster
-            const date2 =  new Date();
-            create_demo_certificates(cwd, (err?: Error | null) => {
-                const date3 =  new Date();
+            const date2 = new Date();
+            create_demo_certificates(cwd, (err1?: Error | null) => {
+                const date3 = new Date();
                 const initialTimeToConstructDemoCertificate = (date2.getTime() - date1.getTime());
                 console.log(" t1 = ", initialTimeToConstructDemoCertificate);
                 const timeToConstructDemoCertificateSecondTime = (date3.getTime() - date2.getTime());
@@ -99,7 +100,7 @@ describe("testing test_crypto_create_CA", function(this: any) {
                 (initialTimeToConstructDemoCertificate / 5).should.be
                     .greaterThan(timeToConstructDemoCertificateSecondTime);
 
-                done(err);
+                done(err1);
             });
         });
     });
@@ -115,9 +116,9 @@ describe("testing test_crypto_create_CA", function(this: any) {
             call_crypto_create_CA("certificate --selfSigned --silent=false", cwd, () => {
 
                 fs.existsSync(certificateFile).should.eql(true,
-                     "file " + certificateFile + " should exist");
-                
-                fs.existsSync(csrFile).should.eql(false, 
+                    "file " + certificateFile + " should exist");
+
+                fs.existsSync(csrFile).should.eql(false,
                     "useless signing request shall be automatically removed (" + csrFile + ")");
                 done();
             });

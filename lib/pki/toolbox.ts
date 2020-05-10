@@ -37,22 +37,22 @@ import * as _ from "underscore";
 import { get_openssl_exec_path } from "../misc/install_prerequisite";
 import { Subject, SubjectOptions } from "../misc/subject";
 import { ErrorCallback, Filename } from "./common";
-    
 import _ca_config_template from "./templates/ca_config_template.cnf";
 import _simple_config_template from "./templates/simple_config_template.cnf";
-import { stringify } from "querystring";
-import { Certificate } from 'node-opcua-crypto';
 
 const exportedEnvVars: any = {};
+
+const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
 export function quote(str: string): string {
     return "\"" + str + "\"";
 }
 
 // tslint:disable-next-line:variable-name
-export const g_config: any = {
+export const g_config = {
     opensslVersion: "unset",
-    silent: false,
+    silent: true,
+    force: false
 };
 
 const displayError: boolean = true;
@@ -154,7 +154,9 @@ export function execute(
         });
         stream2.on("data", (line: string) => {
             line = line.toString();
-            process.stdout.write(chalk.white("        stdout ") + chalk.whiteBright(line) + "\n");
+            if (doDebug) {
+                process.stdout.write(chalk.white("        stdout ") + chalk.whiteBright(line) + "\n");
+            }
         });
     }
 }
@@ -195,7 +197,9 @@ export function ensure_openssl_installed(callback: (err?: Error) => void) {
                         return callback(err);
                     }
                     g_config.opensslVersion = outputs!.trim();
-                    console.log("OpenSSL version : ", g_config.opensslVersion);
+                    if (doDebug) {
+                        console.log("OpenSSL version : ", g_config.opensslVersion);
+                    }
                     callback(err ? err : undefined);
                 });
         });
@@ -216,7 +220,7 @@ export function execute_openssl(
     cmd: string,
     options: ExecuteOpenSSLOptions,
     callback: (err: Error | null, output?: string) => void
-) {
+): void {
 
     // tslint:disable-next-line:variable-name
     const empty_config_file = n(getTempFolder(), "empty_config.cnf");
@@ -244,6 +248,20 @@ export function execute_openssl(
             return callback(err);
         }
         execute(quote(opensslPath!) + " " + cmd, options, callback);
+    });
+}
+export function executeOpensslAsync(
+    cmd: string,
+    options: ExecuteOpenSSLOptions
+): Promise<string> {
+    return new Promise((resolve, reject) => {
+        execute_openssl(cmd, options, (err, output) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(output);
+            }
+        })
     });
 }
 
@@ -439,10 +457,12 @@ export function createRandomFileIfNotExist(
     const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
     fs.exists(randomFilePath, (exists: boolean) => {
         if (exists) {
-            console.log(
-                chalk.yellow("         randomFile"),
-                chalk.cyan(randomFile),
-                chalk.yellow(" already exists => skipping"));
+            if (doDebug) {
+                console.log(
+                    chalk.yellow("         randomFile"),
+                    chalk.cyan(randomFile),
+                    chalk.yellow(" already exists => skipping"));
+            }
             return callback();
         } else {
             createRandomFile(randomFile, options, callback);

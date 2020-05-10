@@ -1,0 +1,11 @@
+{
+    "recursive": true,
+    "require": [
+        "./node_modules/should",
+        "./node_modules/ts-node/register",
+        "./node_modules/source-map-support/register"
+    ],
+    "timeout": 20000,
+    "bail": true,
+    "extension": "ts"
+}
