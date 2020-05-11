@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2019 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2020 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -1181,7 +1181,7 @@ commands
         console.log("--help for help");
         return yargs;
     })
-    .epilog("Copyright (c) - NodeOPCUA - 2018")
+    .epilog("Copyright (c) - NodeOPCUA - 2020")
     .help("help")
     .strict();
 
