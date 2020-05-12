@@ -7,8 +7,9 @@ import { PrivateKey, readCertificate, split_der } from "node-opcua-crypto";
 
 import should = require("should");
 
-import * as pki from "../lib";
-import { ErrorCallback, execute_openssl, Filename, g_config, Params, x509Date } from "../lib";
+import {
+    ErrorCallback, execute_openssl, Filename, g_config, Params, x509Date, CertificateAuthority, CertificateManager
+} from "..";
 
 import { beforeTest } from "./helpers";
 
@@ -40,7 +41,7 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
     });
 
     it("should create a CertificateAuthority", async () => {
-        const ca = new pki.CertificateAuthority(options);
+        const ca = new CertificateAuthority(options);
         await ca.initialize();
     });
 });
@@ -49,17 +50,17 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
     const testData = beforeTest(this);
 
-    let ca: pki.CertificateAuthority;
-    let cm: pki.CertificateManager;
+    let ca: CertificateAuthority;
+    let cm: CertificateManager;
 
     before(async () => {
 
-        ca = new pki.CertificateAuthority({
+        ca = new CertificateAuthority({
             keySize: 2048,
             location: path.join(testData.tmpFolder, "CA")
         });
 
-        cm = new pki.CertificateManager({
+        cm = new CertificateManager({
             location: path.join(testData.tmpFolder, "PI")
         });
 

@@ -8,7 +8,7 @@ import {
     getPublicKeyFromCertificate,
     getPublicKeyFromPrivateKey,
     mkdir
-} from "../lib";
+} from "..";
 
 import { beforeTest } from "./helpers";
 

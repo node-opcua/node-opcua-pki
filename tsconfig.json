@@ -7,9 +7,8 @@
         "outDir": "./dist",
         "sourceMap": true,
         "strict": true,
-        "composite": true,
-        "incremental": true,
-        "removeComments": false
+        "incremental": true
     },
-    "include": ["lib/**/*.ts"]
+    "include": ["lib/**/*.ts", "lib/*.ts"],
+    "files": ["lib/index.ts"]
 }

@@ -57,8 +57,12 @@ export const g_config = {
 
 const displayError: boolean = true;
 
+const displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
 // tslint:disable-next-line:no-empty
-export function debugLog(...args: any[]) {
+export function debugLog(...args: [any?, ...any[]]) {
+    if (displayDebug) {
+        console.log.apply(null, args);
+    }
 }
 
 let opensslPath: string | undefined; // not initialized

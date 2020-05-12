@@ -1,10 +1,10 @@
-import {Subject} from "../lib/misc/subject";
-import {should} from "should";
+import { should } from "should";
 
+import { Subject } from "..";
 describe("Subject", () => {
 
     it("should compose a subject with common name only", () => {
-        const subject = new Subject({commonName: "Hello"});
+        const subject = new Subject({ commonName: "Hello" });
         subject.toString().should.eql("/CN=Hello");
 
     });

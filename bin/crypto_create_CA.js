@@ -22,6 +22,6 @@
 // ---------------------------------------------------------------------------------------------------------------------
 "use strict";
 require("source-map-support/register");
-require("../dist/lib/crypto_create_CA.js").main(process.argv.splice(2), () => {
+require("../dist/crypto_create_CA.js").main(process.argv.splice(2), () => {
     /* empty */
 });
