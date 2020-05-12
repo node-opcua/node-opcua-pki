@@ -9,7 +9,6 @@ import { promisify } from "util";
 import { beforeTest, grep } from "./helpers";
 
 import should = require("should");
-import * as pki from "../lib";
 import {
     CertificateStatus,
     dumpCertificate,
@@ -21,8 +20,9 @@ import {
     make_path,
     processAltNames,
     quote,
-    executeOpensslAsync
-} from "../lib";
+    executeOpensslAsync,
+    CertificateManager
+} from "..";
 
 const _should = should;
 
@@ -41,7 +41,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
             location: path.join(testData.tmpFolder, "PKI")
         };
 
-        const cm = new pki.CertificateManager(options);
+        const cm = new CertificateManager(options);
 
         await cm.initialize();
 
@@ -74,7 +74,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
             location: path.join(testData.tmpFolder, "PKI1")
         };
 
-        const cm = new pki.CertificateManager(options);
+        const cm = new CertificateManager(options);
 
         await cm.initialize();
 
@@ -140,7 +140,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     this.timeout(400000);
 
     const testData = beforeTest(this);
-    let cm: pki.CertificateManager;
+    let cm: CertificateManager;
 
     async function createSampleCertificateDer(
         certificate: Filename
@@ -168,7 +168,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         const options = {
             location: path.join(testData.tmpFolder, "PKI2")
         };
-        cm = new pki.CertificateManager(options);
+        cm = new CertificateManager(options);
 
         await cm.initialize();
         await createSampleCertificateDer(sample_certificate1_der);
@@ -200,7 +200,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
 
     });
 
-    it("Q3 - CertificateManager#trustCertificate  should store in trusted folder", async () => {
+    it("Q3 - CertificateManager#trustCertificate should store in trusted folder", async () => {
 
         const certificate: Buffer = fs.readFileSync(sample_certificate3_der);
 

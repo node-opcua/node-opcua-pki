@@ -16,7 +16,7 @@ import {
     CertificateAuthority,
     CertificateManager,
     CertificatePurpose
-} from "../lib";
+} from "..";
 import { beforeTest } from "./helpers";
 
 // ------------------------------------------------- some useful dates

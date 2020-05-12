@@ -32,9 +32,9 @@ import * as path from "path";
 import * as ProgressBar from "progress";
 import * as  _ from "underscore";
 import * as yauzl from "yauzl";
+import { Readable } from "stream";
 
 import Table = require("cli-table");
-import { Readable } from "stream";
 
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;

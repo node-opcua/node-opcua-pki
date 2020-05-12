@@ -25,13 +25,24 @@
 import * as assert from "assert";
 import * as async from "async";
 import * as chalk from "chalk";
-import * as util from "util";
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
 import { callbackify, promisify } from "util";
+import * as chokidar from "chokidar";
 
-import { Certificate, exploreCertificateInfo, makeSHA1Thumbprint, readCertificate, toPem, split_der, PEM, DER, exploreCertificate, convertPEMtoDER } from "node-opcua-crypto";
+import {
+    Certificate,
+    exploreCertificateInfo,
+    makeSHA1Thumbprint,
+    readCertificate,
+    toPem,
+    split_der,
+    PEM, DER,
+    exploreCertificate,
+    convertPEMtoDER,
+    verifyCertificateSignature
+} from "node-opcua-crypto";
 
 import {
     configurationFileSimpleTemplate,
@@ -46,7 +57,6 @@ import {
     mkdir,
     setEnv
 } from "./toolbox";
-
 import { SubjectOptions } from "../misc/subject";
 import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "./common";
 
@@ -59,8 +69,22 @@ const fsWriteFile = promisify(fs.writeFile);
 const fsReadFile = promisify(fs.readFile as ReadFileFunc);
 const fsRemoveFile = promisify(fs.unlink);
 
-// tslint:disable-next-line:no-var-requires
-const walk = require("walk");
+interface Entry {
+    certificate: Certificate,
+    filename: string
+}
+interface Thumbs {
+    trusted: { [key: string]: Entry },
+    rejected: { [key: string]: Entry },
+    issuers: {
+        certs: { [key: string]: Entry }
+    },
+    clr: {
+
+    },
+    issuersClr: {
+    }
+}
 
 export interface CertificateManagerOptions {
     keySize?: KeySize;
@@ -76,63 +100,96 @@ export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertifica
     validity: number;
 }
 
-
-export type VerificationStatus =
+export enum VerificationStatus {
 
     /** The certificate provided as a parameter is not valid. */
-    "BadCertificateInvalid" |
+    BadCertificateInvalid = "BadCertificateInvalid",
     /** An error occurred verifying security. */
-    "BadSecurityChecksFailed" |
+    BadSecurityChecksFailed = "BadSecurityChecksFailed",
     /** The certificate does not meet the requirements of the security policy. */
-    "BadCertificatePolicyCheckFailed" |
+    BadCertificatePolicyCheckFailed = "BadCertificatePolicyCheckFailed",
     /** The certificate has expired or is not yet valid. */
-    "BadCertificateTimeInvalid" |
+    BadCertificateTimeInvalid = "BadCertificateTimeInvalid",
     /** An issuer certificate has expired or is not yet valid. */
-    "BadCertificateIssuerTimeInvalid" |
+    BadCertificateIssuerTimeInvalid = "BadCertificateIssuerTimeInvalid",
     /** The HostName used to connect to a server does not match a HostName in the certificate. */
-    "BadCertificateHostNameInvalid" |
+    BadCertificateHostNameInvalid = "BadCertificateHostNameInvalid",
     /** The URI specified in the ApplicationDescription does not match the URI in the certificate. */
-    "BadCertificateUriInvalid" |
+    BadCertificateUriInvalid = "BadCertificateUriInvalid",
     /** The certificate may not be used for the requested operation. */
-    "BadCertificateUseNotAllowed" |
+    BadCertificateUseNotAllowed = "BadCertificateUseNotAllowed",
     /** The issuer certificate may not be used for the requested operation. */
-    "BadCertificateIssuerUseNotAllowed" |
+    BadCertificateIssuerUseNotAllowed = "BadCertificateIssuerUseNotAllowed",
     /** The certificate is not trusted. */
-    "BadCertificateUntrusted" |
+    BadCertificateUntrusted = "BadCertificateUntrusted",
     /** It was not possible to determine if the certificate has been revoked. */
-    "BadCertificateRevocationUnknown" |
+    BadCertificateRevocationUnknown = "BadCertificateRevocationUnknown",
     /** It was not possible to determine if the issuer certificate has been revoked. */
-    "BadCertificateIssuerRevocationUnknown" |
+    BadCertificateIssuerRevocationUnknown = "BadCertificateIssuerRevocationUnknown",
     /** The certificate has been revoked. */
-    "BadCertificateRevoked" |
+    BadCertificateRevoked = "BadCertificateRevoked",
     /** The issuer certificate has been revoked. */
-    "BadCertificateIssuerRevoked" |
+    BadCertificateIssuerRevoked = "BadCertificateIssuerRevoked",
     /** The certificate chain is incomplete. */
-    "BadCertificateChainIncomplete" |
+    BadCertificateChainIncomplete = "BadCertificateChainIncomplete",
 
-    /** User does not have permission to perform the requested operation. */
-    "BadSecurityChecksFailed" |
-    "Good";
+    /** Validation OK. */
+    Good = "Good"
+}
 
+function makeFingerprint(certificate: Certificate): string {
+    return makeSHA1Thumbprint(certificate).toString("hex");
+}
+function short(stringToShorten: string) {
+    return stringToShorten.substr(0, 10);
+}
+function buildIdealCertificateName(certificate: Certificate): string {
+    const fingerprint = makeFingerprint(certificate);
+    try {
+        const commonName = exploreCertificate(certificate).tbsCertificate.subject.commonName || "";
+        return commonName + "[" + fingerprint + "]";
+    }
+    catch (err) {
+        // make be certificate is incorrect !
+        return "invalid_certificate_[" + fingerprint + "]";
+    }
+}
+function findMatchingIssuerKey(certificates: Certificate[], wantedIssuerKey: string): Certificate[] {
+    const selected = certificates.filter(certificate => {
+        const info = exploreCertificate(certificate);
+        return (info.tbsCertificate.extensions && info.tbsCertificate.extensions.subjectKeyIdentifier === wantedIssuerKey);
+    });
+    return selected;
+}
 
 export class CertificateManager {
 
     public untrustUnknownCertificate: boolean = true;
+    public initialized: boolean = false;
+    public folderPoolingInterval = 5000;
 
     private readonly keySize: KeySize;
     private readonly location: string;
-    private readonly _thumbs: {
-        rejected: { [key: string]: Certificate },
-        trusted: { [key: string]: Certificate },
+    private readonly _watchers: fs.FSWatcher[] = [];
+    private _readCertificatesCalled: boolean = false;
+    private readonly _filenameToHash: { [key: string]: string } = {};
+
+    private readonly _thumbs: Thumbs = {
+        rejected: {},
+        trusted: {},
         issuers: {
-            certs: { [key: string]: Certificate }
-        }
+            certs: {
+            }
+        },
+        clr: {},
+        issuersClr: {}
     };
 
     constructor(options: CertificateManagerOptions) {
         options.keySize = options.keySize || 2048;
         assert(options.hasOwnProperty("location"));
         assert(options.hasOwnProperty("keySize"));
+        assert(!this.initialized);
 
         this.location = make_path(options.location, "");
         this.keySize = options.keySize;
@@ -143,13 +200,6 @@ export class CertificateManager {
         if (!fs.existsSync(this.location)) {
             throw new Error("CertificateManager cannot access location " + this.location);
         }
-        this._thumbs = {
-            rejected: {},
-            trusted: {},
-            issuers: {
-                certs: {}
-            }
-        };
     }
 
     get configFile() {
@@ -188,12 +238,16 @@ export class CertificateManager {
                         return callback(err);
                     }
                     if (status === "unknown") {
+
                         assert(certificate instanceof Buffer);
-                        const thumbprint = makeSHA1Thumbprint(certificate).toString("hex");
-                        const certificateName = path.join(this.rootDir, "rejected", thumbprint + ".pem");
 
                         const pem = toPem(certificate, "CERTIFICATE");
-                        fs.writeFile(certificateName, pem, (err?: Error | null) => {
+                        const fingerprint = makeFingerprint(certificate);
+                        const filename = path.join(this.rejectedFolder, buildIdealCertificateName(certificate) + ".pem");
+                        fs.writeFile(filename, pem, (err?: Error | null) => {
+
+                            this._thumbs.rejected[fingerprint] = { certificate, filename };
+
                             if (err) {
                                 return callback(err);
                             }
@@ -201,8 +255,9 @@ export class CertificateManager {
                             return callback(null, status);
                         });
                         return;
+                    } else {
+                        return callback(null, status);
                     }
-                    return callback(null, status);
                 });
         });
     }
@@ -227,10 +282,16 @@ export class CertificateManager {
         return path.join(this.rootDir, "rejected");
     }
     public get trustedFolder(): string {
-        return path.join(this.rootDir, "trusted");
+        return path.join(this.rootDir, "trusted/certs");
+    }
+    public get clrFolder(): string {
+        return path.join(this.rootDir, "trusted/clr");
     }
     public get issuersCertFolder(): string {
         return path.join(this.rootDir, "issuers/certs");
+    }
+    public get issuersClrFolder(): string {
+        return path.join(this.rootDir, "issuers/clr");
     }
 
     public isCertificateTrusted(
@@ -240,40 +301,130 @@ export class CertificateManager {
     public async isCertificateTrusted(certificate: Certificate): Promise<string>;
     public async isCertificateTrusted(certificate: Certificate): Promise<string> {
 
-        const thumbprint = makeSHA1Thumbprint(certificate);
+        const fingerprint = makeFingerprint(certificate) as Thumbprint;
+        const certificateInTrust = this._thumbs.trusted[fingerprint]?.certificate;
 
-        const certificateFilenameInTrusted = path.join(this.trustedFolder, thumbprint.toString("hex") + ".pem");
-
-        const fileExistInTrustedFolder: boolean = await fsFileExists(certificateFilenameInTrusted);
-
-        if (fileExistInTrustedFolder) {
-            const content: Certificate = await readCertificate(certificateFilenameInTrusted);
-            if (content.toString("base64") !== certificate.toString("base64")) {
-                return "BadCertificateInvalid";
-            }
+        if (certificateInTrust) {
             return "Good";
         } else {
-            const certificateFilenameInRejected = path.join(this.rejectedFolder, thumbprint.toString("hex") + ".pem");
-            if (!await fsFileExists(certificateFilenameInRejected)) {
 
-                if (this.untrustUnknownCertificate) {
-                    // Certificate should be mark as untrusted
+            const certificateInRejected = this._thumbs.rejected[fingerprint];
+            if (!certificateInRejected) {
 
-                    // let's first verify that certificate is valid ,as we don't want to write invalid data
-                    try {
-                        const certificateInfo = exploreCertificateInfo(certificate);
-                    } catch (err) {
-                        return "BadCertificateInvalid";
-                    }
-                    await fsWriteFile(certificateFilenameInRejected, toPem(certificate, "CERTIFICATE"));
-                } else {
-
+                const certificateFilenameInRejected = path.join(this.rejectedFolder, buildIdealCertificateName(certificate) + ".pem");
+                if (!this.untrustUnknownCertificate) {
                     return "Good";
                 }
+                // Certificate should be mark as untrusted
+                // let's first verify that certificate is valid ,as we don't want to write invalid data
+                try {
+                    const certificateInfo = exploreCertificateInfo(certificate);
+                } catch (err) {
+                    return "BadCertificateInvalid";
+                }
+                debugLog("certificate has never been seen before and is now rejected (untrusted) ", certificateFilenameInRejected);
+                await fsWriteFile(certificateFilenameInRejected, toPem(certificate, "CERTIFICATE"));
             }
-            debugLog("certificate has never been seen before and is rejected untrusted ", certificateFilenameInRejected);
             return "BadCertificateUntrusted";
         }
+    }
+    public async _innerVerifyCertificateAsync(certificate: Certificate, isIssuer: boolean, level: number): Promise<VerificationStatus> {
+
+        if (level >= 5) {
+            // maximum level of certificate in chain reached !
+            return VerificationStatus.BadSecurityChecksFailed;
+        }
+        const chain = split_der(certificate);
+        debugLog("xxx NB CERTIFICATE IN CHAIN = ", chain.length);
+        const info = exploreCertificate(chain[0]);
+
+        let hasTrustedIssuer = false;
+        // check if certificate is attached to a issuer
+        const hasIssuerKey = info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
+        if (hasIssuerKey) {
+            const isSelfSigned = (info.tbsCertificate.extensions?.subjectKeyIdentifier === info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier);
+            if (!isSelfSigned) {
+                const issuerCertificate = await this.findIssuerCertificate(chain[0]);
+                // console.log("issuer is found", !!issuerCertificate, info.tbsCertificate.extensions.subjectKeyIdentifier, info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier);
+                if (!issuerCertificate) {
+                    // issuer is not found
+                    return VerificationStatus.BadSecurityChecksFailed;
+                }
+                const issuerStatus = await this._innerVerifyCertificateAsync(issuerCertificate, true, level + 1);
+                // console.log("            status ", issuerStatus);
+                if (issuerStatus !== VerificationStatus.Good) {
+                    return VerificationStatus.BadSecurityChecksFailed;
+                }
+
+                // verify that certificate was signed by issuer
+                const isCertificateSignatureOK = verifyCertificateSignature(certificate, issuerCertificate);
+                if (!isCertificateSignatureOK) {
+                    return VerificationStatus.BadSecurityChecksFailed;
+                }
+                hasTrustedIssuer = true;
+            } else {
+                // verify that certificate was signed by issuer (self in this case)
+                const isCertificateSignatureOK = verifyCertificateSignature(certificate, certificate);
+                if (!isCertificateSignatureOK) {
+                    return VerificationStatus.BadSecurityChecksFailed;
+                }
+            }
+        }
+
+        const c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
+        //  console.log(c1);
+        //  console.log(c2);
+
+        // Has SoftwareCertificate passed its issue date and has it not expired ?
+        // check dates
+        const certificateInfo = exploreCertificateInfo(certificate);
+        const now = new Date();
+
+        // check that certificate is active
+        if (certificateInfo.notBefore.getTime() > now.getTime()) {
+            // certificate is not active yet
+            debugLog(chalk.red("certificate is invalid : certificate is not active yet !") +
+                "  not before date =" + certificateInfo.notBefore);
+            return VerificationStatus.BadCertificateTimeInvalid;
+        }
+
+        //  check that certificate has not expired
+        if (certificateInfo.notAfter.getTime() <= now.getTime()) {
+            // certificate is obsolete
+            debugLog(chalk.red("certificate is invalid : certificate has expired !")
+                + " not after date =" + certificateInfo.notAfter);
+            return VerificationStatus.BadCertificateTimeInvalid;
+        }
+
+        // _check_that_certificate_has_not_been_revoked_by_issuer
+        // Has SoftwareCertificate has  been revoked by the issuer ?
+        // TODO: check if certificate is revoked or not ...
+        // BadCertificateRevoked
+
+        // check that issuer certificate has not been revoked by the CA authority
+        // is issuer Certificate valid and has not been revoked by the CA that issued it. ?
+        // TODO : check validity of issuer certificate
+        // BadCertificateIssuerRevoked
+
+        // check that ApplicationDescription matches URI in certificate
+        // does the URI specified in the ApplicationDescription  match the URI in the Certificate ?
+        // TODO : check ApplicationDescription of issuer certificate
+        // return BadCertificateUriInvalid
+
+        const status = await this._checkRejectedOrTrusted(certificate);
+
+        if (status === "rejected") {
+            return VerificationStatus.BadCertificateUntrusted;
+        } else if (status === "trusted") {
+            return VerificationStatus.Good; // OK
+        }
+        assert(status === "unknown");
+        return isIssuer ? VerificationStatus.Good : (hasTrustedIssuer ? VerificationStatus.Good : VerificationStatus.BadCertificateUntrusted);
+    }
+    public async verifyCertificateAsync(certificate: Certificate): Promise<VerificationStatus> {
+        const status1 = await this._innerVerifyCertificateAsync(certificate, false, 0);
+        return status1;
+
     }
 
     /**
@@ -293,66 +444,9 @@ export class CertificateManager {
         // Is the  signature on the SoftwareCertificate valid .?
         if (!certificate) {
             // missing certificate
-            return callback!(null, "BadSecurityChecksFailed");
+            return callback!(null, VerificationStatus.BadSecurityChecksFailed);
         }
-
-        const chain = split_der(certificate);
-        console.log("xxx NB CERTIFICATE IN CHAIN = ", chain.length);
-        const c1 = exploreCertificateInfo(chain[0]);
-        const c2 = exploreCertificateInfo(chain[1]);
-        console.log(c1);
-        console.log(c2);
-
-        // Has SoftwareCertificate passed its issue date and has it not expired ?
-        // check dates
-        const certificateInfo = exploreCertificateInfo(certificate);
-        const now = new Date();
-
-        // check that certificate is active
-        if (certificateInfo.notBefore.getTime() > now.getTime()) {
-            // certificate is not active yet
-            debugLog(chalk.red("certificate is invalid : certificate is not active yet !") +
-                "  not before date =" + certificateInfo.notBefore);
-            return callback!(null, "BadCertificateTimeInvalid");
-        }
-
-        //  check that certificate has not expired
-        if (certificateInfo.notAfter.getTime() <= now.getTime()) {
-            // certificate is obsolete
-            debugLog(chalk.red("certificate is invalid : certificate has expired !")
-                + " not after date =" + certificateInfo.notAfter);
-            return callback!(null, "BadCertificateTimeInvalid");
-        }
-
-        // _check_that_certificate_has_not_been_revoked_by_issuer
-        // Has SoftwareCertificate has  been revoked by the issuer ?
-        // TODO: check if certificate is revoked or not ...
-        // BadCertificateRevoked
-
-        // check that issuer certificate has not been revoked by the CA authority
-        // is issuer Certificate valid and has not been revoked by the CA that issued it. ?
-        // TODO : check validity of issuer certificate
-        // BadCertificateIssuerRevoked
-
-        // check that ApplicationDescription matches URI in certificate
-        // does the URI specified in the ApplicationDescription  match the URI in the Certificate ?
-        // TODO : check ApplicationDescription of issuer certificate
-        // return BadCertificateUriInvalid
-
-        this._checkRejectedOrTrusted(certificate, (err?: Error | null, status?: CertificateStatus) => {
-
-            // istanbul ignore next
-            if (err) {
-                return callback!(err);
-            }
-            if (status === "rejected") {
-                return callback!(null, "BadCertificateUntrusted");
-            } else if (status === "trusted") {
-                return callback!(null, "Good"); // OK
-            }
-            assert(status === "unknown");
-            return callback!(null, "BadCertificateUntrusted");
-        });
+        callbackify(this.verifyCertificateAsync).call(this, certificate, callback!);
     }
 
     /*
@@ -368,21 +462,28 @@ export class CertificateManager {
     public async initialize(): Promise<void>;
     public initialize(callback: (err?: Error) => void): void;
     public initialize(...args: any[]): any {
-
         const callback = args[0];
         assert(callback && callback instanceof Function);
+
+        if (this.initialized) {
+            return callback();
+        }
+        this.initialized = true;
+
 
         const pkiDir = this.location;
         mkdir(pkiDir);
         mkdir(path.join(pkiDir, "own"));
         mkdir(path.join(pkiDir, "own/certs"));
         mkdir(path.join(pkiDir, "own/private"));
-        mkdir(path.join(pkiDir, "trusted"));
         mkdir(path.join(pkiDir, "rejected"));
+        mkdir(path.join(pkiDir, "trusted"));
+        mkdir(path.join(pkiDir, "trusted/certs"));
+        mkdir(path.join(pkiDir, "trusted/clr"));
 
         mkdir(path.join(pkiDir, "issuers"));
         mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
-        mkdir(path.join(pkiDir, "issuers/crl"));// contains CRL  of revoked CA certificates
+        mkdir(path.join(pkiDir, "issuers/clr"));// contains CRL  of revoked CA certificates
 
         ensure_openssl_installed(() => {
             // if (1 || !fs.existsSync(this.configFile)) {
@@ -407,14 +508,19 @@ export class CertificateManager {
                     debugLog("generating private key ...");
                     setEnv("RANDFILE", this.randomFile);
                     createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
-                        callback(err);
+                        if (err) {
+                            return callback(err);
+                        }
+                        this._readCertificates(() => callback());
                     });
                 } else {
-                    debugLog("private key already exists ... skipping");
-                    callback();
+                    // debugLog("   intialize :  private key already exists ... skipping");
+                    this._readCertificates(() => callback());
                 }
             });
         });
+
+
     }
 
     /**
@@ -496,41 +602,55 @@ export class CertificateManager {
 
         if (validate) {
             const status = await this.verifyCertificate(certificate);
-            if (status !== "Good") {
+            if (status !== VerificationStatus.Good) {
                 return status;
             }
         }
         const pemCertificate = toPem(certificate, "CERTIFICATE");
-        const thumbprintHex = makeSHA1Thumbprint(certificate).toString("hex");
-        this._thumbs.issuers.certs[thumbprintHex] = certificate;
-
-        const filename = path.join(this.issuersCertFolder, thumbprintHex + ".crt");
-
+        const fingerprint = makeFingerprint(certificate);
+        if (this._thumbs.issuers.certs[fingerprint]) {
+            // already in .. simply ignore
+            return VerificationStatus.Good;
+        }
+        // write certificate
+        const filename = path.join(this.issuersCertFolder, "issuer_" + buildIdealCertificateName(certificate) + ".pem");
         await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
-        return "Good";
+
+        // first time seen, let's save it.
+        this._thumbs.issuers.certs[fingerprint] = { certificate, filename };
+
+        return VerificationStatus.Good;
     }
 
     // find the issuer certificate
     public async findIssuerCertificate(certificate: Certificate): Promise<Certificate | null> {
 
         const certInfo = exploreCertificate(certificate);
-        if (!certInfo.tbsCertificate.extensions || !certInfo.tbsCertificate.extensions.authorityKeyIdentifier) {
+
+        const wantedIssuerKey = certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
+        if (!wantedIssuerKey) {
             // Certificate has no extension 3 ! Too old ...
+            debugLog("Certificate has no extension 3");
             return null;
         }
-        const wantedIssuerKey = certInfo.tbsCertificate.extensions.authorityKeyIdentifier.keyIdentifier;
-        const issuerCertificates = Object.values(this._thumbs.issuers.certs);
+        const issuerCertificates = Object.values(this._thumbs.issuers.certs).map(e => e.certificate);
+        const selectedIssuerCertificates = findMatchingIssuerKey(issuerCertificates, wantedIssuerKey);
 
-        const selectedIssuerCerftifcate = issuerCertificates.filter(issuerCertificate => {
-            const info = exploreCertificate(issuerCertificate);
-            return (info.tbsCertificate.extensions && info.tbsCertificate.extensions.subjectKeyIdentifier === wantedIssuerKey);
-        });
-
-        if (selectedIssuerCerftifcate.length > 1) {
-            // tslint:disable-next-line: no-console
-            console.log("Warning more than one certificate exists with subjectKeyIdentifier ", wantedIssuerKey);
+        if (selectedIssuerCertificates.length > 0) {
+            if (selectedIssuerCertificates.length > 1) {
+                // tslint:disable-next-line: no-console
+                console.log("Warning more than one certificate exists with subjectKeyIdentifier ", wantedIssuerKey);
+            }
+            return selectedIssuerCertificates[0] || null;
         }
-        return selectedIssuerCerftifcate[0] || null;
+        // check also in trusted  list
+        const trustedCertificates = Object.values(this._thumbs.trusted).map(e => e.certificate);
+        const selectedTrustedCerftifcates = findMatchingIssuerKey(trustedCertificates, wantedIssuerKey);
+        if (selectedTrustedCerftifcates.length > 1) {
+            // tslint:disable-next-line: no-console
+            console.log("Warning more than one certificate exists with subjectKeyIdentifier in trusted certificate ", wantedIssuerKey);
+        }
+        return selectedTrustedCerftifcates[0] || null;
     }
 
     /**
@@ -547,18 +667,18 @@ export class CertificateManager {
         const callback = args[0] as (err: Error | null, status?: CertificateStatus) => void;
         assert(callback && callback instanceof Function);
         assert(certificate instanceof Buffer);
-        const thumbprint = makeSHA1Thumbprint(certificate).toString("hex");
+        const fingerprint = makeFingerprint(certificate);
 
-        debugLog("thumbprint ", thumbprint);
+        debugLog("_checkRejectedOrTrusted fingerprint ", short(fingerprint));
 
         this._readCertificates((err?: Error) => {
             if (err) {
                 return callback(err);
             }
-            if (this._thumbs.rejected.hasOwnProperty(thumbprint)) {
+            if (this._thumbs.rejected.hasOwnProperty(fingerprint)) {
                 return callback(null, "rejected");
             }
-            if (this._thumbs.trusted.hasOwnProperty(thumbprint)) {
+            if (this._thumbs.trusted.hasOwnProperty(fingerprint)) {
                 return callback(null, "trusted");
             }
             return callback(null, "unknown");
@@ -573,71 +693,88 @@ export class CertificateManager {
     ) {
 
         assert(certificate instanceof Buffer);
-        const thumbprint = makeSHA1Thumbprint(certificate).toString("hex");
+        const fingerprint = makeFingerprint(certificate);
 
         this.getCertificateStatus(certificate, (err: Error | null, status?: CertificateStatus) => {
             if (err) {
                 return callback(err);
             }
-
+            debugLog("_moveCertificate", fingerprint.substr(0, 10), "from", status, "to", newStatus);
+            assert(status === "rejected" || status === "trusted");
             if (status !== newStatus) {
-                const certificateSrc = path.join(this.rootDir, status!, thumbprint + ".pem");
-                const certificateDest = path.join(this.rootDir, newStatus, thumbprint + ".pem");
+                const certificateSrc = (this._thumbs as any)[status!][fingerprint]?.filename;
+                if (!certificateSrc) {
+                    console.log(" cannot find certificate ", fingerprint.substr(0, 10), " in", (this._thumbs), [status!]);
+                    return callback(new Error("internal"));
+                }
+                const destFolder = newStatus === "rejected" ? this.rejectedFolder : (newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder);
+                const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
+                debugLog("_moveCertificate", fingerprint.substr(0, 10), "old name", certificateSrc);
+                debugLog("_moveCertificate", fingerprint.substr(0, 10), "new name", certificateDest);
                 fs.rename(certificateSrc, certificateDest, (err?: Error | null) => {
-                    assert(status === "rejected" || status === "trusted");
-                    const cert = (this._thumbs as any)[status!][thumbprint];
-                    delete (this._thumbs as any)[status!][thumbprint];
-                    (this._thumbs as any)[newStatus][thumbprint] = cert;
+                    // const certific = (this._thumbs as any)[status!][thumbprint];
+                    delete (this._thumbs as any)[status!][fingerprint];
+                    (this._thumbs as any)[newStatus][fingerprint] = {
+                        certificate,
+                        filename: certificateDest
+                    };
                     return callback(err);
                 });
-
             } else {
                 return callback();
             }
         });
     }
-
     private _readCertificates(callback: (err?: Error) => void) {
-
-
-        function _f(folder: string, index: { [key: string]: Certificate }, callback: (err?: Error) => void) {
-
-            // empty list first
-            Object.keys(index).forEach((key) => delete index[key]);
-
-            const walker = walk.walk(folder, { followLinks: false });
-
-            walker.on("file", (root: string, stat: any, next: () => void) => {
-
-                const filename = path.join(root, stat.name);
-                try {
-                    const certificate = readCertificate(filename);
-                    const thumbprint = makeSHA1Thumbprint(certificate).toString("hex");
-                    index[thumbprint] = certificate;
-                } catch (err) {
-                    debugLog("err : ", err.message);
-                }
-                next();
+        if (this._readCertificatesCalled) {
+            return callback();
+        }
+        this._readCertificatesCalled = true;
+        function _walkAllFiles(this: CertificateManager, folder: string, index: { [key: string]: Entry }, _innerCallback: (err?: Error) => void) {
+            const w = chokidar.watch(folder, {
+                usePolling: true,
+                interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)),
+                persistent: false,
+                awaitWriteFinish: {
+                    stabilityThreshold: 2000,
+                    pollInterval: 600
+                },
             });
-            walker.on("end", () => {
-                return callback();
+            w.on("unlink", (filename: string, stat?: fs.Stats) => {
+                debugLog(chalk.cyan("unlink in folder "), filename, stat);
+                const h = this._filenameToHash[filename];
+                if (h && index[h]) {
+                    delete index[h];
+                }
+            });
+            w.on("add", (filename: string, stat?: fs.Stats) => {
+                debugLog(chalk.cyan("add in folder "), filename); // stat);
+                const certificate = readCertificate(filename);
+                const fingerprint = makeFingerprint(certificate);
+                index[fingerprint] = {
+                    certificate,
+                    filename
+                }
+                this._filenameToHash[filename] = fingerprint;
+            });
+            w.on("change", (path: string, stat?: fs.Stats) => {
+                debugLog("change in folder ", folder, path, stat);
+            });
+            this._watchers.push(w);
+            w.on("ready", () => {
+                _innerCallback();
+                debugLog("ready");
+                debugLog(Object.entries(index).map(kv => (kv[0] as string).substr(0, 10)));
             });
         }
-
         async.parallel([
-            (callback: (err?: Error) => void) => {
-                _f.bind(this, path.join(this.rootDir, "trusted"), this._thumbs.trusted)
-                    .call(null, callback);
-            },
-            (callback: (err?: Error) => void) => {
-                _f.bind(this, path.join(this.rootDir, "rejected"), this._thumbs.rejected)
-                    .call(null, callback);
-            },
-            (callback: (err?: Error) => void) => {
-                _f.bind(this, path.join(this.rootDir, "issuers/certs"), this._thumbs.issuers.certs)
-                    .call(null, callback);
-            }
+            _walkAllFiles.bind(this, this.trustedFolder, this._thumbs.trusted),
+            _walkAllFiles.bind(this, this.issuersCertFolder, this._thumbs.issuers.certs),
+            _walkAllFiles.bind(this, this.rejectedFolder, this._thumbs.rejected),
+            _walkAllFiles.bind(this, this.clrFolder, this._thumbs.clr),
+            _walkAllFiles.bind(this, this.issuersClrFolder, this._thumbs.issuersClr)
+
         ], (err) => callback(err!));
     }
 }

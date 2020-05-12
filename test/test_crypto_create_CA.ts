@@ -3,7 +3,7 @@ import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { should } from "should";
-import { dumpCertificate, ErrorCallback, Filename, make_path } from "../lib";
+import { dumpCertificate, ErrorCallback, Filename, make_path } from "..";
 import { beforeTest, grep } from "./helpers";
 
 const n = make_path;

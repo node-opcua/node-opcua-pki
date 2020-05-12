@@ -1,7 +1,8 @@
-import * as del from "del";
 import * as path from "path";
 import * as rimraf from "rimraf";
-import { ErrorCallback, g_config, mkdir } from "../lib";
+
+import { ErrorCallback, g_config, mkdir } from "..";
+
 
 const tmpFolder = path.join(__dirname, "../tmp");
 
@@ -44,6 +45,7 @@ export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData
         testData.tmpFolder = tmpFolder;
         if (!doneOnce) {
             doneOnce = true;
+            // tslint:disable-next-line: no-console
             console.log("    .... cleaning temporary folders ...");
             await new Promise((resolve, reject) => rimraf(tmpFolder, (err) => err ? reject(err) : resolve()));
             await mkdir(tmpFolder);
