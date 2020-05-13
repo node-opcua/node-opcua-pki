@@ -6,16 +6,16 @@ import * as fs from "fs";
 import * as path from "path";
 import should = require("should");
 
-import { Certificate, readCertificate } from "node-opcua-crypto";
+import { Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
 import {
+    CertificateAuthority,
     CertificateAuthorityOptions,
+    CertificateManager,
+    CertificatePurpose,
     ErrorCallback,
     Filename,
     KeySize,
-    Params,
-    CertificateAuthority,
-    CertificateManager,
-    CertificatePurpose
+    Params
 } from "..";
 import { beforeTest } from "./helpers";
 
@@ -33,7 +33,6 @@ const yesterday = get_offset_date(today, -1);
 
 describe("test certificate validation", function (this: Mocha.Suite) {
 
-
     let certificateAuthority: CertificateAuthority;
 
     let otherCertificateAuthority: CertificateAuthority;
@@ -43,7 +42,6 @@ describe("test certificate validation", function (this: Mocha.Suite) {
     let certificate_valid: Filename;
     let certificate_valid_untrusted: Filename;
     let certificate_valid_signed_with_other_CA: Filename;
-
 
     const testData = beforeTest(this);
 
@@ -74,13 +72,11 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             theCertificateRequest,
             params);
 
-
         fs.existsSync(theCertificateRequest).should.eql(true);
         fs.existsSync(certificate).should.eql(true);
     }
 
     before(async () => {
-
 
         const optionsCA: CertificateAuthorityOptions = {
             keySize: 2048 as KeySize,
@@ -92,7 +88,6 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         // create an other certificate authority
         otherCertificateAuthority = new CertificateAuthority({ keySize: 2048, location: path.join(testData.tmpFolder, "OTHER_CA") });
         await otherCertificateAuthority.initialize();
-
 
         const optionsPKI = { location: path.join(testData.tmpFolder, "TEST_PKI") };
         certificateManager = new CertificateManager(optionsPKI);
@@ -139,8 +134,6 @@ describe("test certificate validation", function (this: Mocha.Suite) {
     */
     });
 
-
-
     describe("should verify ", () => {
 
         let localCertificateManager: CertificateManager;
@@ -160,6 +153,10 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             caCertificateBuf = readCertificate(certificateAuthority.caCertificate);
             const status = await localCertificateManager.addIssuer(caCertificateBuf);
             status.should.eql("Good");
+
+            const crl = await readCertificateRevocationList(certificateAuthority.revocationList);
+            const status1 = await localCertificateManager.addRevocationList(crl);
+            status1.should.eql("Good");
 
             // get certificate
             cert1 = readCertificate(certificate_out_of_date);
@@ -203,7 +200,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
                 throw new Error("Cannot find issuer certificate");
             }
             issuerCertificate!.toString("hex").should.eql(caCertificateBuf.toString("hex"));
-        })
+        });
 
     });
 });

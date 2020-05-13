@@ -85,7 +85,7 @@ function quote(str: string): string {
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
-    return !!strVersion.match(/OpenSSL 1.0./);
+    return !!strVersion.match(/OpenSSL 1.(0|1)./);
 }
 
 export function check_system_openssl_version(callback: (err: Error | null, output?: string) => void) {
@@ -131,7 +131,7 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
             if (!versionOK) {
 
                 let message = chalk.whiteBright("Warning !!!!!!!!!!!! ") +
-                    "\nyour version of openssl doesn't match the expected version";
+                    "\nyour version of openssl is " + version + ". It doesn't match the expected version";
 
                 if (process.platform === "darwin") {
                     message += chalk.cyan("\nplease refer to :") +

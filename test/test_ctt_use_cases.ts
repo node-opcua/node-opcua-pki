@@ -241,7 +241,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         }
     }
 
-    it("should XGXG", async () => {
+    it("XGXG should", async () => {
 
         const applicationPKI = new CertificateManager({
             location: path.join(testData.tmpFolder, "ctt/applicationPKI")
@@ -260,7 +260,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             await test_verify(certFilename, applicationPKI);
         }
     });
-    it("should XGXG2", async () => {
+    it("XGXG2 should ", async () => {
         const x509YuserIdentiyPKI = new CertificateManager({
             location: path.join(testData.tmpFolder, "ctt/userIdentityPKI")
         });
@@ -273,5 +273,24 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         for (const certFilename of applicationCertificates) {
             await test_verify(certFilename, x509YuserIdentiyPKI);
         }
-    })
+    });
+    it("XGXG3 should check for revoked certificates", async () => {
+
+        // ctt_ca1I_ca2T_usrTR.der
+        const applicationPKI = new CertificateManager({
+            location: path.join(testData.tmpFolder, "ctt/applicationPKI")
+        });
+        await applicationPKI.initialize();
+
+        const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_ca2T_appU.der");
+        const file2R = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_ca2T_usrTR.der");
+
+        const cert1 = await readCertificate(file1);
+        (await applicationPKI.isCertificateRevoked(cert1)).should.eql("BadCertificateRevocationUnknown");
+
+        const cert2R = await readCertificate(file2R);
+        const isRevoked2 = await applicationPKI.isCertificateRevoked(cert2R);
+        isRevoked2.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
+    });
+
 });

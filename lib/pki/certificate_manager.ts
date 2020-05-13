@@ -25,25 +25,31 @@
 import * as assert from "assert";
 import * as async from "async";
 import * as chalk from "chalk";
+import * as chokidar from "chokidar";
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
 import { callbackify, promisify } from "util";
-import * as chokidar from "chokidar";
 
 import {
     Certificate,
-    exploreCertificateInfo,
-    makeSHA1Thumbprint,
-    readCertificate,
-    toPem,
-    split_der,
-    PEM, DER,
-    exploreCertificate,
+    CertificateRevocationList,
+    CertificateRevocationListInfo,
     convertPEMtoDER,
+    DER,
+    exploreCertificate,
+    exploreCertificateInfo, exploreCertificateRevocationList,
+    makeSHA1Thumbprint,
+    PEM,
+    readCertificate,
+    readCertificateRevocationList,
+    split_der,
+    toPem,
     verifyCertificateSignature
 } from "node-opcua-crypto";
 
+import { SubjectOptions } from "../misc/subject";
+import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "./common";
 import {
     configurationFileSimpleTemplate,
     createCertificateSigningRequest,
@@ -57,8 +63,6 @@ import {
     mkdir,
     setEnv
 } from "./toolbox";
-import { SubjectOptions } from "../misc/subject";
-import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "./common";
 
 type ReadFileFunc = (
     filename: string, encoding: string,
@@ -73,6 +77,14 @@ interface Entry {
     certificate: Certificate,
     filename: string
 }
+interface CRLEntry {
+    crlInfo: CertificateRevocationListInfo,
+    filename: string
+}
+interface CRLData {
+    serialNumbers: { [key: string]: Date },
+    crls: CRLEntry[]
+}
 interface Thumbs {
     trusted: { [key: string]: Entry },
     rejected: { [key: string]: Entry },
@@ -80,9 +92,11 @@ interface Thumbs {
         certs: { [key: string]: Entry }
     },
     clr: {
-
+        [key: string]: CRLData // key is subjectFingerPrint of issuer Certificate
     },
     issuersClr: {
+        [key: string]: CRLData // key is subjectFingerPrint of issuer Certificate
+
     }
 }
 
@@ -137,7 +151,7 @@ export enum VerificationStatus {
     Good = "Good"
 }
 
-function makeFingerprint(certificate: Certificate): string {
+function makeFingerprint(certificate: Certificate | CertificateRevocationList): string {
     return makeSHA1Thumbprint(certificate).toString("hex");
 }
 function short(stringToShorten: string) {
@@ -362,6 +376,11 @@ export class CertificateManager {
                     return VerificationStatus.BadSecurityChecksFailed;
                 }
                 hasTrustedIssuer = true;
+
+                const s = await this.isCertificateRevoked(certificate);
+                if (s !== VerificationStatus.Good) {
+                    return s;
+                }
             } else {
                 // verify that certificate was signed by issuer (self in this case)
                 const isCertificateSignatureOK = verifyCertificateSignature(certificate, certificate);
@@ -470,7 +489,6 @@ export class CertificateManager {
         }
         this.initialized = true;
 
-
         const pkiDir = this.location;
         mkdir(pkiDir);
         mkdir(path.join(pkiDir, "own"));
@@ -519,7 +537,6 @@ export class CertificateManager {
                 }
             });
         });
-
 
     }
 
@@ -597,7 +614,6 @@ export class CertificateManager {
             });
     }
 
-
     public async addIssuer(certificate: DER, validate: boolean = false): Promise<VerificationStatus> {
 
         if (validate) {
@@ -620,6 +636,24 @@ export class CertificateManager {
         this._thumbs.issuers.certs[fingerprint] = { certificate, filename };
 
         return VerificationStatus.Good;
+    }
+
+    public async addRevocationList(crl: CertificateRevocationList): Promise<VerificationStatus> {
+        try {
+            const crlInfo = exploreCertificateRevocationList(crl);
+            const key = crlInfo.tbsCertList.issuerFingerprint;
+            if (!this._thumbs.issuersClr[key]) {
+                this._thumbs.issuersClr[key] = { crls: [], serialNumbers: {} };
+            }
+            const pemCertificate = toPem(crl, "X509 CRL");
+            const filename = path.join(this.issuersClrFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
+            await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
+            return VerificationStatus.Good;
+
+        } catch (err) {
+            debugLog(err);
+            return VerificationStatus.BadSecurityChecksFailed;
+        }
     }
 
     // find the issuer certificate
@@ -726,11 +760,94 @@ export class CertificateManager {
             }
         });
     }
+    private _findAssociatedCRLs(issuerCertificate: Certificate): CRLData | null {
+        const issuerCertificateInfo = exploreCertificate(issuerCertificate);
+        const key = issuerCertificateInfo.tbsCertificate.subjectFingerPrint;
+        return this._thumbs.issuersClr[key] ? this._thumbs.issuersClr[key] :
+            (this._thumbs.clr[key] ? this._thumbs.clr[key] : null);
+    }
+
+    public async isCertificateRevoked(certificate: Certificate, issuerCertificate?: Certificate | null): Promise<VerificationStatus> {
+
+        if (!issuerCertificate) {
+            issuerCertificate = await this.findIssuerCertificate(certificate);
+        }
+        if (!issuerCertificate) {
+            return VerificationStatus.BadCertificateChainIncomplete;
+        }
+        const crls = this._findAssociatedCRLs(issuerCertificate);
+
+        if (!crls) {
+            return VerificationStatus.BadCertificateRevocationUnknown;
+        }
+        const certInfo = exploreCertificate(certificate);
+        const serialNumber = certInfo.tbsCertificate.serialNumber || certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.serial || "";
+
+        const crl2 = this._thumbs.clr[certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint!] || null;
+
+        if (crls.serialNumbers[serialNumber] || (crl2 && crl2.serialNumbers[serialNumber])) {
+            return VerificationStatus.BadCertificateRevoked;
+        }
+        return VerificationStatus.Good;
+    }
+
     private _readCertificates(callback: (err?: Error) => void) {
         if (this._readCertificatesCalled) {
             return callback();
         }
         this._readCertificatesCalled = true;
+
+        function _walkCRLFiles(this: CertificateManager, folder: string, index: { [key: string]: CRLData }, _innerCallback: (err?: Error) => void) {
+            const w = chokidar.watch(folder, {
+                usePolling: true,
+                interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)),
+                persistent: false,
+                awaitWriteFinish: {
+                    stabilityThreshold: 2000,
+                    pollInterval: 600
+                },
+            });
+            w.on("unlink", (filename: string, stat?: fs.Stats) => {
+                // CRL never removed
+            });
+            w.on("add", async (filename: string, stat?: fs.Stats) => {
+
+                try {
+
+                    const crl = await readCertificateRevocationList(filename);
+                    const crlInfo = exploreCertificateRevocationList(crl);
+                    debugLog(chalk.cyan("add CRL in folder "), filename); // stat);
+                    const fingerprint = crlInfo.tbsCertList.issuerFingerprint;
+                    index[fingerprint] = index[fingerprint] || { crls: [], serialNumbers: {} };
+                    index[fingerprint].crls.push({ crlInfo, filename });
+
+                    const serialNumbers = index[fingerprint].serialNumbers;
+                    // now inject serial numbers
+                    for (const revokedCertificate of crlInfo.tbsCertList.revokedCertificates) {
+                        const serialNumber = revokedCertificate.userCertificate;
+                        if (!serialNumbers[serialNumber]) {
+                            serialNumbers[serialNumber] = revokedCertificate.revocationDate;
+                        }
+                    }
+                    debugLog(chalk.cyan("CRL"), fingerprint, Object.keys(serialNumbers)); // stat);
+
+                } catch (err) {
+                    console.log(err);
+                }
+            });
+            w.on("change", (path: string, stat?: fs.Stats) => {
+                debugLog("change in folder ", folder, path, stat);
+            });
+            this._watchers.push(w);
+            w.on("ready", () => {
+                _innerCallback();
+                debugLog("ready");
+                debugLog(Object.entries(index).map(kv => (kv[0] as string).substr(0, 10)));
+            });
+
+        }
+
+
         function _walkAllFiles(this: CertificateManager, folder: string, index: { [key: string]: Entry }, _innerCallback: (err?: Error) => void) {
             const w = chokidar.watch(folder, {
                 usePolling: true,
@@ -757,6 +874,9 @@ export class CertificateManager {
                     filename
                 }
                 this._filenameToHash[filename] = fingerprint;
+
+                const info = exploreCertificate(certificate);
+                debugLog(chalk.magenta("CERT"), info.tbsCertificate.subjectFingerPrint, info.tbsCertificate.serialNumber, info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint);
             });
             w.on("change", (path: string, stat?: fs.Stats) => {
                 debugLog("change in folder ", folder, path, stat);
@@ -772,8 +892,8 @@ export class CertificateManager {
             _walkAllFiles.bind(this, this.trustedFolder, this._thumbs.trusted),
             _walkAllFiles.bind(this, this.issuersCertFolder, this._thumbs.issuers.certs),
             _walkAllFiles.bind(this, this.rejectedFolder, this._thumbs.rejected),
-            _walkAllFiles.bind(this, this.clrFolder, this._thumbs.clr),
-            _walkAllFiles.bind(this, this.issuersClrFolder, this._thumbs.issuersClr)
+            _walkCRLFiles.bind(this, this.clrFolder, this._thumbs.clr),
+            _walkCRLFiles.bind(this, this.issuersClrFolder, this._thumbs.issuersClr)
 
         ], (err) => callback(err!));
     }
