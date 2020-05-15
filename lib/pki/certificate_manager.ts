@@ -540,6 +540,11 @@ export class CertificateManager {
 
     }
 
+    public async dispose(): Promise<void> {
+        await Promise.all(this._watchers.map((w) => w.close()));
+        this._watchers.forEach((w) => w.removeAllListeners());
+        this._watchers.splice(0);
+    }
     /**
      *
      * create a self-signed certificate for the CertificateManager private key
@@ -725,6 +730,7 @@ export class CertificateManager {
         newStatus: CertificateStatus,
         callback: ErrorCallback
     ) {
+        // a mutex is cerquested here
 
         assert(certificate instanceof Buffer);
         const fingerprint = makeFingerprint(certificate);
@@ -744,8 +750,8 @@ export class CertificateManager {
                 const destFolder = newStatus === "rejected" ? this.rejectedFolder : (newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder);
                 const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
-                debugLog("_moveCertificate", fingerprint.substr(0, 10), "old name", certificateSrc);
-                debugLog("_moveCertificate", fingerprint.substr(0, 10), "new name", certificateDest);
+                debugLog("_moveCertificate1", fingerprint.substr(0, 10), "old name", certificateSrc);
+                debugLog("_moveCertificate1", fingerprint.substr(0, 10), "new name", certificateDest);
                 fs.rename(certificateSrc, certificateDest, (err?: Error | null) => {
                     // const certific = (this._thumbs as any)[status!][thumbprint];
                     delete (this._thumbs as any)[status!][fingerprint];
@@ -753,7 +759,8 @@ export class CertificateManager {
                         certificate,
                         filename: certificateDest
                     };
-                    return callback(err);
+                    // we do not return the error here
+                    return callback(/*err*/);
                 });
             } else {
                 return callback();
@@ -859,7 +866,7 @@ export class CertificateManager {
                 },
             });
             w.on("unlink", (filename: string, stat?: fs.Stats) => {
-                debugLog(chalk.cyan("unlink in folder "), filename, stat);
+                debugLog(chalk.cyan("unlink in folder "), filename);
                 const h = this._filenameToHash[filename];
                 if (h && index[h]) {
                     delete index[h];
@@ -879,7 +886,7 @@ export class CertificateManager {
                 debugLog(chalk.magenta("CERT"), info.tbsCertificate.subjectFingerPrint, info.tbsCertificate.serialNumber, info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint);
             });
             w.on("change", (path: string, stat?: fs.Stats) => {
-                debugLog("change in folder ", folder, path, stat);
+                debugLog("change in folder ", folder, path);
             });
             this._watchers.push(w);
             w.on("ready", () => {
