@@ -236,8 +236,8 @@ function install_and_check_win32_openssl_version(
         //         : "http://indy.fulgan.com/SSL/openssl-1.0.2o-i386-win32.zip"
         //     ;
         const url = (win32or64() === 64)
-            ? "https://github.com/node-opcua/node-opcua-pki/releases/download/v1.1.0/openssl-1.0.2r-x64_86-win64.zip"
-            : "https://github.com/node-opcua/node-opcua-pki/releases/download/v1.1.0/openssl-1.0.2r-i386-win32.zip";
+            ? "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-x64_86-win64.zip"
+            : "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-i386-win32.zip";
 
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
