@@ -29,7 +29,7 @@ import * as chokidar from "chokidar";
 import * as fs from "fs";
 import * as path from "path";
 import * as _ from "underscore";
-import { callbackify, promisify } from "util";
+import { callbackify, promisify, inspect } from "util";
 
 import {
     Certificate,
@@ -355,8 +355,12 @@ export class CertificateManager {
         let hasTrustedIssuer = false;
         // check if certificate is attached to a issuer
         const hasIssuerKey = info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
+        debugLog("xx Cerficate as an Issuer Key", hasIssuerKey);
+        // console.log(inspect(info, { depth: 100 }));
+
         if (hasIssuerKey) {
             const isSelfSigned = (info.tbsCertificate.extensions?.subjectKeyIdentifier === info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier);
+            debugLog("xx Cerficate is self-signed ", isSelfSigned);
             if (!isSelfSigned) {
                 const issuerCertificate = await this.findIssuerCertificate(chain[0]);
                 // console.log("issuer is found", !!issuerCertificate, info.tbsCertificate.extensions.subjectKeyIdentifier, info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier);
@@ -366,10 +370,15 @@ export class CertificateManager {
                 }
                 const issuerStatus = await this._innerVerifyCertificateAsync(issuerCertificate, true, level + 1);
                 // console.log("            status ", issuerStatus);
+                if (issuerStatus === VerificationStatus.BadCertificateRevocationUnknown) {
+                    return VerificationStatus.BadCertificateIssuerRevocationUnknown;
+                }
+                if (issuerStatus === VerificationStatus.BadCertificateTimeInvalid) {
+                    return VerificationStatus.BadCertificateIssuerTimeInvalid;
+                }
                 if (issuerStatus !== VerificationStatus.Good) {
                     return VerificationStatus.BadSecurityChecksFailed;
                 }
-
                 // verify that certificate was signed by issuer
                 const isCertificateSignatureOK = verifyCertificateSignature(certificate, issuerCertificate);
                 if (!isCertificateSignatureOK) {
@@ -388,6 +397,11 @@ export class CertificateManager {
                     return VerificationStatus.BadSecurityChecksFailed;
                 }
             }
+        }
+
+        const status = await this._checkRejectedOrTrusted(certificate);
+        if (status === "rejected") {
+            return VerificationStatus.BadCertificateUntrusted;
         }
 
         const c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
@@ -430,14 +444,12 @@ export class CertificateManager {
         // TODO : check ApplicationDescription of issuer certificate
         // return BadCertificateUriInvalid
 
-        const status = await this._checkRejectedOrTrusted(certificate);
-
-        if (status === "rejected") {
-            return VerificationStatus.BadCertificateUntrusted;
-        } else if (status === "trusted") {
-            return VerificationStatus.Good; // OK
+        if (status === "trusted") {
+            return VerificationStatus.Good;
         }
         assert(status === "unknown");
+        // return VerificationStatus.BadCertificateUntrusted;
+        //  return isIssuer ? VerificationStatus.Good : VerificationStatus.BadCertificateUntrusted;
         return isIssuer ? VerificationStatus.Good : (hasTrustedIssuer ? VerificationStatus.Good : VerificationStatus.BadCertificateUntrusted);
     }
     public async verifyCertificateAsync(certificate: Certificate): Promise<VerificationStatus> {
@@ -839,6 +851,7 @@ export class CertificateManager {
                     debugLog(chalk.cyan("CRL"), fingerprint, Object.keys(serialNumbers)); // stat);
 
                 } catch (err) {
+                    console.log(" filename =", filename);
                     console.log(err);
                 }
             });

@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
-import { promisify } from "util";
+import { promisify, isRegExp } from "util";
 import * as sinon from "sinon";
 import * as dir from "node-dir";
 import *  as chalk from "chalk";
@@ -229,7 +229,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         const flags = getFlags(certFilename);
 
         // tslint:disable-next-line: no-console
-        console.log(path.basename(certFilename).padEnd(24), flagsToString(flags), status.toString().padEnd(25), nbInChain, makeSHA1Thumbprint(certificate).toString("hex").substr(0, 10));
+        console.log(path.basename(certFilename).padEnd(24), flagsToString(flags), status.toString().padEnd(37), nbInChain, makeSHA1Thumbprint(certificate).toString("hex").substr(0, 10));
         if (flags.certFlags.validity === TimeValidity.expired || flags.certFlags.validity === TimeValidity.not_yet_valid) {
             status.should.eql(VerificationStatus.BadCertificateTimeInvalid);
         }
@@ -293,4 +293,21 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         isRevoked2.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
     });
 
+    it("XGXG4 debug2", async () => {
+        const applicationPKI = new CertificateManager({
+            location: path.join(testData.tmpFolder, "ctt/applicationPKI")
+        });
+        await applicationPKI.initialize();
+
+        const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1TC_ca2I_appT.der");
+
+        const certificate = await readCertificate(file1);
+        (await applicationPKI.isCertificateRevoked(certificate)).should.eql("BadCertificateRevocationUnknown");
+        const status = await applicationPKI.verifyCertificate(certificate);
+        status.should.eql(VerificationStatus.BadCertificateIssuerRevocationUnknown);
+
+        console.log(status);
+
+
+    })
 });
