@@ -35,12 +35,26 @@ import * as yauzl from "yauzl";
 import { Readable } from "stream";
 
 import Table = require("cli-table");
+import { parse } from "url";
 
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
+declare interface ProxyOptions {
+    host: string;
+    port: number;
+    localAddress?: string;
+    proxyAuth?: string;
+    headers?: { [key: string]: any };
+    protocol: string; // "https" | "http"
+}
+declare interface WgetOptions {
+    gunzip?: boolean;
+    proxy?: ProxyOptions
+};
+
 declare interface WgetInterface {
-    download(url: string, outputFilename: string, options: any): any;
+    download(url: string, outputFilename: string, options: WgetOptions): any;
 }
 
 // tslint:disable-next-line:no-var-requires
@@ -51,6 +65,26 @@ type CallbackFunc<T> = (err: Error | null, result?: T) => void;
 interface ExecuteResult {
     exitCode: number;
     output: string;
+}
+
+function makeOptions(): WgetOptions {
+
+    const proxy = (process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined);
+    if (proxy) {
+        const a = parse(proxy);
+        let options: WgetOptions = {
+            proxy: {
+                port: a.port ? parseInt(a.port, 10) : 80,
+                protocol: a.protocol!.replace(":", ""),
+                host: a.hostname ?? "",
+                proxyAuth: a.auth || undefined
+            }
+        }
+        console.log(chalk.green("- using proxy "), proxy);
+        console.log(options);
+        return options;
+    }
+    return {};
 }
 
 function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: string) {
@@ -242,12 +276,12 @@ function install_and_check_win32_openssl_version(
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
 
-        console.log("downloading " + chalk.yellow(url));
+        console.log("downloading " + chalk.yellow(url) + " to " + outputFilename);
 
         if (fs.existsSync(outputFilename)) {
             return callback(null, outputFilename);
         }
-        const options = {};
+        const options = makeOptions();
         const bar = new ProgressBar(chalk.cyan("[:bar]") + chalk.cyan(" :percent ") + chalk.white(":etas"), {
             complete: "=",
             incomplete: " ",
