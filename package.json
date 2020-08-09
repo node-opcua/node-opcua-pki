@@ -48,7 +48,7 @@
     "thenify": "^3.3.0",
     "underscore": "^1.10.2",
     "walk": "^2.3.14",
-    "wget-improved": "^3.2.0",
+    "wget-improved": "^3.2.1",
     "yargs": "^15.3.1",
     "yauzl": "^2.10.0"
   },
