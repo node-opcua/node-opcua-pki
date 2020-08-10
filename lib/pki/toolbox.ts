@@ -32,7 +32,7 @@ import * as  child_process from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import * as _ from "underscore";
+import * as util from "util";
 
 import { get_openssl_exec_path } from "../misc/install_prerequisite";
 import { Subject, SubjectOptions } from "../misc/subject";
@@ -112,7 +112,7 @@ export function execute(
     callback: (err: Error | null, output: string) => void
 ) {
 
-    assert(_.isFunction(callback));
+    assert(util.isFunction(callback));
 
     /// assert(g_config.CARootDir && fs.existsSync(option.CARootDir));
     options.cwd = options.cwd || process.cwd();
@@ -184,7 +184,7 @@ g_config.opensslVersion = "";
 
 export function ensure_openssl_installed(callback: (err?: Error) => void) {
 
-    assert(_.isFunction(callback));
+    assert(util.isFunction(callback));
     if (!opensslPath) {
 
         return find_openssl((err: Error | null) => {
@@ -232,7 +232,7 @@ export function execute_openssl(
         fs.writeFileSync(empty_config_file, "# empty config file");
     }
 
-    assert(_.isFunction(callback));
+    assert(util.isFunction(callback));
 
     options = options || {};
     options.openssl_conf = options.openssl_conf || empty_config_file; // "!! OPEN SLL CONF NOT DEFINED BAD FILE !!";
@@ -502,11 +502,11 @@ export function createCertificateSigningRequest(
     assert(params.rootDir);
     assert(params.configFile);
     assert(params.privateKey);
-    assert(_.isString(params.privateKey));
+    assert(util.isString(params.privateKey));
     assert(fs.existsSync(params.configFile!), "config file must exist");
     assert(fs.existsSync(params.privateKey!), "Private key must exist");
     assert(fs.existsSync(params.rootDir!), "RootDir key must exist");
-    assert(_.isString(certificateSigningRequestFilename));
+    assert(util.isString(certificateSigningRequestFilename));
 
     // note : this openssl command requires a config file
     processAltNames(params);
@@ -700,8 +700,8 @@ export function createSelfSignCertificate(
     if (!params.subject) {
         return callback(new Error("Missing subject"));
     }
-    assert(_.isString(params.applicationUri));
-    assert(_.isArray(params.dns));
+    assert(util.isString(params.applicationUri));
+    assert(util.isArray(params.dns));
 
     // xx no key size in self-signed assert(params.keySize == 2048 || params.keySize == 4096);
 
@@ -801,7 +801,7 @@ export function dumpCertificate(
 ): void {
 
     assert(fs.existsSync(certificate));
-    assert(_.isFunction(callback));
+    assert(util.isFunction(callback));
 
     execute_openssl("x509 " +
         " -in " + q(n(certificate)) +

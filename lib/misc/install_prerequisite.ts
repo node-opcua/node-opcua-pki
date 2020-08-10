@@ -22,21 +22,20 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as  assert from "assert";
-import * as  byline from "byline";
+import * as assert from "assert";
+import * as byline from "byline";
 import * as chalk from "chalk";
 import * as child_process from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as ProgressBar from "progress";
-import * as  _ from "underscore";
+import * as util from "util";
 import * as yauzl from "yauzl";
 import { Readable } from "stream";
 
 import Table = require("cli-table");
 import { parse } from "url";
-
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
@@ -50,8 +49,8 @@ declare interface ProxyOptions {
 }
 declare interface WgetOptions {
     gunzip?: boolean;
-    proxy?: ProxyOptions
-};
+    proxy?: ProxyOptions;
+}
 
 declare interface WgetInterface {
     download(url: string, outputFilename: string, options: WgetOptions): any;
@@ -68,8 +67,12 @@ interface ExecuteResult {
 }
 
 function makeOptions(): WgetOptions {
-
-    const proxy = (process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined);
+    const proxy =
+        process.env.HTTPS_PROXY ||
+        process.env.https_proxy ||
+        process.env.HTTP_PROXY ||
+        process.env.http_proxy ||
+        undefined;
     if (proxy) {
         const a = parse(proxy);
         let options: WgetOptions = {
@@ -77,9 +80,9 @@ function makeOptions(): WgetOptions {
                 port: a.port ? parseInt(a.port, 10) : 80,
                 protocol: a.protocol!.replace(":", ""),
                 host: a.hostname ?? "",
-                proxyAuth: a.auth || undefined
-            }
-        }
+                proxyAuth: a.auth || undefined,
+            },
+        };
         console.log(chalk.green("- using proxy "), proxy);
         console.log(options);
         return options;
@@ -88,7 +91,6 @@ function makeOptions(): WgetOptions {
 }
 
 function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: string) {
-
     let output = "";
 
     // xx cwd = cwd ? {cwd: cwd} : {};
@@ -97,17 +99,17 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
         options.cwd = cwd;
     }
 
-    const child = child_process.exec(
-        cmd,
-        options,
-        (err: child_process.ExecException | null/*, stdout: string, stderr: string*/) => {
-            const exitCode = err === null ? 0 : err!.code!;
-            callback(err ? err : null, { exitCode, output });
-        });
+    const child = child_process.exec(cmd, options, (
+        err: child_process.ExecException | null /*, stdout: string, stderr: string*/
+    ) => {
+        const exitCode = err === null ? 0 : err!.code!;
+        callback(err ? err : null, { exitCode, output });
+    });
 
     const stream1 = byline(child.stdout!);
     stream1.on("data", (line: string) => {
         output += line + "\n";
+        // istanbul ignore next
         if (doDebug) {
             process.stdout.write("        stdout " + chalk.yellow(line) + "\n");
         }
@@ -115,7 +117,7 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
 }
 
 function quote(str: string): string {
-    return "\"" + str.replace(/\\/g, "/") + "\"";
+    return '"' + str.replace(/\\/g, "/") + '"';
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
@@ -123,20 +125,22 @@ function is_expected_openssl_version(strVersion: string): boolean {
 }
 
 export function check_system_openssl_version(callback: (err: Error | null, output?: string) => void) {
-
     execute("which openssl", (err: Error | null, result?: ExecuteResult) => {
+        // istanbul ignore next
         if (err) {
             console.log("warning: ", err.message);
             return callback(new Error("Cannot find openssl"));
         }
+
         const exitCode = result!.exitCode;
         const output = result!.output;
 
         if (exitCode !== 0) {
             console.log(
                 chalk.yellow(" it seems that ") +
-                chalk.cyan("openssl") +
-                chalk.yellow(" is not installed on your computer "));
+                    chalk.cyan("openssl") +
+                    chalk.yellow(" is not installed on your computer ")
+            );
             console.log(chalk.yellow("Please install it before running this programs"));
 
             return callback(new Error("Cannot find openssl"));
@@ -146,12 +150,12 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
         // tslint:disable-next-line:variable-name
         const q_opensslExecPath = quote(opensslExecPath);
 
+        // istanbul ignore next
         if (doDebug) {
             console.log("              OpenSSL found in : " + chalk.yellow(opensslExecPath));
         }
         // ------------------------ now verify that openssl version is the correct one
         execute(q_opensslExecPath + " version", (err: Error | null, result?: ExecuteResult) => {
-
             if (err) {
                 return callback(err);
             }
@@ -161,33 +165,35 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
 
             const version = output.trim();
 
-            const versionOK = (exitCode === 0) && is_expected_openssl_version(version);
+            const versionOK = exitCode === 0 && is_expected_openssl_version(version);
             if (!versionOK) {
-
-                let message = chalk.whiteBright("Warning !!!!!!!!!!!! ") +
-                    "\nyour version of openssl is " + version + ". It doesn't match the expected version";
+                let message =
+                    chalk.whiteBright("Warning !!!!!!!!!!!! ") +
+                    "\nyour version of openssl is " +
+                    version +
+                    ". It doesn't match the expected version";
 
                 if (process.platform === "darwin") {
-                    message += chalk.cyan("\nplease refer to :") +
-                        chalk.yellow(" https://github.com/node-opcua/node-opcua/" +
-                            "wiki/installing-node-opcua-or-node-red-on-MacOS");
+                    message +=
+                        chalk.cyan("\nplease refer to :") +
+                        chalk.yellow(
+                            " https://github.com/node-opcua/node-opcua/" +
+                                "wiki/installing-node-opcua-or-node-red-on-MacOS"
+                        );
                 }
 
                 const table = new Table();
                 table.push([message]);
                 console.error(table.toString());
-
             }
             return callback(null, output);
         });
-
     });
 }
 
 function install_and_check_win32_openssl_version(
     callback: (err: Error | null, opensslExecPath?: string) => void
 ): void {
-
     const downloadFolder = path.join(os.tmpdir(), ".");
 
     function get_openssl_folder_win32(): string {
@@ -206,37 +212,38 @@ function install_and_check_win32_openssl_version(
     }
 
     function check_openssl_win32(callback: (err: Error | null, opensslOk?: boolean, opensslPath?: string) => void) {
-
         const opensslExecPath = get_openssl_exec_path_win32();
 
-
         fs.exists(opensslExecPath, (exists: boolean) => {
-
             if (!exists) {
                 console.log("checking presence of ", opensslExecPath);
                 console.log(chalk.red(" cannot find file ") + opensslExecPath);
                 return callback(null, false, "cannot find file " + opensslExecPath);
             } else {
-
                 // tslint:disable-next-line:variable-name
                 const q_openssl_exe_path = quote(opensslExecPath);
                 const cwd = ".";
 
-                execute(q_openssl_exe_path + " version", (err: Error | null, result?: ExecuteResult) => {
-                    if (err) {
-                        return callback(err);
-                    }
+                execute(
+                    q_openssl_exe_path + " version",
+                    (err: Error | null, result?: ExecuteResult) => {
+                        if (err) {
+                            return callback(err);
+                        }
 
-                    const exitCode = result!.exitCode;
-                    const output = result!.output;
+                        const exitCode = result!.exitCode;
+                        const output = result!.output;
 
-                    const version = output.trim();
-                    if (doDebug) {
-                        console.log(" Version = ", version);
-                    }
-                    callback(null, (exitCode === 0) && is_expected_openssl_version(version), version);
-                }, cwd);
+                        const version = output.trim();
+                        // istanbul ignore next
 
+                        if (doDebug) {
+                            console.log(" Version = ", version);
+                        }
+                        callback(null, exitCode === 0 && is_expected_openssl_version(version), version);
+                    },
+                    cwd
+                );
             }
         });
     }
@@ -264,14 +271,14 @@ function install_and_check_win32_openssl_version(
     }
 
     function download_openssl(callback: (err: Error | null, downloadedFile?: string) => void) {
-
         // const url = (win32or64() === 64 )
         //         ? "http://indy.fulgan.com/SSL/openssl-1.0.2o-x64_86-win64.zip"
         //         : "http://indy.fulgan.com/SSL/openssl-1.0.2o-i386-win32.zip"
         //     ;
-        const url = (win32or64() === 64)
-            ? "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-x64_86-win64.zip"
-            : "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-i386-win32.zip";
+        const url =
+            win32or64() === 64
+                ? "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-x64_86-win64.zip"
+                : "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-i386-win32.zip";
 
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
@@ -294,6 +301,7 @@ function install_and_check_win32_openssl_version(
             console.log(err);
         });
         download.on("end", (output: string) => {
+            // istanbul ignore next
             if (doDebug) {
                 console.log(output);
             }
@@ -308,11 +316,9 @@ function install_and_check_win32_openssl_version(
     }
 
     function unzip_openssl(zipFilename: string, callback: (err?: Error) => void) {
-
         const opensslFolder = get_openssl_folder_win32();
 
         yauzl.open(zipFilename, { lazyEntries: true }, (err?: Error | null, zipFile?: yauzl.ZipFile) => {
-
             if (err) {
                 return callback(err);
             }
@@ -324,6 +330,7 @@ function install_and_check_win32_openssl_version(
 
             zipFile.on("end", (err?: Error) => {
                 setImmediate(() => {
+                    // istanbul ignore next
                     if (doDebug) {
                         console.log("unzip done");
                     }
@@ -332,7 +339,6 @@ function install_and_check_win32_openssl_version(
             });
 
             zipFile.on("entry", (entry: yauzl.Entry) => {
-
                 zipFile.openReadStream(entry, (err?: Error | null, readStream?: Readable) => {
                     if (err) {
                         return callback(err);
@@ -340,6 +346,7 @@ function install_and_check_win32_openssl_version(
 
                     const file = path.join(opensslFolder, entry.fileName);
 
+                    // istanbul ignore next
                     if (doDebug) {
                         console.log(" unzipping :", file);
                     }
@@ -360,6 +367,7 @@ function install_and_check_win32_openssl_version(
     const opensslExecPath = get_openssl_exec_path_win32();
 
     if (!fs.existsSync(opensslFolder)) {
+        // istanbul ignore next
         if (doDebug) {
             console.log("creating openssl_folder", opensslFolder);
         }
@@ -367,18 +375,17 @@ function install_and_check_win32_openssl_version(
     }
 
     check_openssl_win32((err: Error | null, opensslOK?: boolean) => {
-
         if (err) {
             return callback(err);
         }
         if (!opensslOK) {
             console.log(chalk.yellow("openssl seems to be missing and need to be installed"));
             download_openssl((err: Error | null, filename?: string) => {
-
                 if (err) {
                     return callback(err);
                 }
 
+                // istanbul ignore next
                 if (doDebug) {
                     console.log("deflating ", chalk.yellow(filename!));
                 }
@@ -388,12 +395,14 @@ function install_and_check_win32_openssl_version(
                     }
                     const opensslExists = !!fs.existsSync(opensslExecPath);
 
+                    // istanbul ignore next
                     if (doDebug) {
-
-                        console.log("verifying ",
+                        console.log(
+                            "verifying ",
                             opensslExists,
                             opensslExists ? chalk.green("OK ") : chalk.red(" Error"),
-                            opensslExecPath);
+                            opensslExecPath
+                        );
                         console.log("done ", err ? err : "");
                     }
 
@@ -401,17 +410,15 @@ function install_and_check_win32_openssl_version(
                         callback(err, opensslExecPath);
                     });
                 });
-
             });
-
         } else {
+            // istanbul ignore next
             if (doDebug) {
                 console.log(chalk.green("openssl is already installed and have the expected version."));
             }
             return callback(null, opensslExecPath);
         }
     });
-
 }
 
 /**
@@ -421,7 +428,6 @@ function install_and_check_win32_openssl_version(
  * @param callback.pathToOpenSSL {string}
  */
 export function install_prerequisite(callback: (err: Error | null, pathToOpenSSL?: string) => void) {
-
     // istanbul ignore else
     if (process.platform !== "win32") {
         return check_system_openssl_version(callback);
@@ -431,11 +437,9 @@ export function install_prerequisite(callback: (err: Error | null, pathToOpenSSL
 }
 
 export function get_openssl_exec_path(callback: (err: Error | null, execPath?: string) => void) {
-
-    assert(_.isFunction(callback));
+    assert(util.isFunction(callback));
 
     if (process.platform === "win32") {
-
         install_prerequisite((err: Error | null, opensslExecPath?: string) => {
             if (err) {
                 return callback(err);
@@ -445,7 +449,6 @@ export function get_openssl_exec_path(callback: (err: Error | null, execPath?: s
             }
             callback(err, opensslExecPath);
         });
-
     } else {
         setImmediate(() => {
             callback(null, "openssl");

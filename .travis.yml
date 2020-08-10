@@ -1,7 +1,7 @@
 sudo: false
 language: node_js
 node_js:
-    - "8"
+    # - "8" drop support for 8 as end of life was end 2019
     - "10"
     - "12"
     - "14"
@@ -16,7 +16,7 @@ env:
     - SSL_LIB=libressl
 
 before_script:
-    - npm install -g istanbul
+    - npm install -g nyc
     - npm install -g coveralls
     - npm install -g mocha typescript
     - npm install -g codeclimate-test-reporter

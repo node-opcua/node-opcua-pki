@@ -28,7 +28,7 @@ import * as chalk from "chalk";
 import * as chokidar from "chokidar";
 import * as fs from "fs";
 import * as path from "path";
-import * as _ from "underscore";
+import * as util from "util";
 import { callbackify, promisify, inspect } from "util";
 
 import {
@@ -575,7 +575,7 @@ export class CertificateManager {
     ): any {
         const callback = args[0];
         const self = this;
-        assert(_.isString(params.applicationUri), "expecting applicationUri");
+        assert(util.isString(params.applicationUri), "expecting applicationUri");
         if (!fs.existsSync(self.privateKey)) {
             return callback(new Error("Cannot find private key " + self.privateKey));
         }
@@ -604,7 +604,7 @@ export class CertificateManager {
     ): any {
 
         assert(params);
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
 
         const _params = params as CreateSelfSignCertificateWithConfigParam;
         if (_params.hasOwnProperty("rootDir")) {

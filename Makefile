@@ -1,13 +1,13 @@
 
-test-cov: istanbul coveralls codeclimate
+test-cov: coverage coveralls codeclimate
 
-istanbul:
-	istanbul cover -x "tmp/**" -x "bin/install_prerequisite.js" ./node_modules/mocha/bin/_mocha -- -R spec --recursive --timeout 100000 --bail test/*.ts
+coverage:
+	nyc -x ./bin/ -x ./tmp -x ./lib/misc/install_pre* mocha
 
-coveralls: istanbul
+coveralls: coverage
 	cat ./coverage/lcov.info | coveralls --exclude tmp
 
 # note a CODECLIMATE_REPO_TOKEN must be specified as an environment variable.
-codeclimate: istanbul
+codeclimate: coverage
 	codeclimate-test-reporter < ./coverage/lcov.info
 

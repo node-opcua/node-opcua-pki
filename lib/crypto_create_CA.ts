@@ -31,9 +31,9 @@ import * as chalk from "chalk";
 import * as del from "del";
 import * as fs from "fs";
 import * as path from "path";
+import * as util from "util";
 import { callbackify } from "util";
 
-import * as _ from "underscore";
 
 import { makeApplicationUrn } from "./misc/applicationurn";
 import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "./misc/hostname";
@@ -108,11 +108,10 @@ let g_certificateAuthority: CertificateAuthority; // the Certificate Authority
  *   g_config.CAFolder : the folder of the CA
  */
 function construct_CertificateAuthority(callback: ErrorCallback) {
-    assert(_.isFunction(callback), "expecting a callback function");
 
     // verify that g_config file has been loaded
-    assert(_.isString(gLocalConfig.CAFolder), "expecting a CAFolder in config");
-    assert(_.isFinite(gLocalConfig.keySize), "expecting a keySize in config");
+    assert(util.isString(gLocalConfig.CAFolder), "expecting a CAFolder in config");
+    assert(util.isNumber(gLocalConfig.keySize), "expecting a keySize in config");
 
     if (!g_certificateAuthority) {
         g_certificateAuthority = new CertificateAuthority({
@@ -133,8 +132,7 @@ let certificateManager: CertificateManager; // the Certificate Manager
  *   g_config.PKIFolder : the folder of the PKI
  */
 function construct_CertificateManager(callback: ErrorCallback) {
-    assert(_.isFunction(callback), "expecting a callback function");
-    assert(_.isString(gLocalConfig.PKIFolder), "expecting a PKIFolder in config");
+    assert(util.isString(gLocalConfig.PKIFolder), "expecting a PKIFolder in config");
 
     if (!certificateManager) {
         certificateManager = new CertificateManager({
@@ -147,20 +145,21 @@ function construct_CertificateManager(callback: ErrorCallback) {
     }
 }
 
-function displayConfig(config: any) {
+function displayConfig(config: {[key:string]: any}) {
     function w(str: string, l: number): string {
         return (str + "                            ").substr(0, l);
     }
 
     console.log(chalk.yellow(" configuration = "));
-    _.forEach(config, (value: string, key: string) => {
+
+    for(const [key, value] of Object.entries(config)) {
         console.log("   " + chalk.yellow(w(key, 30)) + " : " + chalk.cyan(value.toString()));
-    });
+    }
 }
 
 function default_template_content(): string {
     if ((process as any).pkg && (process as any).pkg.entrypoint) {
-        // we are uning PKG compiled pacakge !
+        // we are using PKG compiled package !
 
         // console.log("___filename", __filename);
         // console.log("__dirname", __dirname);
@@ -214,7 +213,7 @@ function find_module_root_folder() {
 
 /* eslint complexity:off, max-statements:off */
 function readConfiguration(argv: any, callback: ErrorCallback) {
-    assert(_.isFunction(callback));
+    assert(util.isFunction(callback));
 
     if (argv.silent) {
         g_config.silent = true;
@@ -396,7 +395,8 @@ function add_standard_option(options: OptionMap, optionName: string) {
 }
 
 function on_completion(err: Error | null | undefined, done: ErrorCallback) {
-    assert(_.isFunction(done), "expecting function");
+    assert(util.isFunction(done), "expecting function");
+    // istanbul ignore next
     if (err) {
         console.log(chalk.redBright("ERROR : ") + err.message);
     }
@@ -414,7 +414,7 @@ function createDefaultCertificate(
     // possible key length in bits
     assert(key_length === 1024 || key_length === 2048 || key_length === 3072 || key_length === 4096);
 
-    assert(_.isFunction(done));
+    assert(util.isFunction(done));
 
     const private_key_file = make_path(base_name, prefix + "key_" + key_length + ".pem");
     const public_key_file = make_path(base_name, prefix + "public_key_" + key_length + ".pub");
@@ -442,6 +442,7 @@ function createDefaultCertificate(
         callback: (err?: Error | null, certificate?: string) => void
     ) {
         fs.exists(certificate, (exists: boolean) => {
+            // istanbul ignore next
             if (exists) {
                 console.log(
                     chalk.yellow("         certificate"),
@@ -475,6 +476,8 @@ function createDefaultCertificate(
 
         // create CSR
         createCertificateSigningRequest(crs_file, params, (err?: Error) => {
+            
+            // istanbul ignore next
             if (err) {
                 return callback(err);
             }
@@ -703,6 +706,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
         }
     ];
     async.series(task1, (err?: Error | null) => {
+        // istanbul ignore next
         if (err) {
             console.log("ERROR FOUND => ", err.message);
         }
@@ -718,6 +722,7 @@ function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
             (callback: ErrorCallback) => create_default_certificates(dev, callback)
         ],
         (err?: Error | null) => {
+            // istanbul ignore next
             if (err) {
                 console.log(chalk.red("ERROR "), err.message);
             }
@@ -730,10 +735,10 @@ commands
     .strict()
     .wrap(132)
     .command("demo", "create default certificate for node-opcua demos", (yargs: commands.Argv) => {
-        assert(_.isFunction(done));
+        assert(util.isFunction(done));
 
         function command_demo(local_argv: any, done: ErrorCallback) {
-            assert(_.isFunction(done), "expecting a callback");
+            assert(util.isFunction(done), "expecting a callback");
 
             const tasks = [];
 
@@ -809,7 +814,7 @@ commands
     })
 
     .command("createCA", "create a Certificate Authority", (yargs: commands.Argv) => {
-        assert(_.isFunction(done));
+        assert(util.isFunction(done));
 
         function command_new_certificate_authority(local_argv: any, done: ErrorCallback) {
             const tasks = [];
@@ -871,10 +876,10 @@ commands
 
     // ----------------------------------------------- certificate
     .command("certificate", "create a new certificate", (yargs: commands.Argv) => {
-        assert(_.isFunction(done));
+        assert(util.isFunction(done));
 
         function command_certificate(local_argv: any, done: ErrorCallback) {
-            assert(_.isFunction(done));
+            assert(util.isFunction(done));
             const selfSigned = local_argv.selfSigned;
 
             if (!selfSigned) {
@@ -945,6 +950,7 @@ commands
                 gLocalConfig.privateKey = undefined; // use PKI private key
                 // create a Certificate Request from the certificate Manager
                 certificateManager.createCertificateRequest(gLocalConfig, (err: Error | null, csr_file?: string) => {
+                    // istanbul ignore next
                     if (err) {
                         return callback(err);
                     }
@@ -969,7 +975,7 @@ commands
             tasks.push((callback: ErrorCallback) => {
                 // console.error("g_config.outputFile=", gLocalConfig.outputFile);
 
-                assert(_.isString(gLocalConfig.outputFile));
+                assert(util.isString(gLocalConfig.outputFile));
                 fs.writeFileSync(gLocalConfig.outputFile!, fs.readFileSync(certificate, "ascii"));
                 return callback();
             });
@@ -1191,6 +1197,7 @@ export function main(argumentsList: string, _done?: ErrorCallback) {
     }
 
     commands.parse(argumentsList, (err: Error | null, g_argv: any) => {
+        // istanbul ignore next
         if (err) {
             console.log(" err = ", err);
             console.log(" use --help for more info");

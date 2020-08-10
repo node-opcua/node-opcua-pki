@@ -25,7 +25,7 @@ import * as async from "async";
 import * as chalk from "chalk";
 import * as fs from "fs";
 import * as path from "path";
-import * as _ from "underscore";
+import * as util from "util";
 
 import { ErrorCallback, Filename, KeySize, } from "./common";
 
@@ -259,7 +259,7 @@ export class CertificateAuthority {
     public async initialize(): Promise<void>;
     public initialize(callback: ErrorCallback): void;
     public initialize(callback?: ErrorCallback): any {
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
         construct_CertificateAuthority(this, callback!);
     }
 
@@ -267,7 +267,7 @@ export class CertificateAuthority {
     public constructCACertificateWithCRL(callback: ErrorCallback): void;
     public constructCACertificateWithCRL(callback?: ErrorCallback): any {
 
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
         const cacertWithCRL = this.caCertificateWithCrl;
 
         // note : in order to check if the certificate is revoked,
@@ -303,7 +303,7 @@ export class CertificateAuthority {
         callback?: ErrorCallback
     ): any {
 
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
         assert(fs.existsSync(certificate));
         assert(fs.existsSync(this.caCertificate));
 
@@ -337,7 +337,7 @@ export class CertificateAuthority {
 
         assert(typeof privateKey === "string");
         assert(fs.existsSync(privateKey));
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
 
         if (!check_certificate_filename(certificateFile)) {
             return callback!();
@@ -412,7 +412,7 @@ export class CertificateAuthority {
         params: Params,
         callback?: ErrorCallback
     ): any {
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
 
         const crlReasons = [
             "unspecified", "keyCompromise", "CACompromise",
@@ -524,7 +524,7 @@ export class CertificateAuthority {
 
         if (!callback) { throw new Error("Internal Error"); }
         assert(fs.existsSync(certificateSigningRequestFilename));
-        assert(_.isFunction(callback));
+        assert(util.isFunction(callback));
         if (!check_certificate_filename(certificate)) {
             return callback(null);
         }

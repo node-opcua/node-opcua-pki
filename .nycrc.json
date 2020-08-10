@@ -1,0 +1,9 @@
+{
+   "extends": "@istanbuljs/nyc-config-typescript",
+
+   "exclude": [
+       "lib/misc/install*",
+       "test/",
+       "bin/"
+   ]
+}

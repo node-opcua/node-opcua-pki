@@ -21,6 +21,12 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 "use strict";
+
+const updateNotifier = require("update-notifier");
+const pkg = require("../package.json");
+
 require("../dist/crypto_create_CA.js").main(process.argv.splice(2), () => {
     /* empty */
+    updateNotifier({pkg}).notify();
+    
 });
