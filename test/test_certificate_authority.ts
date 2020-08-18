@@ -3,7 +3,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { PrivateKey, readCertificate, split_der } from "node-opcua-crypto";
+import { PrivateKey, readCertificate, split_der, readCertificateRevocationList } from "node-opcua-crypto";
 
 import should = require("should");
 
@@ -257,10 +257,46 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
     it("T6 - should revoke a certificate emitted by the CA", async () => {
 
-        const certificate = await createCertificateFromCA();
-        fs.existsSync(certificate).should.eql(true);
+       // g_config.silent = false;
 
-        await ca.revokeCertificate(certificate, {});
+        const caCertificateFilename = ca.caCertificate;
+        const caCRLFilename = ca.revocationList;
+        const caCertificate =  await readCertificate(caCertificateFilename);
+        const caCRLBefore = await readCertificateRevocationList(caCRLFilename);
+        
+        const certificateFilename = await createCertificateFromCA();
+        fs.existsSync(certificateFilename).should.eql(true);
+        const certificate = await readCertificate(certificateFilename);
 
+        
+        // ---- lets create a 
+        const  pkiLocation =  path.join(testData.tmpFolder, "somePKI");
+        const cm = new CertificateManager({
+            location: pkiLocation
+        });
+        await cm.initialize();
+
+        const validate0 = await cm.verifyCertificate(certificate);
+        validate0.should.eql("BadSecurityChecksFailed");
+
+        const status1 = await cm.addIssuer(caCertificate);
+        const status2 = await cm.addRevocationList(caCRLBefore);
+
+        const validate1 = await cm.verifyCertificate(certificate);
+        validate1.should.eql("Good");
+        
+
+        // now revoke certificate
+        await ca.revokeCertificate(certificateFilename, {});
+
+        const caCRLAfter = await readCertificateRevocationList(caCRLFilename);
+        const status3 = await cm.addRevocationList(caCRLAfter);
+        
+        const validate2 = await cm.verifyCertificate(certificate);
+        validate2.should.eql("BadCertificateRevoked");
+
+        //xx console.log(certificateFilename);
+        //xx console.log(caCRLFilename);
+        //xx console.log("",status1,status2, status3,"v0=", validate0,  "v1=",validate1, "v2=", validate2);
     });
 });

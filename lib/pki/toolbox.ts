@@ -26,9 +26,9 @@
 import * as assert from "assert";
 
 import * as async from "async";
-import * as  byline from "byline";
+import * as byline from "byline";
 import * as chalk from "chalk";
-import * as  child_process from "child_process";
+import * as child_process from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -45,14 +45,14 @@ const exportedEnvVars: any = {};
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
 export function quote(str: string): string {
-    return "\"" + str + "\"";
+    return '"' + str + '"';
 }
 
 // tslint:disable-next-line:variable-name
 export const g_config = {
     opensslVersion: "unset",
     silent: true,
-    force: false
+    force: false,
 };
 
 const displayError: boolean = true;
@@ -85,7 +85,6 @@ export function mkdir(folder: string): void {
 }
 
 export function setEnv(varName: string, value: string): void {
-
     // istanbul ignore next
     if (!g_config.silent) {
         console.log("          set " + varName + "=" + value);
@@ -106,12 +105,7 @@ export interface ExecuteOptions {
     hideErrorMessage?: boolean;
 }
 
-export function execute(
-    cmd: string,
-    options: ExecuteOptions,
-    callback: (err: Error | null, output: string) => void
-) {
-
+export function execute(cmd: string, options: ExecuteOptions, callback: (err: Error | null, output: string) => void) {
     assert(util.isFunction(callback));
 
     /// assert(g_config.CARootDir && fs.existsSync(option.CARootDir));
@@ -124,23 +118,26 @@ export function execute(
 
     const outputs: string[] = [];
 
-    const child = child_process.exec(cmd, {
-        cwd: options.cwd
-    }, (err: child_process.ExecException | null) => {
-
-        // istanbul ignore next
-        if (err) {
-            if (!options.hideErrorMessage) {
-                const fence = "###########################################";
-                console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
-                console.error(chalk.bgWhiteBright.redBright("CWD = " + options.cwd));
-                console.error(chalk.bgWhiteBright.redBright(err.message));
-                console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
+    const child = child_process.exec(
+        cmd,
+        {
+            cwd: options.cwd,
+        },
+        (err: child_process.ExecException | null) => {
+            // istanbul ignore next
+            if (err) {
+                if (!options.hideErrorMessage) {
+                    const fence = "###########################################";
+                    console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
+                    console.error(chalk.bgWhiteBright.redBright("CWD = " + options.cwd));
+                    console.error(chalk.bgWhiteBright.redBright(err.message));
+                    console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
+                }
+                // console.log("        ERR = ".bgWhite.red, err);
             }
-            // console.log("        ERR = ".bgWhite.red, err);
+            callback(err, outputs.join(""));
         }
-        callback(err, outputs.join(""));
-    });
+    );
 
     const stream2 = byline(child.stdout!);
     stream2.on("data", (line: string) => {
@@ -174,8 +171,10 @@ export function useRandFile() {
 
 function openssl_require2DigitYearInDate() {
     if (!g_config.opensslVersion) {
-        throw new Error("openssl_require2DigitYearInDate : openssl version is not known:" +
-            "  please call ensure_openssl_installed(callback)");
+        throw new Error(
+            "openssl_require2DigitYearInDate : openssl version is not known:" +
+                "  please call ensure_openssl_installed(callback)"
+        );
     }
     return g_config.opensslVersion.match(/OpenSSL 0\.9/);
 }
@@ -183,29 +182,24 @@ function openssl_require2DigitYearInDate() {
 g_config.opensslVersion = "";
 
 export function ensure_openssl_installed(callback: (err?: Error) => void) {
-
     assert(util.isFunction(callback));
     if (!opensslPath) {
-
         return find_openssl((err: Error | null) => {
-
             // istanbul ignore next
             if (err) {
                 return callback(err);
             }
 
-            execute_openssl(
-                "version", { cwd: "." },
-                (err: Error | null, outputs?: string) => {
-                    if (err) {
-                        return callback(err);
-                    }
-                    g_config.opensslVersion = outputs!.trim();
-                    if (doDebug) {
-                        console.log("OpenSSL version : ", g_config.opensslVersion);
-                    }
-                    callback(err ? err : undefined);
-                });
+            execute_openssl("version", { cwd: "." }, (err: Error | null, outputs?: string) => {
+                if (err) {
+                    return callback(err);
+                }
+                g_config.opensslVersion = outputs!.trim();
+                if (doDebug) {
+                    console.log("OpenSSL version : ", g_config.opensslVersion);
+                }
+                callback(err ? err : undefined);
+            });
         });
     } else {
         return callback();
@@ -225,7 +219,6 @@ export function execute_openssl(
     options: ExecuteOpenSSLOptions,
     callback: (err: Error | null, output?: string) => void
 ): void {
-
     // tslint:disable-next-line:variable-name
     const empty_config_file = n(getTempFolder(), "empty_config.cnf");
     if (!fs.existsSync(empty_config_file)) {
@@ -254,10 +247,7 @@ export function execute_openssl(
         execute(quote(opensslPath!) + " " + cmd, options, callback);
     });
 }
-export function executeOpensslAsync(
-    cmd: string,
-    options: ExecuteOpenSSLOptions
-): Promise<string> {
+export function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
     return new Promise((resolve, reject) => {
         execute_openssl(cmd, options, (err, output) => {
             if (err) {
@@ -265,7 +255,7 @@ export function executeOpensslAsync(
             } else {
                 resolve(output);
             }
-        })
+        });
     });
 }
 
@@ -289,7 +279,6 @@ export function execute_openssl_no_failure(
 
 // istanbul ignore next
 export function displayChapter(str: string, callback: (err?: Error) => void) {
-
     const l = "                                                                                               ";
     console.log(chalk.bgWhite(l) + " ");
     str = ("        " + str + l).substring(0, l.length);
@@ -301,7 +290,6 @@ export function displayChapter(str: string, callback: (err?: Error) => void) {
 }
 
 export function displayTitle(str: string, callback: (err?: Error) => void) {
-
     // istanbul ignore next
     if (!g_config.silent) {
         console.log("");
@@ -314,7 +302,6 @@ export function displayTitle(str: string, callback: (err?: Error) => void) {
 }
 
 export function displaySubtitle(str: string, callback: (err?: Error) => void) {
-
     // istanbul ignore next
     if (!g_config.silent) {
         console.log("");
@@ -332,11 +319,8 @@ export function getEnvironmentVarNames(): any[] {
     });
 }
 
-export function generateStaticConfig(
-    configPath: string,
-    options?: ExecuteOptions,
-) {
-    const prePath = options && options.cwd || "";
+export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
+    const prePath = (options && options.cwd) || "";
     const staticConfigPath = configPath + ".tmp";
     let staticConfig = fs.readFileSync(path.join(prePath, configPath), { encoding: "utf8" });
     for (const envVar of getEnvironmentVarNames()) {
@@ -396,9 +380,7 @@ export function getPublicKeyFromCertificate(
     callback: (err: Error | null) => void
 ) {
     assert(fs.existsSync(certificateFilename));
-    execute_openssl(
-        "x509 -pubkey -in " +
-        q(n(certificateFilename)) + " > " + q(n(publicKeyFilename)), {}, callback);
+    execute_openssl("x509 -pubkey -in " + q(n(certificateFilename)) + " > " + q(n(publicKeyFilename)), {}, callback);
 }
 
 type KeyLength = 1024 | 2048 | 3072 | 4096;
@@ -412,10 +394,7 @@ type KeyLength = 1024 | 2048 | 3072 | 4096;
  * @param keyLength
  * @param callback {Function}
  */
-export function createPrivateKey(
-    privateKeyFilename: string,
-    keyLength: KeyLength,
-    callback: ErrorCallback) {
+export function createPrivateKey(privateKeyFilename: string, keyLength: KeyLength, callback: ErrorCallback) {
     if (useRandFile()) {
         /// assert(hasEnv("RANDFILE"));
     }
@@ -423,19 +402,22 @@ export function createPrivateKey(
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
     const randomFile = exportedEnvVars.RANDFILE ? q(n(exportedEnvVars.RANDFILE)) : "random.rnd";
     const tasks = [
-        (callback: ErrorCallback) =>
-            createRandomFileIfNotExist(randomFile, {}, callback),
+        (callback: ErrorCallback) => createRandomFileIfNotExist(randomFile, {}, callback),
 
         (callback: ErrorCallback) => {
-            execute_openssl("genrsa " +
-                " -out " + q(n(privateKeyFilename)) +
-                (useRandFile() ? " -rand " + randomFile : "") +
-                " " + keyLength,
+            execute_openssl(
+                "genrsa " +
+                    " -out " +
+                    q(n(privateKeyFilename)) +
+                    (useRandFile() ? " -rand " + randomFile : "") +
+                    " " +
+                    keyLength,
                 {},
                 (err: Error | null) => {
                     callback(err ? err : undefined);
-                });
-        }
+                }
+            );
+        },
     ];
 
     async.series(tasks, callback);
@@ -445,12 +427,9 @@ export function createRandomFile(randomFile: string, options: ExecuteOptions, ca
     if (!useRandFile()) {
         return callback();
     }
-    execute_openssl("rand " +
-        " -out " + randomFile + " -hex 256",
-        options,
-        (err: Error | null) => {
-            callback(err ? err : undefined);
-        });
+    execute_openssl("rand " + " -out " + randomFile + " -hex 256", options, (err: Error | null) => {
+        callback(err ? err : undefined);
+    });
 }
 
 export function createRandomFileIfNotExist(
@@ -465,7 +444,8 @@ export function createRandomFileIfNotExist(
                 console.log(
                     chalk.yellow("         randomFile"),
                     chalk.cyan(randomFile),
-                    chalk.yellow(" already exists => skipping"));
+                    chalk.yellow(" already exists => skipping")
+                );
             }
             return callback();
         } else {
@@ -497,7 +477,6 @@ export function createCertificateSigningRequest(
     params: CreateCertificateSigningRequestWithConfigOptions,
     callback: (err?: Error) => void
 ): void {
-
     assert(params);
     assert(params.rootDir);
     assert(params.configFile);
@@ -517,27 +496,34 @@ export function createCertificateSigningRequest(
 
     // process.env.OPENSSL_CONF  ="";
 
-    async.series([
-        (callback: (err?: Error) => void) => {
-            displaySubtitle("- Creating a Certificate Signing Request", callback);
-        },
-        (callback: (err?: Error) => void) => {
-
-            execute_openssl("req -new" +
-                "  -sha256 " +
-                " -batch " +
-                " -text " +
-                configOption +
-                " -key " + q(n(params.privateKey!)) +
-                " -out " + q(n(certificateSigningRequestFilename)), options, (err: Error | null) => {
-                    callback(err ? err : undefined);
-                });
-        }
-    ], (err) => callback(err!));
+    async.series(
+        [
+            (callback: (err?: Error) => void) => {
+                displaySubtitle("- Creating a Certificate Signing Request", callback);
+            },
+            (callback: (err?: Error) => void) => {
+                execute_openssl(
+                    "req -new" +
+                        "  -sha256 " +
+                        " -batch " +
+                        " -text " +
+                        configOption +
+                        " -key " +
+                        q(n(params.privateKey!)) +
+                        " -out " +
+                        q(n(certificateSigningRequestFilename)),
+                    options,
+                    (err: Error | null) => {
+                        callback(err ? err : undefined);
+                    }
+                );
+            },
+        ],
+        (err) => callback(err!)
+    );
 }
 
 export function x509Date(date: Date): string {
-
     const Y = date.getUTCFullYear();
     const M = date.getUTCMonth() + 1;
     const D = date.getUTCDate();
@@ -589,7 +575,6 @@ export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSign
 }
 
 export interface Params extends ProcessAltNamesParam, StartDateEndDateParam {
-
     subject?: SubjectOptions | string;
 
     privateKey?: string;
@@ -601,7 +586,6 @@ export interface Params extends ProcessAltNamesParam, StartDateEndDateParam {
 }
 
 export function adjustDate(params: StartDateEndDateParam) {
-
     assert(params instanceof Object);
     params.startDate = params.startDate || new Date();
     assert(params.startDate instanceof Date);
@@ -638,7 +622,9 @@ export function check_certificate_filename(certificateFile: string): boolean {
     if (fs.existsSync(certificateFile) && !g_config.force) {
         console.log(
             chalk.yellow("        certificate ") +
-            chalk.cyan(certificateFile) + chalk.yellow(" already exists => do not overwrite"));
+                chalk.cyan(certificateFile) +
+                chalk.yellow(" already exists => do not overwrite")
+        );
         return false;
     }
     return true;
@@ -653,15 +639,20 @@ export function check_certificate_filename(certificateFile: string): boolean {
  * @private
  */
 export function processAltNames(params: ProcessAltNamesParam) {
-
     params.dns = params.dns || [];
     params.ip = params.ip || [];
 
     // construct subjetAtlName
     let subjectAltName: string[] = [];
     subjectAltName.push("URI:" + params.applicationUri);
-    subjectAltName = ([] as string[]).concat(subjectAltName, params.dns.map((d: string) => "DNS:" + d));
-    subjectAltName = ([] as string[]).concat(subjectAltName, params.ip.map((d: string) => "IP:" + d));
+    subjectAltName = ([] as string[]).concat(
+        subjectAltName,
+        params.dns.map((d: string) => "DNS:" + d)
+    );
+    subjectAltName = ([] as string[]).concat(
+        subjectAltName,
+        params.ip.map((d: string) => "IP:" + d)
+    );
     const subjectAltNameString = subjectAltName.join(", ");
     setEnv("ALTNAME", subjectAltNameString);
 }
@@ -686,7 +677,6 @@ export function createSelfSignCertificate(
     params: CreateSelfSignCertificateWithConfigParam,
     callback: (err?: Error | null) => void
 ) {
-
     params.purpose = params.purpose || CertificatePurpose.ForApplication;
     assert(params.purpose, "Please provide a Certificate Purpose");
     /**
@@ -732,7 +722,6 @@ export function createSelfSignCertificate(
     }
 
     const tasks = [
-
         (callback: ErrorCallback) => {
             displayTitle("Generate a certificate request", callback);
         },
@@ -742,14 +731,24 @@ export function createSelfSignCertificate(
         // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
         // The second option is to self-sign the CSR, which will be demonstrated in the next section
         (callback: ErrorCallback) => {
-            execute_openssl("req -new" +
-                " -sha256 " +
-                " -text " +
-                " -extensions " + extension + " " +
-                configOption +
-                " -key " + q(n(params.privateKey!)) +
-                " -out " + q(n(certificateRequestFilename)) +
-                " -subj \"" + subject + "\"", {}, callback);
+            execute_openssl(
+                "req -new" +
+                    " -sha256 " +
+                    " -text " +
+                    " -extensions " +
+                    extension +
+                    " " +
+                    configOption +
+                    " -key " +
+                    q(n(params.privateKey!)) +
+                    " -out " +
+                    q(n(certificateRequestFilename)) +
+                    ' -subj "' +
+                    subject +
+                    '"',
+                {},
+                callback
+            );
         },
 
         // Xx // Step 3: Remove Passphrase from Key
@@ -761,21 +760,32 @@ export function createSelfSignCertificate(
             displayTitle("Generate Certificate (self-signed)", callback);
         },
         (callback: ErrorCallback) => {
-            execute_openssl(" x509 -req " +
-                " -days " + params.validity +
-                " -extensions " + extension + " " +
-                " -extfile " + q(n(configFile)) +
-                " -in " + q(n(certificateRequestFilename)) +
-                " -signkey " + q(n(params.privateKey!)) +
-                " -text " +
-                " -out " + q(certificate) +
-                " -text ", {}, callback);
+            execute_openssl(
+                " x509 -req " +
+                    " -days " +
+                    params.validity +
+                    " -extensions " +
+                    extension +
+                    " " +
+                    " -extfile " +
+                    q(n(configFile)) +
+                    " -in " +
+                    q(n(certificateRequestFilename)) +
+                    " -signkey " +
+                    q(n(params.privateKey!)) +
+                    " -text " +
+                    " -out " +
+                    q(certificate) +
+                    " -text ",
+                {},
+                callback
+            );
         },
 
         // remove unnecessary certificate request file
         (callback: ErrorCallback) => {
             fs.unlink(certificateRequestFilename, callback);
-        }
+        },
     ];
     async.series(tasks, callback);
 }
@@ -795,38 +805,21 @@ export const configurationFileSimpleTemplate: string = _simple_config_template;
  * @param certificate - the certificate file in PEM format, file must exist
  * @param callback
  */
-export function dumpCertificate(
-    certificate: Filename,
-    callback: (err: Error | null, output?: string) => void
-): void {
-
+export function dumpCertificate(certificate: Filename, callback: (err: Error | null, output?: string) => void): void {
     assert(fs.existsSync(certificate));
     assert(util.isFunction(callback));
 
-    execute_openssl("x509 " +
-        " -in " + q(n(certificate)) +
-        " -text " +
-        " -noout", {}, callback);
+    execute_openssl("x509 " + " -in " + q(n(certificate)) + " -text " + " -noout", {}, callback);
 }
 
-export function toDer(
-    certificatePem: string,
-    callback: (err: Error | null, output?: string) => void
-) {
-
+export function toDer(certificatePem: string, callback: (err: Error | null, output?: string) => void) {
     assert(fs.existsSync(certificatePem));
     const certificateDer = certificatePem.replace(".pem", ".der");
-    execute_openssl("x509  " +
-        " -outform der " +
-        " -in " + certificatePem +
-        " -out " + certificateDer, {}, callback);
+    execute_openssl("x509  " + " -outform der " + " -in " + certificatePem + " -out " + certificateDer, {}, callback);
 }
 
 export function fingerprint(certificatePem: string, callback: (err: Error | null, output?: string) => void) {
     // openssl x509 -in my_certificate.pem -hash -dates -noout -fingerprint
     assert(fs.existsSync(certificatePem));
-    execute_openssl("x509  " +
-        " -fingerprint " +
-        " -noout " +
-        " -in " + certificatePem, {}, callback);
+    execute_openssl("x509  " + " -fingerprint " + " -noout " + " -in " + certificatePem, {}, callback);
 }
