@@ -152,13 +152,15 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
             startDate,
             validity
         };
-
+        if ( fs.existsSync(certificateFilename!)) {
+            fs.unlinkSync(certificateFilename!);
+        }
         const certificate = await ca.signCertificateRequest(
             certificateFilename,
             certificateRequest,
             params);
 
-        fs.existsSync(certificate!).should.eql(true);
+        fs.existsSync(certificate!).should.eql(true, "certificate: " + certificateFilename + " should exists");
         // Serial Number: 4096 (0x1000)
 
         // should have 2 x -----BEGIN CERTIFICATE----- in the chain
@@ -275,6 +277,38 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
             location: pkiLocation
         });
         await cm.initialize();
+        const status1 = await cm.addIssuer(caCertificate);
+
+
+        // now revoke certificate
+        await ca.revokeCertificate(certificateFilename, {});
+
+        const caCRLAfter = await readCertificateRevocationList(caCRLFilename);
+        const status3 = await cm.addRevocationList(caCRLAfter);
+        status3.should.eql("Good");
+
+        const validate2 = await cm.verifyCertificate(certificate);
+        validate2.should.eql("BadCertificateRevoked");
+
+    });
+
+    it("T7 - it should automatically accept Certificate issued by a trusted issuer that is not in the CRL", async () => {
+        const caCertificateFilename = ca.caCertificate;
+        const caCRLFilename = ca.revocationList;
+        const caCertificate =  await readCertificate(caCertificateFilename);
+        const caCRLBefore = await readCertificateRevocationList(caCRLFilename);
+        
+        const certificateFilename = await createCertificateFromCA();
+        fs.existsSync(certificateFilename).should.eql(true);
+        const certificate = await readCertificate(certificateFilename);
+
+        
+        // ---- lets create a 
+        const  pkiLocation =  path.join(testData.tmpFolder, "somePKI1");
+        const cm = new CertificateManager({
+            location: pkiLocation
+        });
+        await cm.initialize();
 
         const validate0 = await cm.verifyCertificate(certificate);
         validate0.should.eql("BadSecurityChecksFailed");
@@ -284,19 +318,6 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         const validate1 = await cm.verifyCertificate(certificate);
         validate1.should.eql("Good");
-        
 
-        // now revoke certificate
-        await ca.revokeCertificate(certificateFilename, {});
-
-        const caCRLAfter = await readCertificateRevocationList(caCRLFilename);
-        const status3 = await cm.addRevocationList(caCRLAfter);
-        
-        const validate2 = await cm.verifyCertificate(certificate);
-        validate2.should.eql("BadCertificateRevoked");
-
-        //xx console.log(certificateFilename);
-        //xx console.log(caCRLFilename);
-        //xx console.log("",status1,status2, status3,"v0=", validate0,  "v1=",validate1, "v2=", validate2);
-    });
+    })
 });
