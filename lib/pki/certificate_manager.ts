@@ -854,7 +854,7 @@ export class CertificateManager {
             }
             debugLog(chalk.cyan("CRL"), fingerprint, Object.keys(serialNumbers)); // stat);
         } catch (err) {
-            console.log(" filename =", filename);
+            console.log("CRL filename error =", filename);
             console.log(err);
         }
 
@@ -924,21 +924,29 @@ export class CertificateManager {
             });
             w.on("add", (filename: string, stat?: fs.Stats) => {
                 debugLog(chalk.cyan("add in folder " + folder), filename); // stat);
-                const certificate = readCertificate(filename);
-                const fingerprint = makeFingerprint(certificate);
-                index[fingerprint] = {
-                    certificate,
-                    filename,
-                };
-                this._filenameToHash[filename] = fingerprint;
+                try {
+                    const certificate = readCertificate(filename);
+                    const info = exploreCertificate(certificate);
+                    const fingerprint = makeFingerprint(certificate);
 
-                const info = exploreCertificate(certificate);
-                debugLog(
-                    chalk.magenta("CERT"),
-                    info.tbsCertificate.subjectFingerPrint,
-                    info.tbsCertificate.serialNumber,
-                    info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint
-                );
+                    
+                    index[fingerprint] = {
+                        certificate,
+                        filename,
+                    };
+                    this._filenameToHash[filename] = fingerprint;
+
+                    debugLog(
+                        chalk.magenta("CERT"),
+                        info.tbsCertificate.subjectFingerPrint,
+                        info.tbsCertificate.serialNumber,
+                        info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint
+                    );
+                }
+                catch(err) {
+                    console.log("Walk files in folder " + folder + " with file " + filename);
+                    console.log(err);
+                }
             });
             w.on("change", (path: string, stat?: fs.Stats) => {
                 debugLog("change in folder ", folder, path);
