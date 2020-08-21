@@ -38,7 +38,7 @@ import { callbackify } from "util";
 import { makeApplicationUrn } from "./misc/applicationurn";
 import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "./misc/hostname";
 import { Subject, SubjectOptions } from "./misc/subject";
-import { CertificateAuthority } from "./pki/certificate_authority";
+import { CertificateAuthority, defaultSubject } from "./pki/certificate_authority";
 import { CertificateManager, CreateSelfSignCertificateParam1 } from "./pki/certificate_manager";
 import { ErrorCallback, Filename, KeySize } from "./pki/common";
 import {
@@ -824,12 +824,19 @@ commands
             async.series(tasks, (err?: Error | null) => on_completion(err, done));
         }
 
-        const options = {};
+        const options: any = {
+            subject: {
+                default: defaultSubject,
+                type: "string",
+                describe: "the CA certificate subject"
+            }       
+        };
 
         add_standard_option(options, "root");
         add_standard_option(options, "CAFolder");
         add_standard_option(options, "keySize");
 
+        
         const local_argv = yargs
             .strict()
             .wrap(132)
@@ -909,14 +916,21 @@ commands
             );
 
             tasks.push((callback: ErrorCallback) => {
+
+                let subject = (local_argv.subject && local_argv.subject.length > 1) 
+                    ? new Subject(local_argv.subject) 
+                    : gLocalConfig.subject!; 
+
+                    subject = JSON.parse( JSON.stringify( subject ) );
+
                 const params: CreateSelfSignCertificateParam1 = {
                     applicationUri: gLocalConfig.applicationUri || "",
                     dns: gLocalConfig.dns || [],
                     ip: gLocalConfig.ip || [],
                     outputFile: gLocalConfig.outputFile || "self_signed_certificate.pem",
                     startDate: gLocalConfig.startDate || new Date(),
-                    subject: gLocalConfig.subject!,
-                    validity: gLocalConfig.validity || 365
+                    subject,
+                    validity: gLocalConfig.validity || 365,
                 };
 
                 certificateManager.createSelfSignedCertificate(params, (err?: Error | null) => {
@@ -949,6 +963,11 @@ commands
             tasks.push((callback: ErrorCallback) => {
                 gLocalConfig.privateKey = undefined; // use PKI private key
                 // create a Certificate Request from the certificate Manager
+
+                gLocalConfig.subject  = (local_argv.subject && local_argv.subject.length > 1) 
+                                        ? local_argv.subject 
+                                        : gLocalConfig.subject ;
+
                 certificateManager.createCertificateRequest(gLocalConfig, (err: Error | null, csr_file?: string) => {
                     // istanbul ignore next
                     if (err) {
@@ -1018,7 +1037,12 @@ commands
             ip: {
                 default: "",
                 type: "string",
-                describe: "the list of valid IPs (comma separated"
+                describe: "the list of valid IPs (comma separated)"
+            },
+            subject: {
+                default: "",
+                type: "string",
+                describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )"
             }
         };
         add_standard_option(options, "silent");

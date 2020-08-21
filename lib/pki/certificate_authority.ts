@@ -50,6 +50,10 @@ import {
     useRandFile,
     x509Date
 } from "./toolbox";
+import { Subject, SubjectOptions } from "../misc/subject";
+
+
+export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
 const config = {
     certificateDir: "INVALID",
@@ -60,7 +64,9 @@ const config = {
 const n = make_path;
 const q = quote;
 
-function construct_CertificateAuthority(cauthority: CertificateAuthority, callback: ErrorCallback) {
+function construct_CertificateAuthority(
+    cauthority: CertificateAuthority,
+    callback: ErrorCallback) {
 
     // create the CA directory store
     // create the CA directory store
@@ -81,6 +87,8 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
     //     +-f: crlnumber
     //     +-f: index.txt
     //
+
+    const subject = cauthority.subject;
 
     const caRootDir = cauthority.rootDir;
 
@@ -138,8 +146,7 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
     }
 
     // http://www.akadia.com/services/ssh_test_certificate.html
-    const subject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
-
+    const subjectOpt = " -subj \""+ subject.toString() + "\" ";
     const options = { cwd: caRootDir };
     processAltNames({} as Params);
 
@@ -179,7 +186,7 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
             configOption +
             " -key private/cakey.pem " +
             " -out private/cakey.csr " +
-            " -subj \"" + subject + "\"", options, callback),
+            subjectOpt, options, callback),
 
         // xx // Step 3: Remove Passphrase from Key
         // xx execute("cp private/cakey.pem private/cakey.pem.org");
@@ -221,18 +228,21 @@ function construct_CertificateAuthority(cauthority: CertificateAuthority, callba
 export interface CertificateAuthorityOptions {
     keySize: KeySize;
     location: string;
+    subject?: string | SubjectOptions;
 }
 
 export class CertificateAuthority {
 
     public readonly keySize: KeySize;
     public readonly location: string;
+    public readonly subject: Subject;
 
     constructor(options: CertificateAuthorityOptions) {
         assert(options.hasOwnProperty("location"));
         assert(options.hasOwnProperty("keySize"));
         this.location = options.location;
         this.keySize = options.keySize || 2048;
+        this.subject = new Subject(options.subject  || defaultSubject);
     }
 
     public get rootDir() {
@@ -358,10 +368,15 @@ export class CertificateAuthority {
 
         const configOption = "";
 
+        const subject = params.subject ? (new Subject(params.subject!)).toString(): "";
+        const subjectOptions =(subject && subject.length > 1)  
+            ? " -subj "+ subject + " "
+            : "";
         const tasks = [];
         tasks.push((callback: ErrorCallback) => displaySubtitle("- the certificate signing request", callback));
         tasks.push((callback: ErrorCallback) => execute_openssl("req " +
             " -new -sha256 -text " + configOption +
+            subjectOptions + 
             " -batch -key " + q(n(privateKey)) + " -out " + q(n(csrFile)), options, callback));
 
         tasks.push((callback: ErrorCallback) => displaySubtitle("- creating the self-signed certificate", callback));

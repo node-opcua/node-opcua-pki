@@ -1,7 +1,7 @@
 export interface SubjectOptions {
     commonName?: string;
     organization?: string;
-    organizationUnit?: string;
+    organizationalUnit?: string;
     locality?: string;
     state?: string;
     country?: string;
@@ -13,8 +13,8 @@ const _keys = {
     CN: "commonName",
     DC: "domainComponent",
     L: "locality",
-    O: "organisation",
-    OU: "organisationUnit",
+    O: "organization",
+    OU: "organizationalUnit",
     ST: "state",
 };
 
@@ -22,7 +22,7 @@ export class Subject implements SubjectOptions {
 
     public readonly commonName?: string;
     public readonly organization?: string;
-    public readonly organizationUnit?: string;
+    public readonly organizationalUnit?: string;
     public readonly locality?: string;
     public readonly state?: string;
     public readonly country?: string;
@@ -35,7 +35,7 @@ export class Subject implements SubjectOptions {
         }
         this.commonName = options.commonName;
         this.organization = options.organization;
-        this.organizationUnit = options.organizationUnit;
+        this.organizationalUnit = options.organizationalUnit;
         this.locality = options.locality;
         this.state = options.state;
         this.country = options.country;
@@ -54,10 +54,11 @@ export class Subject implements SubjectOptions {
             const s: string[] = element.split("=");
 
             if (s.length !== 2) {
-                throw new Error("invalid format for " + element);
+                    throw new Error("invalid format for " + element);
             }
             const longName = (_keys as any)[s[0]];
-            options[longName] = s[1];
+            const value = s[1];
+            options[longName] = Buffer.from(value,"ascii").toString("utf8");
         });
         return options as SubjectOptions;
     }
@@ -76,6 +77,9 @@ export class Subject implements SubjectOptions {
         }
         if (this.organization) {
             tmp += "/O=" + this.organization;
+        }
+        if (this.organizationalUnit) {
+            tmp += "/OU=" + this.organization;
         }
         if (this.commonName) {
             tmp += "/CN=" + this.commonName;

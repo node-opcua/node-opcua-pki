@@ -494,8 +494,9 @@ export function createCertificateSigningRequest(
 
     const configOption = " -config " + q(n(configFile));
 
+    const subject = params.subject ? (new Subject(params.subject)).toString() : undefined;
     // process.env.OPENSSL_CONF  ="";
-
+    const subjectOptions = subject ?  ' -subj "' +subject + '"' : "";
     async.series(
         [
             (callback: (err?: Error) => void) => {
@@ -510,6 +511,7 @@ export function createCertificateSigningRequest(
                         configOption +
                         " -key " +
                         q(n(params.privateKey!)) +
+                        subjectOptions +
                         " -out " +
                         q(n(certificateSigningRequestFilename)),
                     options,
@@ -560,6 +562,7 @@ export interface CreateSelfSignCertificateParam extends ProcessAltNamesParam, St
     subject?: SubjectOptions | string;
 }
 
+// purpose of self-signed certificate
 export enum CertificatePurpose {
     NotSpecified = 0,
     ForCertificateAuthority = 1,

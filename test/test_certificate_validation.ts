@@ -11,11 +11,10 @@ import {
     CertificateAuthority,
     CertificateAuthorityOptions,
     CertificateManager,
-    CertificatePurpose,
-    ErrorCallback,
     Filename,
     KeySize,
-    Params
+    Params,
+    Subject
 } from "..";
 import { beforeTest } from "./helpers";
 
@@ -94,25 +93,34 @@ describe("test certificate validation", function (this: Mocha.Suite) {
 
         await certificateManager.initialize();
 
+        const  subject: Subject = {
+            commonName: "MyCompany",
+            country: "FR",
+            locality: "Paris",
+            organization: "whateverCorp",
+            state: "Mainland",
+            domainComponent: "aaa"
+            
+        }
         certificate_out_of_date = path.join(testData.tmpFolder, "certificate_out_of_date.pem");
         await createSignedCertificate(certificate_out_of_date,
-            { applicationUri: "SOMEURI", startDate: lastYear, validity: 300 }, certificateAuthority);
+            { subject, applicationUri: "SOMEURI", startDate: lastYear, validity: 300 }, certificateAuthority);
 
         certificate_not_yet_active = path.join(testData.tmpFolder, "certificate_notyetactive.pem");
         await createSignedCertificate(certificate_not_yet_active,
-            { applicationUri: "SOMEURI", startDate: nextYear, validity: 10000 }, certificateAuthority);
+            {  subject, applicationUri: "SOMEURI", startDate: nextYear, validity: 10000 }, certificateAuthority);
 
         certificate_valid = path.join(testData.tmpFolder, "certificate_valid.pem");
         await createSignedCertificate(certificate_valid,
-            { applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
+            {  subject, applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
 
         certificate_valid_untrusted = path.join(testData.tmpFolder, "certificate_valid_untrusted.pem");
         await createSignedCertificate(certificate_valid_untrusted,
-            { applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
+            {  subject, applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
 
         certificate_valid_signed_with_other_CA = path.join(testData.tmpFolder, "certificate_valid_from_other_CA.pem");
         await createSignedCertificate(certificate_valid_signed_with_other_CA,
-            { applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, otherCertificateAuthority);
+            {  subject, applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, otherCertificateAuthority);
 
         /*
     (callback: ErrorCallback) => {

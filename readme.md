@@ -4,7 +4,7 @@
 [![Code Climate](https://codeclimate.com/github/node-opcua/node-opcua-pki/badges/gpa.svg)](https://codeclimate.com/github/node-opcua/node-opcua-pki)
 [![Test Coverage](https://codeclimate.com/github/node-opcua/node-opcua-pki/badges/coverage.svg)](https://codeclimate.com/github/node-opcua/node-opcua-pki/coverage)
 
-#### Create a Certificate Authority
+## Create a Certificate Authority
 
 ```
     PKI\CA                   Certificate Authority
@@ -16,7 +16,7 @@
     PKI\issuers\certs
 ```
 
-#### commands
+# commands
 
 | command     | Help                                            |
 | ----------- | ----------------------------------------------- |
@@ -32,7 +32,20 @@
 Options:
 --help display help
 
-##### demo command
+
+## create a certificate authority
+
+|                                 |                                                      | default value      |
+| ------------------------------- | ---------------------------------------------------- | ------------------ |
+| `--subject`                     | the CA certificate subject                           | "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA" |
+| `--root`, `-r`                  | the location of the Certificate folder               | "{CWD}/certificates" |
+| ` --CAFolder`, `-c`             | the location of the Certificate Authority folder     | "{root}/CA"] |
+ |`--keySize`, `-k`, `--keyLength`| the private key size in bits (1024|2048|3072|4096)   |  2048 |
+
+
+## demo command
+
+this command create a bunch of certificates with various characteristics for demo and testing purposes.
 
 ```
 crypto_create_CA  demo [--dev] [--silent] [--clean]

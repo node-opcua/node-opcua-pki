@@ -270,6 +270,30 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                     });
                 });
         });
+
+        it("should create a self-signed certificate - variation 7 - --subject", (done: ErrorCallback) => {
+            const cwd = path.join(__dirname, "../tmp/zzz7");
+            fs.mkdirSync(cwd);
+
+            const expectedCertificate = path.join(cwd, "mycert.pem");
+            const validity = 10; // days
+
+            call_crypto_create_CA("certificate -v " + validity +
+                " --subject='/C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello' --selfSigned -o mycert.pem",
+                cwd, () => {
+
+                    fs.existsSync(expectedCertificate).should.eql(true);
+
+                    dumpCertificate(expectedCertificate, (err: Error | null, data?: string) => {
+                        if (false) {
+                            console.log(data);
+                        }
+                        grep(data!, /C = FR, ST = Centre, L = Orleans, O = SomeOrganization, CN = Hello/).should.match(/SomeOrganization/);
+                        done();
+                    });
+                });
+        });
+
     });
 
     describe("createCA & PKI", () => {
@@ -291,6 +315,19 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                 });
             });
         });
+        it("@2 should create a CA with a customer subject", (done: ErrorCallback) => {
+
+            const cwd = path.join(__dirname, "../tmp/tmpCAcustomSubject");
+            fs.mkdirSync(cwd);
+            call_crypto_create_CA("createCA --keySize 4096 --subject '/CN=Toto/C=FR/O=MyOrganization'", cwd, () => {
+
+                const caPrivateKey = path.join(__dirname,
+                    "../tmp/tmpCAcustomSubject/certificates/CA/private/cakey.pem");
+                fs.existsSync(caPrivateKey).should.eql(true);
+                    done();
+            });
+        });
+
     });
 
     describe("certificates signed by Local CA Authority", () => {
@@ -316,5 +353,29 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                 done();
             });
         });
+
+        it("should create a signed certificate - using subject - variation 7 - --subject", (done: ErrorCallback) => {
+            const cwd = path.join(__dirname, "../tmp/yyy7");
+            fs.mkdirSync(cwd);
+
+            const expectedCertificate = path.join(cwd, "mycert.pem");
+            const validity = 10; // days
+
+            call_crypto_create_CA("certificate -v " + validity +
+                " --subject='/C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello' -o mycert.pem",
+                cwd, () => {
+
+                    fs.existsSync(expectedCertificate).should.eql(true);
+
+                    dumpCertificate(expectedCertificate, (err: Error | null, data?: string) => {
+                        if (false) {
+                            console.log(data);
+                        }
+                        grep(data!, /C = FR, ST = Centre, L = Orleans, O = SomeOrganization, CN = Hello/).should.match(/SomeOrganization/);
+                        done();
+                    });
+                });
+        });
+
     });
 });
