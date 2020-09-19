@@ -11,3 +11,12 @@ coverage
 .eslintignore
 .eslintrc
 *.pem
+.ncy_output
+.nycrc.json
+.idea
+.github
+.codeclimate.yml
+.release-it.json
+.travis.yml
+*.pem
+debug*

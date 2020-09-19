@@ -33,7 +33,6 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
-    "@types/rimraf": "^3.0.0",
     "async": "^3.2.0",
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
@@ -49,10 +48,11 @@
     "update-notifier": "^4.1.1",
     "walk": "^2.3.14",
     "wget-improved": "^3.2.1",
-    "yargs": "^16.0.3",
+    "yargs": "15.4.1",
     "yauzl": "^2.10.0"
   },
   "devDependencies": {
+    "@types/rimraf": "^3.0.0",
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
     "@types/async": "^3.2.3",
     "@types/byline": "^4.2.32",
