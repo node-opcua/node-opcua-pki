@@ -1,56 +1,56 @@
 sudo: false
 language: node_js
 node_js:
-    # - "8" drop support for 8 as end of life was end 2019
-    - "10"
-    - "12"
-    - "14"
+  - "8" # to do : drop support for 8 as end of life was end 2019
+  - "10"
+  - "12"
+  - "14"
 
 os:
-    - linux
-    - osx
-    # - windows
+  - linux
+  - osx
+  # - windows
 
 env:
-    - SSL_LIB=openssl
-    - SSL_LIB=libressl
+  - SSL_LIB=openssl
+  - SSL_LIB=libressl
 
 before_script:
-    - npm install -g nyc
-    - npm install -g coveralls
-    - npm install -g mocha typescript
-    - npm install -g codeclimate-test-reporter
-    - tsc --version
-    - if [[ $TRAVIS_OS_NAME =~ ^linux$ && $SSL_LIB =~ ^libressl$ ]]; then
-      git clone https://github.com/libressl-portable/portable libressl;
-      cd libressl;
-      ./autogen.sh;
-      ./configure --prefix="${HOME}/opt/libressl";
-      make && make check;
-      make install;
-      export PATH=$HOME/opt/libressl/bin:$PATH;
-      cd $TRAVIS_BUILD_DIR;
-      fi;
-    - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^openssl$ ]]; then
-      brew install openssl;
-      export PATH=/usr/local/opt/openssl/bin:$PATH;
-      fi;
-    - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^libressl$ ]]; then
-      brew install libressl;
-      export PATH=/usr/local/opt/libressl/bin:$PATH;
-      fi;
-    - openssl version
+  - npm install -g nyc
+  - npm install -g coveralls
+  - npm install -g mocha typescript
+  - npm install -g codeclimate-test-reporter
+  - tsc --version
+  - if [[ $TRAVIS_OS_NAME =~ ^linux$ && $SSL_LIB =~ ^libressl$ ]]; then
+    git clone https://github.com/libressl-portable/portable libressl;
+    cd libressl;
+    ./autogen.sh;
+    ./configure --prefix="${HOME}/opt/libressl";
+    make && make check;
+    make install;
+    export PATH=$HOME/opt/libressl/bin:$PATH;
+    cd $TRAVIS_BUILD_DIR;
+    fi;
+  - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^openssl$ ]]; then
+    brew install openssl;
+    export PATH=/usr/local/opt/openssl/bin:$PATH;
+    fi;
+  - if [[ $TRAVIS_OS_NAME =~ ^osx$ && $SSL_LIB =~ ^libressl$ ]]; then
+    brew install libressl;
+    export PATH=/usr/local/opt/libressl/bin:$PATH;
+    fi;
+  - openssl version
 
 after_success:
-    - make test-cov
+  - make test-cov
 
 script:
-    - npm run build
-    - npm test
+  - npm run build
+  - npm test
 
 notifications:
-    webhooks:
-        urls: https://webhooks.gitter.im/e/4d51130aaea652dbc8f1
-        on_success: always # options: [always|never|change] default: always
-        on_failure: always # options: [always|never|change] default: always
-        on_start: always # default: false
+  webhooks:
+    urls: https://webhooks.gitter.im/e/4d51130aaea652dbc8f1
+    on_success: always # options: [always|never|change] default: always
+    on_failure: always # options: [always|never|change] default: always
+    on_start: always # default: false
