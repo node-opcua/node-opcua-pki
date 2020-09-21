@@ -6,6 +6,7 @@
 [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
 [![dependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/status.svg)](https://david-dm.org/node-opcua/node-opcua-pki)
 [![devDependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/dev-status.svg)](https://david-dm.org/node-opcua/node-opcua-pki?type=dev)
+[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
 ## Create a Certificate Authority
 
