@@ -6,10 +6,17 @@ bin/openssl*.zip
 .idea
 certificates
 coverage
-.travis.yml
 .codeclimate.yml
 .eslintignore
 .eslintrc
+.fossa.yml
+.mocharc.json
+.nycrc.json
+.release-it.json
+.travis.yml
+appveyor.yml
+Makefile
+*.tsbuildinfo
 *.pem
 .ncy_output
 .nycrc.json
@@ -20,3 +27,5 @@ coverage
 .travis.yml
 *.pem
 debug*
+tslint.json
+.vs_code/
