@@ -13,11 +13,12 @@
     "cover": "npx nyc -x  bin -x tmp -x lib/misc/install* mocha",
     "cost-of-modules": "npx cost-of-modules --no-install",
     "release-it": "npx release-it",
+    "ncu": "npx npm-check-updates -u --semverLevel minor",
     "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.js"
   },
   "pkg": {
     "scripts": "build/**/*.js",
-    "assets": "./crypo_create_CA_config.example.js"
+    "assets": "./bin/crypto_create_CA_config.example.js"
   },
   "repository": {
     "type": "git",
@@ -45,7 +46,7 @@
     "progress": "^2.0.3",
     "rimraf": "^3.0.2",
     "thenify": "^3.3.1",
-    "update-notifier": "^5.0.0",
+    "update-notifier": "4.1.3",
     "walk": "^2.3.14",
     "wget-improved": "^3.2.1",
     "yargs": "15.4.1",
