@@ -94,10 +94,10 @@ interface Thumbs {
     issuers: {
         certs: { [key: string]: Entry };
     };
-    clr: {
+    crl: {
         [key: string]: CRLData; // key is subjectFingerPrint of issuer Certificate
     };
-    issuersClr: {
+    issuersCrl: {
         [key: string]: CRLData; // key is subjectFingerPrint of issuer Certificate
     };
 }
@@ -195,8 +195,8 @@ export class CertificateManager {
         issuers: {
             certs: {},
         },
-        clr: {},
-        issuersClr: {},
+        crl: {},
+        issuersCrl: {},
     };
 
     constructor(options: CertificateManagerOptions) {
@@ -294,14 +294,14 @@ export class CertificateManager {
     public get trustedFolder(): string {
         return path.join(this.rootDir, "trusted/certs");
     }
-    public get clrFolder(): string {
-        return path.join(this.rootDir, "trusted/clr");
+    public get crlFolder(): string {
+        return path.join(this.rootDir, "trusted/crl");
     }
     public get issuersCertFolder(): string {
         return path.join(this.rootDir, "issuers/certs");
     }
-    public get issuersClrFolder(): string {
-        return path.join(this.rootDir, "issuers/clr");
+    public get issuersCrlFolder(): string {
+        return path.join(this.rootDir, "issuers/crl");
     }
 
     public isCertificateTrusted(
@@ -522,11 +522,11 @@ export class CertificateManager {
         mkdir(path.join(pkiDir, "rejected"));
         mkdir(path.join(pkiDir, "trusted"));
         mkdir(path.join(pkiDir, "trusted/certs"));
-        mkdir(path.join(pkiDir, "trusted/clr"));
+        mkdir(path.join(pkiDir, "trusted/crl"));
 
         mkdir(path.join(pkiDir, "issuers"));
         mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
-        mkdir(path.join(pkiDir, "issuers/clr")); // contains CRL  of revoked CA certificates
+        mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
         ensure_openssl_installed(() => {
             // if (1 || !fs.existsSync(this.configFile)) {
@@ -661,14 +661,14 @@ export class CertificateManager {
         try {
             const crlInfo = exploreCertificateRevocationList(crl);
             const key = crlInfo.tbsCertList.issuerFingerprint;
-            if (!this._thumbs.issuersClr[key]) {
-                this._thumbs.issuersClr[key] = { crls: [], serialNumbers: {} };
+            if (!this._thumbs.issuersCrl[key]) {
+                this._thumbs.issuersCrl[key] = { crls: [], serialNumbers: {} };
             }
             const pemCertificate = toPem(crl, "X509 CRL");
-            const filename = path.join(this.issuersClrFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
+            const filename = path.join(this.issuersCrlFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
             await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
 
-            await this._on_crl_file_added(this._thumbs.issuersClr, filename);
+            await this._on_crl_file_added(this._thumbs.issuersCrl, filename);
 
             return VerificationStatus.Good;
         } catch (err) {
@@ -794,10 +794,10 @@ export class CertificateManager {
     private _findAssociatedCRLs(issuerCertificate: Certificate): CRLData | null {
         const issuerCertificateInfo = exploreCertificate(issuerCertificate);
         const key = issuerCertificateInfo.tbsCertificate.subjectFingerPrint;
-        return this._thumbs.issuersClr[key]
-            ? this._thumbs.issuersClr[key]
-            : this._thumbs.clr[key]
-            ? this._thumbs.clr[key]
+        return this._thumbs.issuersCrl[key]
+            ? this._thumbs.issuersCrl[key]
+            : this._thumbs.crl[key]
+            ? this._thumbs.crl[key]
             : null;
     }
 
@@ -823,7 +823,7 @@ export class CertificateManager {
             "";
 
         const crl2 =
-            this._thumbs.clr[
+            this._thumbs.crl[
                 certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint!
             ] || null;
 
@@ -963,8 +963,8 @@ export class CertificateManager {
                 _walkAllFiles.bind(this, this.trustedFolder, this._thumbs.trusted),
                 _walkAllFiles.bind(this, this.issuersCertFolder, this._thumbs.issuers.certs),
                 _walkAllFiles.bind(this, this.rejectedFolder, this._thumbs.rejected),
-                _walkCRLFiles.bind(this, this.clrFolder, this._thumbs.clr),
-                _walkCRLFiles.bind(this, this.issuersClrFolder, this._thumbs.issuersClr),
+                _walkCRLFiles.bind(this, this.crlFolder, this._thumbs.crl),
+                _walkCRLFiles.bind(this, this.issuersCrlFolder, this._thumbs.issuersCrl),
             ],
             (err) => callback(err!)
         );

@@ -193,10 +193,10 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         });
         await applicationPKI.initialize();
 
-        const x509YuserIdentiyPKI = new CertificateManager({
+        const x509userIdentityPKI = new CertificateManager({
             location: path.join(testData.tmpFolder, "ctt/userIdentityPKI")
         });
-        await x509YuserIdentiyPKI.initialize();
+        await x509userIdentityPKI.initialize();
 
         // tslint:disable-next-line: no-console
         console.log("Copying files")
@@ -206,14 +206,14 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         const rootUI = path.join(__dirname, "fixtures/CTT_sample_certificates/copyToServer/X509UserIdentity_PKI");
 
         promises.push(copyFilesAsync(path.join(rootApp, "issuers/certs"), applicationPKI.issuersCertFolder));
-        promises.push(copyFilesAsync(path.join(rootApp, "issuers/crl"), applicationPKI.issuersClrFolder));
+        promises.push(copyFilesAsync(path.join(rootApp, "issuers/crl"), applicationPKI.issuersCrlFolder));
         promises.push(copyFilesAsync(path.join(rootApp, "trusted/certs"), applicationPKI.trustedFolder));
-        promises.push(copyFilesAsync(path.join(rootApp, "trusted/crl"), applicationPKI.clrFolder));
+        promises.push(copyFilesAsync(path.join(rootApp, "trusted/crl"), applicationPKI.crlFolder));
 
-        promises.push(copyFilesAsync(path.join(rootUI, "issuers/certs"), x509YuserIdentiyPKI.issuersCertFolder));
-        promises.push(copyFilesAsync(path.join(rootUI, "issuers/crl"), x509YuserIdentiyPKI.issuersClrFolder));
-        promises.push(copyFilesAsync(path.join(rootUI, "trusted/certs"), x509YuserIdentiyPKI.trustedFolder));
-        promises.push(copyFilesAsync(path.join(rootUI, "trusted/crl"), x509YuserIdentiyPKI.clrFolder));
+        promises.push(copyFilesAsync(path.join(rootUI, "issuers/certs"), x509userIdentityPKI.issuersCertFolder));
+        promises.push(copyFilesAsync(path.join(rootUI, "issuers/crl"), x509userIdentityPKI.issuersCrlFolder));
+        promises.push(copyFilesAsync(path.join(rootUI, "trusted/certs"), x509userIdentityPKI.trustedFolder));
+        promises.push(copyFilesAsync(path.join(rootUI, "trusted/crl"), x509userIdentityPKI.crlFolder));
 
         await Promise.all(promises);
     });
