@@ -34,7 +34,6 @@ import * as path from "path";
 import * as util from "util";
 import { callbackify } from "util";
 
-
 import { makeApplicationUrn } from "./misc/applicationurn";
 import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "./misc/hostname";
 import { Subject, SubjectOptions } from "./misc/subject";
@@ -56,7 +55,7 @@ import {
     make_path,
     mkdir,
     setEnv,
-    toDer
+    toDer,
 } from "./pki/toolbox";
 
 import * as commands from "yargs";
@@ -108,7 +107,6 @@ let g_certificateAuthority: CertificateAuthority; // the Certificate Authority
  *   g_config.CAFolder : the folder of the CA
  */
 function construct_CertificateAuthority(callback: ErrorCallback) {
-
     // verify that g_config file has been loaded
     assert(util.isString(gLocalConfig.CAFolder), "expecting a CAFolder in config");
     assert(util.isNumber(gLocalConfig.keySize), "expecting a keySize in config");
@@ -116,7 +114,7 @@ function construct_CertificateAuthority(callback: ErrorCallback) {
     if (!g_certificateAuthority) {
         g_certificateAuthority = new CertificateAuthority({
             keySize: gLocalConfig.keySize!,
-            location: gLocalConfig.CAFolder!
+            location: gLocalConfig.CAFolder!,
         });
         g_certificateAuthority.initialize(callback);
     } else {
@@ -137,7 +135,7 @@ function construct_CertificateManager(callback: ErrorCallback) {
     if (!certificateManager) {
         certificateManager = new CertificateManager({
             keySize: gLocalConfig.keySize!,
-            location: gLocalConfig.PKIFolder!
+            location: gLocalConfig.PKIFolder!,
         });
         return certificateManager.initialize(callback);
     } else {
@@ -145,14 +143,14 @@ function construct_CertificateManager(callback: ErrorCallback) {
     }
 }
 
-function displayConfig(config: {[key:string]: any}) {
+function displayConfig(config: { [key: string]: any }) {
     function w(str: string, l: number): string {
         return (str + "                            ").substr(0, l);
     }
 
     console.log(chalk.yellow(" configuration = "));
 
-    for(const [key, value] of Object.entries(config)) {
+    for (const [key, value] of Object.entries(config)) {
         console.log("   " + chalk.yellow(w(key, 30)) + " : " + chalk.cyan(value.toString()));
     }
 }
@@ -176,10 +174,7 @@ function default_template_content(): string {
             default_config_template = path.join(__dirname, "..", path.basename(__filename, ".js") + "_config.example.js");
 
             if (!fs.existsSync(default_config_template)) {
-                default_config_template = path.join(
-                    __dirname,
-                    "../bin/" + path.basename(__filename, ".js") + "_config.example.js"
-                );
+                default_config_template = path.join(__dirname, "../bin/" + path.basename(__filename, ".js") + "_config.example.js");
             }
         }
         return default_config_template;
@@ -190,13 +185,10 @@ function default_template_content(): string {
     return default_config_template_content;
 }
 
-
-
 /**
  *
  */
 function find_module_root_folder() {
-
     let rootFolder = path.join(__dirname);
 
     for (let i = 0; i < 4; i++) {
@@ -206,21 +198,19 @@ function find_module_root_folder() {
         rootFolder = path.join(rootFolder, "..");
     }
 
-    assert(fs.existsSync(path.join(rootFolder, "package.json")),
-        "root folder must have a package.json file");
+    assert(fs.existsSync(path.join(rootFolder, "package.json")), "root folder must have a package.json file");
     return rootFolder;
 }
 
 /* eslint complexity:off, max-statements:off */
 function readConfiguration(argv: any, callback: ErrorCallback) {
-    assert(util.isFunction(callback));
+    assert(typeof callback === "function");
 
     if (argv.silent) {
         g_config.silent = true;
     }
 
     callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn) => {
-
         const hostname = getFullyQualifiedDomainName();
 
         let certificateDir: string;
@@ -253,7 +243,6 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
 
         // ------------------------------------------------------------------------------------------------------------
         const default_config = path.join(certificateDir, "config.js");
-
 
         if (!fs.existsSync(default_config)) {
             // copy
@@ -342,7 +331,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
                 alias: "r",
                 type: "string",
                 default: "{CWD}/certificates",
-                describe: "the location of the Certificate folder"
+                describe: "the location of the Certificate folder",
             };
             break;
 
@@ -351,7 +340,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
                 alias: "c",
                 type: "string",
                 default: "{root}/CA",
-                describe: "the location of the Certificate Authority folder"
+                describe: "the location of the Certificate Authority folder",
             };
             break;
 
@@ -359,7 +348,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
             options.PKIFolder = {
                 type: "string",
                 default: "{root}/PKI",
-                describe: "the location of the Public Key Infrastructure"
+                describe: "the location of the Public Key Infrastructure",
             };
             break;
 
@@ -368,7 +357,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
                 alias: "s",
                 type: "boolean",
                 default: false,
-                describe: "minimize output"
+                describe: "minimize output",
             };
             break;
 
@@ -377,7 +366,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
                 alias: "p",
                 type: "string",
                 default: "{PKIFolder}/own/private_key.pem",
-                describe: "the private key to use to generate certificate"
+                describe: "the private key to use to generate certificate",
             };
             break;
 
@@ -386,7 +375,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
                 alias: ["k", "keyLength"],
                 type: "number",
                 default: 2048,
-                describe: "the private key size in bits (1024|2048|3072|4096)"
+                describe: "the private key size in bits (1024|2048|3072|4096)",
             };
             break;
         default:
@@ -395,7 +384,7 @@ function add_standard_option(options: OptionMap, optionName: string) {
 }
 
 function on_completion(err: Error | null | undefined, done: ErrorCallback) {
-    assert(util.isFunction(done), "expecting function");
+    assert(typeof done === "function", "expecting function");
     // istanbul ignore next
     if (err) {
         console.log(chalk.redBright("ERROR : ") + err.message);
@@ -414,7 +403,7 @@ function createDefaultCertificate(
     // possible key length in bits
     assert(key_length === 1024 || key_length === 2048 || key_length === 3072 || key_length === 4096);
 
-    assert(util.isFunction(done));
+    assert(typeof done === "function");
 
     const private_key_file = make_path(base_name, prefix + "key_" + key_length + ".pem");
     const public_key_file = make_path(base_name, prefix + "public_key_" + key_length + ".pub");
@@ -429,7 +418,7 @@ function createDefaultCertificate(
     const dns: string[] = [
         // for conformance reason, localhost shall not be present in the DNS field of COP
         // ***FORBIDEN** "localhost",
-        getFullyQualifiedDomainName()
+        getFullyQualifiedDomainName(),
     ];
     const ip: string[] = [];
 
@@ -471,12 +460,11 @@ function createDefaultCertificate(
         const params: CreateCertificateSigningRequestWithConfigOptions = {
             privateKey: private_key,
             rootDir: ".",
-            configFile
+            configFile,
         };
 
         // create CSR
         createCertificateSigningRequest(crs_file, params, (err?: Error) => {
-            
             // istanbul ignore next
             if (err) {
                 return callback(err);
@@ -489,7 +477,7 @@ function createDefaultCertificate(
                     dns,
                     ip,
                     startDate,
-                    validity
+                    validity,
                 },
                 callback
             );
@@ -512,7 +500,7 @@ function createDefaultCertificate(
                 dns,
                 ip,
                 startDate,
-                validity
+                validity,
             },
             callback
         );
@@ -542,8 +530,7 @@ function createDefaultCertificate(
 
         (callback: ErrorCallback) => createPrivateKeyIfNotExist(private_key_file, key_length, callback),
 
-        (callback: ErrorCallback) =>
-            displaySubtitle(" extract public key " + public_key_file + " from private key ", callback),
+        (callback: ErrorCallback) => displaySubtitle(" extract public key " + public_key_file + " from private key ", callback),
 
         (callback: ErrorCallback) => getPublicKeyFromPrivateKey(private_key_file, public_key_file, callback),
 
@@ -552,8 +539,7 @@ function createDefaultCertificate(
         (callback: ErrorCallback) =>
             createCertificateIfNotExist(certificate_file, private_key_file, applicationUri, yesterday, 365, callback),
 
-        (callback: ErrorCallback) =>
-            displaySubtitle(" create self signed Certificate " + self_signed_certificate_file, callback),
+        (callback: ErrorCallback) => displaySubtitle(" create self signed Certificate " + self_signed_certificate_file, callback),
 
         (callback: ErrorCallback) => {
             fs.exists(self_signed_certificate_file, (exists: boolean) => {
@@ -570,7 +556,7 @@ function createDefaultCertificate(
                     callback
                 );
             });
-        }
+        },
     ];
 
     if (dev) {
@@ -611,7 +597,7 @@ function createDefaultCertificate(
                         }
                     );
                 });
-            }
+            },
         ];
         tasks1 = tasks1.concat(tasks2);
     }
@@ -620,7 +606,7 @@ function createDefaultCertificate(
 }
 
 // tslint:disable-next-line:no-empty
-let done: ErrorCallback = (err?: Error | null) => { };
+let done: ErrorCallback = (err?: Error | null) => {};
 
 function create_default_certificates(dev: boolean, done: ErrorCallback) {
     function __create_default_certificates(
@@ -656,31 +642,28 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
             setImmediate(callback);
         },
 
-        (callback: ErrorCallback) =>
-            displayTitle("Create  Application Certificate for Server & its private key", callback),
+        (callback: ErrorCallback) => displayTitle("Create  Application Certificate for Server & its private key", callback),
 
         (callback: ErrorCallback) => {
-
             async.parallelLimit(
                 [
                     (callback1: ErrorCallback) => __create_default_certificates(base_name, "client_", 1024, clientURN, callback1),
                     (callback1: ErrorCallback) => __create_default_certificates(base_name, "client_", 2048, clientURN, callback1),
                     (callback1: ErrorCallback) => __create_default_certificates(base_name, "client_", 3072, clientURN, callback1),
-                    (callback1: ErrorCallback) => __create_default_certificates(base_name, "client_", 4096, clientURN, callback1)
+                    (callback1: ErrorCallback) => __create_default_certificates(base_name, "client_", 4096, clientURN, callback1),
                 ],
                 1,
                 callback
             );
         },
-        (callback: ErrorCallback) =>
-            displayTitle("Create  Application Certificate for Client & its private key", callback),
+        (callback: ErrorCallback) => displayTitle("Create  Application Certificate for Client & its private key", callback),
         (callback: ErrorCallback) => {
             async.parallelLimit(
                 [
                     (callback: ErrorCallback) => __create_default_certificates(base_name, "server_", 1024, serverURN, callback),
                     (callback: ErrorCallback) => __create_default_certificates(base_name, "server_", 2048, serverURN, callback),
                     (callback: ErrorCallback) => __create_default_certificates(base_name, "server_", 3072, serverURN, callback),
-                    (callback: ErrorCallback) => __create_default_certificates(base_name, "server_", 4096, serverURN, callback)
+                    (callback: ErrorCallback) => __create_default_certificates(base_name, "server_", 4096, serverURN, callback),
                 ],
                 1,
                 callback
@@ -698,12 +681,12 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
                     (callback: ErrorCallback) =>
                         __create_default_certificates(base_name, "discoveryServer_", 3072, discoveryServerURN, callback),
                     (callback: ErrorCallback) =>
-                        __create_default_certificates(base_name, "discoveryServer_", 4096, discoveryServerURN, callback)
+                        __create_default_certificates(base_name, "discoveryServer_", 4096, discoveryServerURN, callback),
                 ],
                 1,
                 callback
             );
-        }
+        },
     ];
     async.series(task1, (err?: Error | null) => {
         // istanbul ignore next
@@ -719,7 +702,7 @@ function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
         [
             (callback: ErrorCallback) => construct_CertificateAuthority(callback),
             (callback: ErrorCallback) => construct_CertificateManager(callback),
-            (callback: ErrorCallback) => create_default_certificates(dev, callback)
+            (callback: ErrorCallback) => create_default_certificates(dev, callback),
         ],
         (err?: Error | null) => {
             // istanbul ignore next
@@ -735,10 +718,10 @@ commands
     .strict()
     .wrap(132)
     .command("demo", "create default certificate for node-opcua demos", (yargs: commands.Argv) => {
-        assert(util.isFunction(done));
+        assert(typeof done === "function");
 
         function command_demo(local_argv: any, done: ErrorCallback) {
-            assert(util.isFunction(done), "expecting a callback");
+            assert(typeof done === "function", "expecting a callback");
 
             const tasks = [];
 
@@ -786,11 +769,11 @@ commands
         const options: { [key: string]: commands.Options } = {};
         options.dev = {
             type: "boolean",
-            describe: "create all sort of fancy certificates for dev testing purposes"
+            describe: "create all sort of fancy certificates for dev testing purposes",
         };
         options.clean = {
             type: "boolean",
-            describe: "Purge existing directory [use with care!]"
+            describe: "Purge existing directory [use with care!]",
         };
 
         add_standard_option(options, "silent");
@@ -814,7 +797,7 @@ commands
     })
 
     .command("createCA", "create a Certificate Authority", (yargs: commands.Argv) => {
-        assert(util.isFunction(done));
+        assert(typeof done === "function");
 
         function command_new_certificate_authority(local_argv: any, done: ErrorCallback) {
             const tasks = [];
@@ -828,20 +811,15 @@ commands
             subject: {
                 default: defaultSubject,
                 type: "string",
-                describe: "the CA certificate subject"
-            }       
+                describe: "the CA certificate subject",
+            },
         };
 
         add_standard_option(options, "root");
         add_standard_option(options, "CAFolder");
         add_standard_option(options, "keySize");
 
-        
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .options(options)
-            .help("help").argv;
+        const local_argv = yargs.strict().wrap(132).options(options).help("help").argv;
 
         if (local_argv.help) {
             yargs.showHelp();
@@ -866,11 +844,7 @@ commands
         add_standard_option(options, "PKIFolder");
         add_standard_option(options, "keySize");
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .options(options)
-            .help("help").argv;
+        const local_argv = yargs.strict().wrap(132).options(options).help("help").argv;
 
         if (local_argv.help) {
             yargs.showHelp();
@@ -883,10 +857,10 @@ commands
 
     // ----------------------------------------------- certificate
     .command("certificate", "create a new certificate", (yargs: commands.Argv) => {
-        assert(util.isFunction(done));
+        assert(typeof done === "function");
 
         function command_certificate(local_argv: any, done: ErrorCallback) {
-            assert(util.isFunction(done));
+            assert(typeof done === "function");
             const selfSigned = local_argv.selfSigned;
 
             if (!selfSigned) {
@@ -916,12 +890,10 @@ commands
             );
 
             tasks.push((callback: ErrorCallback) => {
+                let subject =
+                    local_argv.subject && local_argv.subject.length > 1 ? new Subject(local_argv.subject) : gLocalConfig.subject!;
 
-                let subject = (local_argv.subject && local_argv.subject.length > 1) 
-                    ? new Subject(local_argv.subject) 
-                    : gLocalConfig.subject!; 
-
-                    subject = JSON.parse( JSON.stringify( subject ) );
+                subject = JSON.parse(JSON.stringify(subject));
 
                 const params: CreateSelfSignCertificateParam1 = {
                     applicationUri: gLocalConfig.applicationUri || "",
@@ -964,9 +936,8 @@ commands
                 gLocalConfig.privateKey = undefined; // use PKI private key
                 // create a Certificate Request from the certificate Manager
 
-                gLocalConfig.subject  = (local_argv.subject && local_argv.subject.length > 1) 
-                                        ? local_argv.subject 
-                                        : gLocalConfig.subject ;
+                gLocalConfig.subject =
+                    local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
                 certificateManager.createCertificateRequest(gLocalConfig, (err: Error | null, csr_file?: string) => {
                     // istanbul ignore next
@@ -1008,42 +979,42 @@ commands
                 demand: true,
                 describe: "the application URI",
                 default: "urn:{hostname}:Node-OPCUA-Server",
-                type: "string"
+                type: "string",
             },
             output: {
                 default: "my_certificate.pem",
                 alias: "o",
                 demand: true,
                 describe: "the name of the generated certificate =>",
-                type: "string"
+                type: "string",
             },
             selfSigned: {
                 alias: "s",
                 default: false,
                 type: "boolean",
-                describe: "if true, certificate will be self-signed"
+                describe: "if true, certificate will be self-signed",
             },
             validity: {
                 alias: "v",
                 default: null,
                 type: "number",
-                describe: "the certificate validity in days"
+                describe: "the certificate validity in days",
             },
             dns: {
                 default: "{hostname}",
                 type: "string",
-                describe: "the list of valid domain name (comma separated)"
+                describe: "the list of valid domain name (comma separated)",
             },
             ip: {
                 default: "",
                 type: "string",
-                describe: "the list of valid IPs (comma separated)"
+                describe: "the list of valid IPs (comma separated)",
             },
             subject: {
                 default: "",
                 type: "string",
-                describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )"
-            }
+                describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )",
+            },
         };
         add_standard_option(options, "silent");
         add_standard_option(options, "root");
@@ -1051,11 +1022,7 @@ commands
         add_standard_option(options, "PKIFolder");
         add_standard_option(options, "privateKey");
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .options(options)
-            .help("help").argv;
+        const local_argv = yargs.strict().wrap(132).options(options).help("help").argv;
         if (local_argv.help) {
             yargs.showHelp();
             done();
@@ -1102,13 +1069,8 @@ commands
         add_standard_option(options, "root");
         add_standard_option(options, "CAFolder");
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .help("help")
-            .usage("$0 revoke  my_certificate.pem")
-            .options(options)
-            .demand(2).argv;
+        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 revoke  my_certificate.pem").options(options).demand(2)
+            .argv;
 
         if (local_argv.help) {
             yargs.showHelp();
@@ -1128,13 +1090,8 @@ commands
 
         const options = {};
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .help("help")
-            .usage("$0 dump  my_certificate.pem")
-            .options(options)
-            .demand(1).argv;
+        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 dump  my_certificate.pem").options(options).demand(1)
+            .argv;
         if (local_argv.help || local_argv._.length <= 1) {
             yargs.showHelp();
             done();
@@ -1154,13 +1111,8 @@ commands
 
         const options = {};
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .help("help")
-            .usage("$0 toder  my_certificate.pem")
-            .options(options)
-            .demand(1).argv;
+        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 toder  my_certificate.pem").options(options).demand(1)
+            .argv;
         if (local_argv.help) {
             yargs.showHelp();
             done();
@@ -1177,11 +1129,7 @@ commands
             const certificate = path.resolve(argv._[1]);
             fingerprint(certificate, (err: Error | null, data?: string) => {
                 if (!err) {
-                    const s = data!
-                        .split("=")[1]
-                        .split(":")
-                        .join("")
-                        .trim();
+                    const s = data!.split("=")[1].split(":").join("").trim();
                     console.log(s);
                 }
                 done(err!);
@@ -1191,13 +1139,8 @@ commands
         const options = {};
         add_standard_option(options, "silent");
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .help("help")
-            .usage("$0 toder  my_certificate.pem")
-            .options(options)
-            .demand(1).argv;
+        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 toder  my_certificate.pem").options(options).demand(1)
+            .argv;
 
         if (local_argv.help) {
             yargs.showHelp();

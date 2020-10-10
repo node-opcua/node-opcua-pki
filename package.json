@@ -14,7 +14,8 @@
     "cost-of-modules": "npx cost-of-modules --no-install",
     "release-it": "npx release-it",
     "ncu": "npx npm-check-updates -u --semverLevel minor",
-    "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.js"
+    "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.js",
+    "tslint": "npx tslint -c tslint.json lib/**/*.ts"
   },
   "pkg": {
     "scripts": "build/**/*.js",

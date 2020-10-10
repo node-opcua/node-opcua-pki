@@ -394,7 +394,7 @@ export class CertificateManager {
                 }
                 if (revokedStatus !== VerificationStatus.Good) {
                     // certificate is revoked !!!
-                    console.log("revokedStatus", revokedStatus);
+                    debugLog("revokedStatus", revokedStatus);
                     return revokedStatus;
                 }
 
@@ -428,8 +428,6 @@ export class CertificateManager {
         }
 
         const c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
-        //  console.log(c1);
-        //  console.log(c2);
 
         // Has SoftwareCertificate passed its issue date and has it not expired ?
         // check dates
@@ -605,7 +603,7 @@ export class CertificateManager {
         callback?: (err: Error | null, certificateSigningRequestFilename?: string) => void
     ): any {
         assert(params);
-        assert(util.isFunction(callback));
+        assert(typeof callback === "function");
 
         const _params = params as CreateSelfSignCertificateWithConfigParam;
         if (_params.hasOwnProperty("rootDir")) {
@@ -762,7 +760,7 @@ export class CertificateManager {
 
                 // istanbul ignore net
                 if (!certificateSrc) {
-                    console.log(" cannot find certificate ", fingerprint.substr(0, 10), " in", this._thumbs, [status!]);
+                    debugLog(" cannot find certificate ", fingerprint.substr(0, 10), " in", this._thumbs, [status!]);
                     return callback(new Error("internal"));
                 }
                 const destFolder =
@@ -857,8 +855,8 @@ export class CertificateManager {
             }
             debugLog(chalk.cyan("CRL"), fingerprint, "serial numbers = ", Object.keys(serialNumbers)); // stat);
         } catch (err) {
-            console.log("CRL filename error =");
-            console.log(err);
+            debugLog("CRL filename error =");
+            debugLog(err);
         }
         this._pending_crl_to_process -= 1;
         if (this._pending_crl_to_process === 0) {
@@ -942,8 +940,8 @@ export class CertificateManager {
                         info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint
                     );
                 } catch (err) {
-                    console.log("Walk files in folder " + folder + " with file " + filename);
-                    console.log(err);
+                    debugLog("Walk files in folder " + folder + " with file " + filename);
+                    debugLog(err);
                 }
             });
             w.on("change", (path: string, stat?: fs.Stats) => {
@@ -967,7 +965,7 @@ export class CertificateManager {
             2,
             (err) => {
                 if (err) {
-                    console.log("Error=", err);
+                    debugLog("Error=", err);
                     return callback(err);
                 }
                 this.waitAndCheckCRLProcessingStatus()

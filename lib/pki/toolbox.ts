@@ -42,8 +42,6 @@ import _simple_config_template from "./templates/simple_config_template.cnf";
 
 const exportedEnvVars: any = {};
 
-const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
-
 export function quote(str: string): string {
     return '"' + str + '"';
 }
@@ -55,9 +53,9 @@ export const g_config = {
     force: false,
 };
 
+const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 const displayError: boolean = true;
-
-let displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
+const displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
 // tslint:disable-next-line:no-empty
 export function debugLog(...args: [any?, ...any[]]) {
     if (displayDebug) {
@@ -106,7 +104,7 @@ export interface ExecuteOptions {
 }
 
 export function execute(cmd: string, options: ExecuteOptions, callback: (err: Error | null, output: string) => void) {
-    assert(util.isFunction(callback));
+    assert(typeof callback === "function");
 
     /// assert(g_config.CARootDir && fs.existsSync(option.CARootDir));
     options.cwd = options.cwd || process.cwd();
@@ -172,8 +170,7 @@ export function useRandFile() {
 function openssl_require2DigitYearInDate() {
     if (!g_config.opensslVersion) {
         throw new Error(
-            "openssl_require2DigitYearInDate : openssl version is not known:" +
-                "  please call ensure_openssl_installed(callback)"
+            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed(callback)"
         );
     }
     return g_config.opensslVersion.match(/OpenSSL 0\.9/);
@@ -182,7 +179,7 @@ function openssl_require2DigitYearInDate() {
 g_config.opensslVersion = "";
 
 export function ensure_openssl_installed(callback: (err?: Error) => void) {
-    assert(util.isFunction(callback));
+    assert(typeof callback === "function");
     if (!opensslPath) {
         return find_openssl((err: Error | null) => {
             // istanbul ignore next
@@ -225,7 +222,7 @@ export function execute_openssl(
         fs.writeFileSync(empty_config_file, "# empty config file");
     }
 
-    assert(util.isFunction(callback));
+    assert(typeof callback === "function");
 
     options = options || {};
     options.openssl_conf = options.openssl_conf || empty_config_file; // "!! OPEN SLL CONF NOT DEFINED BAD FILE !!";
@@ -406,12 +403,7 @@ export function createPrivateKey(privateKeyFilename: string, keyLength: KeyLengt
 
         (callback: ErrorCallback) => {
             execute_openssl(
-                "genrsa " +
-                    " -out " +
-                    q(n(privateKeyFilename)) +
-                    (useRandFile() ? " -rand " + randomFile : "") +
-                    " " +
-                    keyLength,
+                "genrsa " + " -out " + q(n(privateKeyFilename)) + (useRandFile() ? " -rand " + randomFile : "") + " " + keyLength,
                 {},
                 (err: Error | null) => {
                     callback(err ? err : undefined);
@@ -432,11 +424,7 @@ export function createRandomFile(randomFile: string, options: ExecuteOptions, ca
     });
 }
 
-export function createRandomFileIfNotExist(
-    randomFile: string,
-    options: ExecuteOptions,
-    callback: ErrorCallback
-): void {
+export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback): void {
     const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
     fs.exists(randomFilePath, (exists: boolean) => {
         if (exists) {
@@ -494,9 +482,9 @@ export function createCertificateSigningRequest(
 
     const configOption = " -config " + q(n(configFile));
 
-    const subject = params.subject ? (new Subject(params.subject)).toString() : undefined;
+    const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     // process.env.OPENSSL_CONF  ="";
-    const subjectOptions = subject ?  ' -subj "' +subject + '"' : "";
+    const subjectOptions = subject ? ' -subj "' + subject + '"' : "";
     async.series(
         [
             (callback: (err?: Error) => void) => {
@@ -624,9 +612,7 @@ export function check_certificate_filename(certificateFile: string): boolean {
     // istanbul ignore next
     if (fs.existsSync(certificateFile) && !g_config.force) {
         console.log(
-            chalk.yellow("        certificate ") +
-                chalk.cyan(certificateFile) +
-                chalk.yellow(" already exists => do not overwrite")
+            chalk.yellow("        certificate ") + chalk.cyan(certificateFile) + chalk.yellow(" already exists => do not overwrite")
         );
         return false;
     }
@@ -810,7 +796,7 @@ export const configurationFileSimpleTemplate: string = _simple_config_template;
  */
 export function dumpCertificate(certificate: Filename, callback: (err: Error | null, output?: string) => void): void {
     assert(fs.existsSync(certificate));
-    assert(util.isFunction(callback));
+    assert(typeof callback === "function");
 
     execute_openssl("x509 " + " -in " + q(n(certificate)) + " -text " + " -noout", {}, callback);
 }

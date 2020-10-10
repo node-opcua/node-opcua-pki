@@ -68,14 +68,10 @@ interface ExecuteResult {
 
 function makeOptions(): WgetOptions {
     const proxy =
-        process.env.HTTPS_PROXY ||
-        process.env.https_proxy ||
-        process.env.HTTP_PROXY ||
-        process.env.http_proxy ||
-        undefined;
+        process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
     if (proxy) {
         const a = parse(proxy);
-        let options: WgetOptions = {
+        const options: WgetOptions = {
             proxy: {
                 port: a.port ? parseInt(a.port, 10) : 80,
                 protocol: a.protocol!.replace(":", ""),
@@ -137,9 +133,7 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
 
         if (exitCode !== 0) {
             console.log(
-                chalk.yellow(" it seems that ") +
-                    chalk.cyan("openssl") +
-                    chalk.yellow(" is not installed on your computer ")
+                chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer ")
             );
             console.log(chalk.yellow("Please install it before running this programs"));
 
@@ -177,8 +171,7 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
                     message +=
                         chalk.cyan("\nplease refer to :") +
                         chalk.yellow(
-                            " https://github.com/node-opcua/node-opcua/" +
-                                "wiki/installing-node-opcua-or-node-red-on-MacOS"
+                            " https://github.com/node-opcua/node-opcua/" + "wiki/installing-node-opcua-or-node-red-on-MacOS"
                         );
                 }
 
@@ -191,9 +184,7 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
     });
 }
 
-function install_and_check_win32_openssl_version(
-    callback: (err: Error | null, opensslExecPath?: string) => void
-): void {
+function install_and_check_win32_openssl_version(callback: (err: Error | null, opensslExecPath?: string) => void): void {
     const downloadFolder = path.join(os.tmpdir(), ".");
 
     function get_openssl_folder_win32(): string {
@@ -437,7 +428,7 @@ export function install_prerequisite(callback: (err: Error | null, pathToOpenSSL
 }
 
 export function get_openssl_exec_path(callback: (err: Error | null, execPath?: string) => void) {
-    assert(util.isFunction(callback));
+    assert(typeof callback === "function");
 
     if (process.platform === "win32") {
         install_prerequisite((err: Error | null, opensslExecPath?: string) => {

@@ -10,7 +10,6 @@ function trim(str: string, length?: number): string {
 }
 
 function fqdn(callback: (err: Error | null, fqdn?: string) => void) {
-
     const uqdn = os.hostname();
 
     dns.lookup(uqdn, { hints: dns.ADDRCONFIG }, (err1: Error | null, ip: string) => {
@@ -19,7 +18,6 @@ function fqdn(callback: (err: Error | null, fqdn?: string) => void) {
         }
 
         dns.lookupService(ip, 0, (err2: Error | null, _fqdn: string) => {
-
             if (err2) {
                 return callback(err2);
             }
@@ -29,10 +27,9 @@ function fqdn(callback: (err: Error | null, fqdn?: string) => void) {
     });
 }
 
-let _fullyQualifiedDomainNameInCache: string| undefined;
+let _fullyQualifiedDomainNameInCache: string | undefined;
 
 export async function extractFullyQualifiedDomainName(): Promise<string> {
-
     if (_fullyQualifiedDomainNameInCache) {
         return _fullyQualifiedDomainNameInCache;
     }
@@ -40,11 +37,8 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
         // http://serverfault.com/a/73643/251863
         const env = process.env;
         _fullyQualifiedDomainNameInCache =
-                env.COMPUTERNAME + 
-                ((env.USERDNSDOMAIN && env.USERDNSDOMAIN!.length > 0) ? "." + env.USERDNSDOMAIN! : "");
-
+            env.COMPUTERNAME + (env.USERDNSDOMAIN && env.USERDNSDOMAIN!.length > 0 ? "." + env.USERDNSDOMAIN! : "");
     } else {
-
         try {
             _fullyQualifiedDomainNameInCache = await promisify(fqdn)();
             if (/sethostname/.test(_fullyQualifiedDomainNameInCache as string)) {
@@ -54,7 +48,6 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
             // fall back to old method
             _fullyQualifiedDomainNameInCache = os.hostname();
         }
-
     }
     return _fullyQualifiedDomainNameInCache!;
 }
@@ -64,13 +57,10 @@ export async function prepareFQDN() {
 }
 
 export function getFullyQualifiedDomainName(optional_max_length?: number) {
-
     if (!_fullyQualifiedDomainNameInCache) {
         throw new Error("FullyQualifiedDomainName computation is not completed yet");
     }
-    return _fullyQualifiedDomainNameInCache
-      ? trim(_fullyQualifiedDomainNameInCache, optional_max_length)
-      : "%FQDN%";
+    return _fullyQualifiedDomainNameInCache ? trim(_fullyQualifiedDomainNameInCache, optional_max_length) : "%FQDN%";
 }
 
 export function resolveFullyQualifiedDomainName(str: string): string {
