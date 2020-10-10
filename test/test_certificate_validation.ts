@@ -7,15 +7,7 @@ import * as path from "path";
 import should = require("should");
 
 import { Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
-import {
-    CertificateAuthority,
-    CertificateAuthorityOptions,
-    CertificateManager,
-    Filename,
-    KeySize,
-    Params,
-    Subject
-} from "..";
+import { CertificateAuthority, CertificateAuthorityOptions, CertificateManager, Filename, KeySize, Params, Subject } from "..";
 import { beforeTest } from "./helpers";
 
 // ------------------------------------------------- some useful dates
@@ -31,7 +23,6 @@ const nextYear = get_offset_date(today, 365);
 const yesterday = get_offset_date(today, -1);
 
 describe("test certificate validation", function (this: Mocha.Suite) {
-
     let certificateAuthority: CertificateAuthority;
 
     let otherCertificateAuthority: CertificateAuthority;
@@ -53,12 +44,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
      * @param params.dns
      * @param callback
      */
-    async function createSignedCertificate(
-        certificate: Filename,
-        params: Params,
-        certificateAuthority: CertificateAuthority
-    ) {
-
+    async function createSignedCertificate(certificate: Filename, params: Params, certificateAuthority: CertificateAuthority) {
         // create a signing request
         const theCertificateRequest = await certificateManager.createCertificateRequest(params);
 
@@ -66,26 +52,25 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         fs.existsSync(theCertificateRequest).should.eql(true);
 
         // ask the Certificate Authority to sign the certificate
-        await certificateAuthority.signCertificateRequest(
-            certificate,
-            theCertificateRequest,
-            params);
+        await certificateAuthority.signCertificateRequest(certificate, theCertificateRequest, params);
 
         fs.existsSync(theCertificateRequest).should.eql(true);
         fs.existsSync(certificate).should.eql(true);
     }
 
     before(async () => {
-
         const optionsCA: CertificateAuthorityOptions = {
             keySize: 2048 as KeySize,
-            location: path.join(testData.tmpFolder, "TEST_CA")
+            location: path.join(testData.tmpFolder, "TEST_CA"),
         };
         certificateAuthority = new CertificateAuthority(optionsCA);
         await certificateAuthority.initialize();
 
         // create an other certificate authority
-        otherCertificateAuthority = new CertificateAuthority({ keySize: 2048, location: path.join(testData.tmpFolder, "OTHER_CA") });
+        otherCertificateAuthority = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "OTHER_CA"),
+        });
         await otherCertificateAuthority.initialize();
 
         const optionsPKI = { location: path.join(testData.tmpFolder, "TEST_PKI") };
@@ -93,40 +78,54 @@ describe("test certificate validation", function (this: Mocha.Suite) {
 
         await certificateManager.initialize();
 
-        const  subject: Subject = {
+        const subject: Subject = {
             commonName: "MyCompany",
             country: "FR",
             locality: "Paris",
             organization: "whateverCorp",
             state: "Mainland",
-            domainComponent: "aaa"
-            
-        }
+            domainComponent: "aaa",
+        };
         certificate_out_of_date = path.join(testData.tmpFolder, "certificate_out_of_date.pem");
-        await createSignedCertificate(certificate_out_of_date,
-            { subject, applicationUri: "SOMEURI", startDate: lastYear, validity: 300 }, certificateAuthority);
+        await createSignedCertificate(
+            certificate_out_of_date,
+            { subject, applicationUri: "SomeURI", startDate: lastYear, validity: 300 },
+            certificateAuthority
+        );
 
         certificate_not_yet_active = path.join(testData.tmpFolder, "certificate_notyetactive.pem");
-        await createSignedCertificate(certificate_not_yet_active,
-            {  subject, applicationUri: "SOMEURI", startDate: nextYear, validity: 10000 }, certificateAuthority);
+        await createSignedCertificate(
+            certificate_not_yet_active,
+            { subject, applicationUri: "SomeURI", startDate: nextYear, validity: 10000 },
+            certificateAuthority
+        );
 
         certificate_valid = path.join(testData.tmpFolder, "certificate_valid.pem");
-        await createSignedCertificate(certificate_valid,
-            {  subject, applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
+        await createSignedCertificate(
+            certificate_valid,
+            { subject, applicationUri: "SomeURI", startDate: yesterday, validity: 10 },
+            certificateAuthority
+        );
 
         certificate_valid_untrusted = path.join(testData.tmpFolder, "certificate_valid_untrusted.pem");
-        await createSignedCertificate(certificate_valid_untrusted,
-            {  subject, applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, certificateAuthority);
+        await createSignedCertificate(
+            certificate_valid_untrusted,
+            { subject, applicationUri: "SomeURI", startDate: yesterday, validity: 10 },
+            certificateAuthority
+        );
 
         certificate_valid_signed_with_other_CA = path.join(testData.tmpFolder, "certificate_valid_from_other_CA.pem");
-        await createSignedCertificate(certificate_valid_signed_with_other_CA,
-            {  subject, applicationUri: "SOMEURI", startDate: yesterday, validity: 10 }, otherCertificateAuthority);
+        await createSignedCertificate(
+            certificate_valid_signed_with_other_CA,
+            { subject, applicationUri: "SomeURI", startDate: yesterday, validity: 10 },
+            otherCertificateAuthority
+        );
 
         /*
     (callback: ErrorCallback) => {
         certificate_valid_revoked = path.join(test.tmpFolder, "certificate_valid_revoked.pem");
         createCertificate(certificate_valid_revoked,
-             {applicationUri: "SOMEURI", startDate: yesterday, validity: 10 },callback)
+             {applicationUri: "SomeURI", startDate: yesterday, validity: 10 },callback)
     },
     (callback: ErrorCallback) => {
         certificateAuthority.revokeCertificate(certificate_valid_revoked,{reason: "keyCompromise"},callback);
@@ -143,7 +142,6 @@ describe("test certificate validation", function (this: Mocha.Suite) {
     });
 
     describe("should verify ", () => {
-
         let localCertificateManager: CertificateManager;
 
         let cert1: Certificate;
@@ -168,13 +166,16 @@ describe("test certificate validation", function (this: Mocha.Suite) {
 
             // get certificate
             cert1 = readCertificate(certificate_out_of_date);
+            await localCertificateManager.trustCertificate(cert1);
+
             cert2 = readCertificate(certificate_not_yet_active);
+            await localCertificateManager.trustCertificate(cert2);
+
             cert3 = readCertificate(certificate_valid);
-            certificate_valid_untrusted_A = readCertificate(certificate_valid_untrusted);
-
             await localCertificateManager.trustCertificate(cert3);
-            await localCertificateManager.rejectCertificate(certificate_valid_untrusted_A);
 
+            certificate_valid_untrusted_A = readCertificate(certificate_valid_untrusted);
+            await localCertificateManager.rejectCertificate(certificate_valid_untrusted_A);
         });
 
         it("should detect null certificate", async () => {
@@ -209,6 +210,5 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             }
             issuerCertificate!.toString("hex").should.eql(caCertificateBuf.toString("hex"));
         });
-
     });
 });

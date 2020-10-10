@@ -57,7 +57,7 @@ export const g_config = {
 
 const displayError: boolean = true;
 
-const displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
+let displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
 // tslint:disable-next-line:no-empty
 export function debugLog(...args: [any?, ...any[]]) {
     if (displayDebug) {
