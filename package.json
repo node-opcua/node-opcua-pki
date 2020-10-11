@@ -43,7 +43,7 @@
     "cli-spinner": "^0.2.10",
     "cli-table": "^0.3.1",
     "del": "5.1.0",
-    "node-opcua-crypto": "^1.4.0",
+    "node-opcua-crypto": "^1.4.1",
     "progress": "^2.0.3",
     "rimraf": "^3.0.2",
     "thenify": "^3.3.1",
