@@ -85,8 +85,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
         create_demo_certificates(cwd, (err?: Error | null) => {
 
+            // istanbul ignore next
             if (err) { return done(err); }
-            fs.existsSync(certificate_file).should.eql(true);
+
+            fs.existsSync(certificate_file).should.eql(true, "certificate " + certificate_file + " must exist");
 
             // running a second time should be faster
             const date2 = new Date();
@@ -97,8 +99,8 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                 const timeToConstructDemoCertificateSecondTime = (date3.getTime() - date2.getTime());
                 console.log(" t2 = ", timeToConstructDemoCertificateSecondTime);
 
-                (initialTimeToConstructDemoCertificate / 5).should.be
-                    .greaterThan(timeToConstructDemoCertificateSecondTime);
+                (initialTimeToConstructDemoCertificate / 2).should.be
+                    .greaterThan(timeToConstructDemoCertificateSecondTime, "it should take less time the second pass");
 
                 done(err1);
             });
@@ -324,7 +326,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                 const caPrivateKey = path.join(__dirname,
                     "../tmp/tmpCAcustomSubject/certificates/CA/private/cakey.pem");
                 fs.existsSync(caPrivateKey).should.eql(true);
-                    done();
+                done();
             });
         });
 

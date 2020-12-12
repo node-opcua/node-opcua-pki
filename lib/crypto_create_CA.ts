@@ -59,7 +59,7 @@ import {
 } from "./pki/toolbox";
 
 // see https://github.com/yargs/yargs/issues/781
-import * as commands from "yargs/index";
+import * as commands from "yargs";
 const command = require("yargs/yargs");
 
 // ------------------------------------------------- some useful dates

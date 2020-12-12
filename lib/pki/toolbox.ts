@@ -58,6 +58,7 @@ const displayError: boolean = true;
 const displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
 // tslint:disable-next-line:no-empty
 export function debugLog(...args: [any?, ...any[]]) {
+    // istanbul ignore next
     if (displayDebug) {
         console.log.apply(null, args);
     }
@@ -161,6 +162,7 @@ export function execute(cmd: string, options: ExecuteOptions, callback: (err: Er
 }
 
 export function useRandFile() {
+    // istanbul ignore next
     if (g_config.opensslVersion && g_config.opensslVersion.toLowerCase().indexOf("libressl") > -1) {
         return false;
     }
@@ -168,6 +170,8 @@ export function useRandFile() {
 }
 
 function openssl_require2DigitYearInDate() {
+
+    // istanbul ignore next
     if (!g_config.opensslVersion) {
         throw new Error(
             "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed(callback)"
@@ -188,6 +192,7 @@ export function ensure_openssl_installed(callback: (err?: Error) => void) {
             }
 
             execute_openssl("version", { cwd: "." }, (err: Error | null, outputs?: string) => {
+                // istanbul ignore next
                 if (err) {
                     return callback(err);
                 }
@@ -247,6 +252,7 @@ export function execute_openssl(
 export function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
     return new Promise((resolve, reject) => {
         execute_openssl(cmd, options, (err, output) => {
+            // istanbul ignore next
             if (err) {
                 reject(err);
             } else {
@@ -392,8 +398,9 @@ type KeyLength = 1024 | 2048 | 3072 | 4096;
  * @param callback {Function}
  */
 export function createPrivateKey(privateKeyFilename: string, keyLength: KeyLength, callback: ErrorCallback) {
+    // istanbul ignore next
     if (useRandFile()) {
-        /// assert(hasEnv("RANDFILE"));
+        assert(hasEnv("RANDFILE"));
     }
 
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
@@ -416,6 +423,7 @@ export function createPrivateKey(privateKeyFilename: string, keyLength: KeyLengt
 }
 
 export function createRandomFile(randomFile: string, options: ExecuteOptions, callback: (err?: Error) => void) {
+    // istanbul ignore next
     if (!useRandFile()) {
         return callback();
     }

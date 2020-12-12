@@ -36,16 +36,14 @@
 Options:
 --help display help
 
-
 ## create a certificate authority
 
-|                                 |                                                      | default value      |
-| ------------------------------- | ---------------------------------------------------- | ------------------ |
-| `--subject`                     | the CA certificate subject                           | "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA" |
-| `--root`, `-r`                  | the location of the Certificate folder               | "{CWD}/certificates" |
-| ` --CAFolder`, `-c`             | the location of the Certificate Authority folder     | "{root}/CA"] |
- |`--keySize`, `-k`, `--keyLength`| the private key size in bits (1024|2048|3072|4096)   |  2048 |
-
+|                                  |                                                  | default value                                                                   |
+| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- | ---- | ----- | ---- |
+| `--subject`                      | the CA certificate subject                       | "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA" |
+| `--root`, `-r`                   | the location of the Certificate folder           | "{CWD}/certificates"                                                            |
+| ` --CAFolder`, `-c`              | the location of the Certificate Authority folder | "{root}/CA"]                                                                    |
+| `--keySize`, `-k`, `--keyLength` | the private key size in bits (1024               | 2048                                                                            | 3072 | 4096) | 2048 |
 
 ## demo command
 
@@ -97,3 +95,7 @@ Options:
 -   https://www.entrust.com/wp-content/uploads/2013/05/pathvalidation_wp.pdf
 -   https://en.wikipedia.org/wiki/Certification_path_validation_algorithm
 -   https://tools.ietf.org/html/rfc5280
+
+#### note:
+
+-   do not upgrade update-notifier above 4.x.x until nodejs 8 is required
