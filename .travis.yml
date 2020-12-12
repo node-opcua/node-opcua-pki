@@ -3,8 +3,8 @@ language: node_js
 node_js:
   # - "8" # to do : drop support for 8 as end of life was end 2019
   - "10"
-  - "12"
-  - "14"
+  #- "12"
+  #- "14"
 
 os:
   - linux
