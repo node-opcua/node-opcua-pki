@@ -58,7 +58,9 @@ import {
     toDer,
 } from "./pki/toolbox";
 
-import * as commands from "yargs";
+// see https://github.com/yargs/yargs/issues/781
+import * as commands from "yargs/index";
+const command = require("yargs/yargs");
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nbDays: number): Date {
@@ -606,7 +608,7 @@ function createDefaultCertificate(
 }
 
 // tslint:disable-next-line:no-empty
-let done: ErrorCallback = (err?: Error | null) => {};
+let done: ErrorCallback = (err?: Error | null) => { };
 
 function create_default_certificates(dev: boolean, done: ErrorCallback) {
     function __create_default_certificates(
@@ -784,7 +786,7 @@ commands
             .wrap(132)
             .options(options)
             .usage("$0  demo [--dev] [--silent] [--clean]")
-            .example("$0  demo --dev", "create a set of demo cerficates")
+            .example("$0  demo --dev", "create a set of demo certificates")
             .help("help").argv;
 
         if (local_argv.help) {

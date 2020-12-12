@@ -1,6 +1,6 @@
 /* global exports,process,require */
 // ---------------------------------------------------------------------------------------------------------------------
-// node-opcua
+// node-opcua-pki
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2020 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
@@ -250,7 +250,7 @@ export function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions)
             if (err) {
                 reject(err);
             } else {
-                resolve(output);
+                resolve(output || "");
             }
         });
     });
@@ -469,11 +469,11 @@ export function createCertificateSigningRequest(
     assert(params.rootDir);
     assert(params.configFile);
     assert(params.privateKey);
-    assert(util.isString(params.privateKey));
-    assert(fs.existsSync(params.configFile!), "config file must exist");
-    assert(fs.existsSync(params.privateKey!), "Private key must exist");
+    assert(typeof params.privateKey === "string");
+    assert(fs.existsSync(params.configFile!), "config file must exist " + params.configFile);
+    assert(fs.existsSync(params.privateKey!), "Private key must exist" + params.privateKey);
     assert(fs.existsSync(params.rootDir!), "RootDir key must exist");
-    assert(util.isString(certificateSigningRequestFilename));
+    assert(typeof certificateSigningRequestFilename === "string");
 
     // note : this openssl command requires a config file
     processAltNames(params);
@@ -493,15 +493,15 @@ export function createCertificateSigningRequest(
             (callback: (err?: Error) => void) => {
                 execute_openssl(
                     "req -new" +
-                        "  -sha256 " +
-                        " -batch " +
-                        " -text " +
-                        configOption +
-                        " -key " +
-                        q(n(params.privateKey!)) +
-                        subjectOptions +
-                        " -out " +
-                        q(n(certificateSigningRequestFilename)),
+                    "  -sha256 " +
+                    " -batch " +
+                    " -text " +
+                    configOption +
+                    " -key " +
+                    q(n(params.privateKey!)) +
+                    subjectOptions +
+                    " -out " +
+                    q(n(certificateSigningRequestFilename)),
                     options,
                     (err: Error | null) => {
                         callback(err ? err : undefined);
@@ -631,7 +631,7 @@ export function processAltNames(params: ProcessAltNamesParam) {
     params.dns = params.dns || [];
     params.ip = params.ip || [];
 
-    // construct subjetAtlName
+    // construct subjectAtlName
     let subjectAltName: string[] = [];
     subjectAltName.push("URI:" + params.applicationUri);
     subjectAltName = ([] as string[]).concat(
@@ -722,19 +722,19 @@ export function createSelfSignCertificate(
         (callback: ErrorCallback) => {
             execute_openssl(
                 "req -new" +
-                    " -sha256 " +
-                    " -text " +
-                    " -extensions " +
-                    extension +
-                    " " +
-                    configOption +
-                    " -key " +
-                    q(n(params.privateKey!)) +
-                    " -out " +
-                    q(n(certificateRequestFilename)) +
-                    ' -subj "' +
-                    subject +
-                    '"',
+                " -sha256 " +
+                " -text " +
+                " -extensions " +
+                extension +
+                " " +
+                configOption +
+                " -key " +
+                q(n(params.privateKey!)) +
+                " -out " +
+                q(n(certificateRequestFilename)) +
+                ' -subj "' +
+                subject +
+                '"',
                 {},
                 callback
             );
@@ -751,21 +751,21 @@ export function createSelfSignCertificate(
         (callback: ErrorCallback) => {
             execute_openssl(
                 " x509 -req " +
-                    " -days " +
-                    params.validity +
-                    " -extensions " +
-                    extension +
-                    " " +
-                    " -extfile " +
-                    q(n(configFile)) +
-                    " -in " +
-                    q(n(certificateRequestFilename)) +
-                    " -signkey " +
-                    q(n(params.privateKey!)) +
-                    " -text " +
-                    " -out " +
-                    q(certificate) +
-                    " -text ",
+                " -days " +
+                params.validity +
+                " -extensions " +
+                extension +
+                " " +
+                " -extfile " +
+                q(n(configFile)) +
+                " -in " +
+                q(n(certificateRequestFilename)) +
+                " -signkey " +
+                q(n(params.privateKey!)) +
+                " -text " +
+                " -out " +
+                q(certificate) +
+                " -text ",
                 {},
                 callback
             );

@@ -15,5 +15,8 @@
     },
     "include": ["lib/**/*.ts", "lib/*.ts"],
     "exclude": ["node_modules"],
-    "files": ["lib/index.ts"]
+    "files": [
+        "lib/index.ts",
+        "lib/crypto_create_CA.ts"
+    ]
 }
