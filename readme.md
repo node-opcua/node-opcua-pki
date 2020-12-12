@@ -36,14 +36,14 @@
 Options:
 --help display help
 
-## create a certificate authority
+## Create a certificate authority
 
 |                                  |                                                  | default value                                                                   |
-| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- | ---- | ----- | ---- |
+| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- |
 | `--subject`                      | the CA certificate subject                       | "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA" |
 | `--root`, `-r`                   | the location of the Certificate folder           | "{CWD}/certificates"                                                            |
 | ` --CAFolder`, `-c`              | the location of the Certificate Authority folder | "{root}/CA"]                                                                    |
-| `--keySize`, `-k`, `--keyLength` | the private key size in bits (1024               | 2048                                                                            | 3072 | 4096) | 2048 |
+| `--keySize`, `-k`, `--keyLength` | the private key size in bits (1024               | 2048 ,3072, 4096 ,2048                                                          |
 
 ## demo command
 
