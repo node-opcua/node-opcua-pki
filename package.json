@@ -15,7 +15,9 @@
     "release-it": "npx release-it",
     "ncu": "npx npm-check-updates -u --target minor",
     "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.js",
-    "tslint": "npx tslint -c tslint.json lib/**/*.ts"
+    "tslint": "npx tslint -c tslint.json lib/**/*.ts",
+    "postinstall2": "opencollective-postinstall  && github-sponsors",
+    "postinstall": "github-sponsors"
   },
   "pkg": {
     "scripts": "build/**/*.js",
@@ -32,6 +34,9 @@
     "PKI",
     "node-opcua"
   ],
+  "collective": {
+    "url": "https://opencollective.com/node-opcua"
+  },
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
@@ -43,7 +48,9 @@
     "cli-spinner": "^0.2.10",
     "cli-table": "^0.3.4",
     "del": "5.1.0",
+    "github-sponsors": "^1.0.1",
     "node-opcua-crypto": "^1.4.6",
+    "opencollective-postinstall": "^2.0.3",
     "progress": "^2.0.3",
     "rimraf": "^3.0.2",
     "thenify": "^3.3.1",
