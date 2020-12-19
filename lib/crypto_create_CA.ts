@@ -32,6 +32,8 @@ import * as del from "del";
 import * as fs from "fs";
 import * as path from "path";
 import * as util from "util";
+import * as os from "os";
+
 import { callbackify } from "util";
 
 import { makeApplicationUrn } from "./misc/applicationurn";
@@ -213,8 +215,10 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
     }
 
     callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn) => {
-        const hostname = getFullyQualifiedDomainName();
-
+        if (err) {
+            return callback(err);
+        }
+        const hostname = os.hostname();
         let certificateDir: string;
 
         function performSubstitution(str: string): string {
@@ -226,7 +230,7 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
                 str = str.replace("{PKIFolder}", gLocalConfig.PKIFolder);
             }
             str = str.replace("{hostname}", hostname);
-            str = str.replace("%FQDN%", hostname);
+            str = str.replace("%FQDN%", fqdn);
             return str;
         }
 
@@ -417,11 +421,17 @@ function createDefaultCertificate(
 
     console.log(" urn = ", applicationUri);
 
+    const fqdn =  getFullyQualifiedDomainName();
+    const hostname = os.hostname();
     const dns: string[] = [
         // for conformance reason, localhost shall not be present in the DNS field of COP
         // ***FORBIDEN** "localhost",
         getFullyQualifiedDomainName(),
     ];
+    if (hostname !== fqdn) {
+        dns.push(hostname);  
+    }
+
     const ip: string[] = [];
 
     function createCertificateIfNotExist(
@@ -432,19 +442,17 @@ function createDefaultCertificate(
         validity: number,
         callback: (err?: Error | null, certificate?: string) => void
     ) {
-        fs.exists(certificate, (exists: boolean) => {
-            // istanbul ignore next
-            if (exists) {
-                console.log(
-                    chalk.yellow("         certificate"),
-                    chalk.cyan(certificate),
-                    chalk.yellow(" already exists => skipping")
-                );
-                return callback();
-            } else {
-                createCertificate(certificate, private_key, applicationUri, startDate, validity, callback);
-            }
-        });
+        // istanbul ignore next
+        if (fs.existsSync(certificate)) {
+            console.log(
+                chalk.yellow("         certificate"),
+                chalk.cyan(certificate),
+                chalk.yellow(" already exists => skipping")
+            );
+            return callback();
+        } else {
+            createCertificate(certificate, private_key, applicationUri, startDate, validity, callback);
+        }
     }
 
     function createCertificate(
@@ -513,18 +521,16 @@ function createDefaultCertificate(
     }
 
     function createPrivateKeyIfNotExist(privateKey: Filename, keyLength: KeySize, callback: ErrorCallback) {
-        fs.exists(privateKey, (exists: boolean) => {
-            if (exists) {
-                console.log(
-                    chalk.yellow("         privateKey"),
-                    chalk.cyan(privateKey),
-                    chalk.yellow(" already exists => skipping")
-                );
-                return callback();
-            } else {
-                createPrivateKey(privateKey, keyLength, callback);
-            }
-        });
+        if (fs.existsSync(privateKey)) {
+            console.log(
+                chalk.yellow("         privateKey"),
+                chalk.cyan(privateKey),
+                chalk.yellow(" already exists => skipping")
+            );
+            return callback();
+        } else {
+            createPrivateKey(privateKey, keyLength, callback);
+        }
     }
 
     let tasks1 = [
@@ -544,11 +550,10 @@ function createDefaultCertificate(
         (callback: ErrorCallback) => displaySubtitle(" create self signed Certificate " + self_signed_certificate_file, callback),
 
         (callback: ErrorCallback) => {
-            fs.exists(self_signed_certificate_file, (exists: boolean) => {
-                if (exists) {
+            if (fs.existsSync(self_signed_certificate_file)) {
                     // self_signed certificate already exists
                     return callback();
-                }
+             }
                 createSelfSignedCertificate(
                     self_signed_certificate_file,
                     private_key_file,
@@ -557,7 +562,6 @@ function createDefaultCertificate(
                     365,
                     callback
                 );
-            });
         },
     ];
 
@@ -584,21 +588,19 @@ function createDefaultCertificate(
                 ),
 
             (callback: ErrorCallback) => {
-                fs.exists(certificate_revoked, (exists: boolean) => {
-                    if (!exists) {
-                        return callback();
+                if (!fs.existsSync(certificate_revoked)) {            
+                    return callback();
+                }
+                createCertificate(
+                    certificate_revoked,
+                    private_key_file,
+                    applicationUri,
+                    yesterday,
+                    365,
+                    (err: Error | null) => {
+                        revoke_certificate(certificate_revoked, callback);
                     }
-                    createCertificate(
-                        certificate_revoked,
-                        private_key_file,
-                        applicationUri,
-                        yesterday,
-                        365,
-                        (err: Error | null) => {
-                            revoke_certificate(certificate_revoked, callback);
-                        }
-                    );
-                });
+                );
             },
         ];
         tasks1 = tasks1.concat(tasks2);
@@ -635,9 +637,10 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
             });
         },
         (callback: ErrorCallback) => {
-            const hostname = getFullyQualifiedDomainName();
+            const hostname = os.hostname();
+            const fqdn = getFullyQualifiedDomainName();
             console.log(chalk.yellow("     hostname = "), chalk.cyan(hostname));
-
+            console.log(chalk.yellow("     fqdn     = "), chalk.cyan(fqdn));
             clientURN = makeApplicationUrn(hostname, "NodeOPCUA-Client");
             serverURN = makeApplicationUrn(hostname, "NodeOPCUA-Server");
             discoveryServerURN = makeApplicationUrn(hostname, "NodeOPCUA-DiscoveryServer");

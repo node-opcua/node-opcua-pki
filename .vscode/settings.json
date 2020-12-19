@@ -26,5 +26,9 @@
         "selfsigned",
         "signkey",
         "toder"
+    ],
+    "grammarly.userWords": [
+        "opcua",
+        "yauzl"
     ]
 }
