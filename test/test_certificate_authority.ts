@@ -3,7 +3,14 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { PrivateKey, readCertificate, split_der, readCertificateRevocationList } from "node-opcua-crypto";
+import { 
+    readCertificate, 
+    split_der, 
+    readCertificateRevocationList, 
+    exploreCertificate,
+    exploreCertificateSigningRequest
+} from "node-opcua-crypto";
+import {  } from "node-opcua-crypto";
 
 import should = require("should");
 
@@ -22,6 +29,7 @@ import {
 import { beforeTest } from "./helpers";
 
 const _should = should;
+const doDebug = !!process.env.DEBUG;
 
 describe("Certificate Authority", function (this: Mocha.Suite) {
     const testData = beforeTest(this);
@@ -94,6 +102,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
     });
 
     it("T2 - should sign a Certificate Request", async () => {
+
         const self = {
             certificateRequest: "",
         };
@@ -123,6 +132,24 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         // should have 2 x -----BEGIN CERTIFICATE----- in the chain
 
         // should verify that certificate is valid
+        // verify the subject Alternatibve Name 
+        const csr = readCertificate( self.certificateRequest);
+        const infoCSR = exploreCertificateSigningRequest(csr);
+        
+        const info = exploreCertificate(certificateChain);
+
+        if (doDebug) {
+            console.log(infoCSR.extensionRequest.basicConstraints);
+            console.log(info.tbsCertificate.extensions.basicConstraints);
+    
+            console.log(infoCSR.extensionRequest.keyUsage);
+            console.log(info.tbsCertificate.extensions.keyUsage);
+    
+            console.log(infoCSR.extensionRequest.subjectAltName);
+            console.log(info.tbsCertificate.extensions.subjectAltName);    
+        }
+        infoCSR.extensionRequest.subjectAltName.should.eql(info.tbsCertificate.extensions.subjectAltName);
+
         // todo
     });
 

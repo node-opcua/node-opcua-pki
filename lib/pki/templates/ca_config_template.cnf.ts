@@ -18,7 +18,7 @@ const config = "#.........DO NOT MODIFY BY HAND .........................\n" +
   "\n" +
   "preserve                 = no\n" +
   "policy                   = policy_match\n" +
-  "RANDFILE                 = $dir/private/randfile\n" +
+  "RANDFILE                 = $dir/random.rnd\n" +
   "# default_startdate        = YYMMDDHHMMSSZ\n" +
   "# default_enddate          = YYMMDDHHMMSSZ\n" +
   "crl_dir                  = $dir/crl\n" +

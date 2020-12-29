@@ -25,7 +25,6 @@ import * as async from "async";
 import * as chalk from "chalk";
 import * as fs from "fs";
 import * as path from "path";
-import * as util from "util";
 
 import { ErrorCallback, Filename, KeySize } from "./common";
 
@@ -38,6 +37,7 @@ import {
     debugLog,
     displaySubtitle,
     displayTitle,
+    ExecuteOptions,
     execute_openssl,
     execute_openssl_no_failure,
     generateStaticConfig,
@@ -45,12 +45,14 @@ import {
     mkdir,
     Params,
     processAltNames,
+    ProcessAltNamesParam,
     quote,
     setEnv,
     useRandFile,
     x509Date,
 } from "./toolbox";
 import { Subject, SubjectOptions } from "../misc/subject";
+import { CertificateSigningRequestInfo, exploreCertificateSigningRequest, readCertificateSigningRequest } from "node-opcua-crypto";
 
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
@@ -62,6 +64,14 @@ const config = {
 
 const n = make_path;
 const q = quote;
+
+// convert 'c07b9179'  to    "192.123.145.121"
+function octetStringToIpAddress(a: string) {
+    return parseInt(a.substr(0,2),16).toString() + "." + 
+    parseInt(a.substr(2,2),16).toString() + "." + 
+    parseInt(a.substr(4,2),16).toString() + "." + 
+    parseInt(a.substr(6,2),16).toString()
+}
 
 function construct_CertificateAuthority(certificateAuthority: CertificateAuthority, callback: ErrorCallback) {
     // create the CA directory store
@@ -552,15 +562,48 @@ export class CertificateAuthority {
         adjustApplicationUri(params);
         processAltNames(params);
 
-        const options = { cwd: this.rootDir };
-        const configFile = generateStaticConfig("conf/caconfig.cnf", options);
-        const configOption = " -config " + configFile;
+        const options: ExecuteOptions = { cwd: this.rootDir };
+        let configFile: string;
         const tasks = [];
+
+        let csrInfo: CertificateSigningRequestInfo;
+        // note :
+        // subjectAltName is not copied across
+        //  see https://github.com/openssl/openssl/issues/10458
+        tasks.push((callback: ErrorCallback) => {
+           readCertificateSigningRequest(certificateSigningRequestFilename).then((csr: Buffer)=>{
+                csrInfo = exploreCertificateSigningRequest(csr);
+                callback();
+           }).catch((err)=> callback(err));
+        });
+        tasks.push((callback: ErrorCallback) => {
+            
+            const applicationUri =  csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0];
+            if (typeof applicationUri !== "string") {
+                return callback(new Error("Cannot find applicationUri in CSR"));
+            }
+
+            const dns = csrInfo.extensionRequest.subjectAltName.dNSName || [];
+            let ip = csrInfo.extensionRequest.subjectAltName.iPAddress || [];
+            ip = ip.map(octetStringToIpAddress);
+
+            const params: ProcessAltNamesParam =  {
+                applicationUri,
+                dns,
+                ip
+            }
+            
+            processAltNames(params);
+
+            configFile = generateStaticConfig("conf/caconfig.cnf", options);
+            callback();
+        });
 
         tasks.push((callback: ErrorCallback) =>
             displaySubtitle("- then we ask the authority to sign the certificate signing request", callback)
         );
-        tasks.push((callback: ErrorCallback) =>
+        tasks.push((callback: ErrorCallback) => {
+            const configOption = " -config " + configFile;
             execute_openssl(
                 "ca " +
                     configOption +
@@ -574,8 +617,8 @@ export class CertificateAuthority {
                     q(n(certificateSigningRequestFilename)),
                 options,
                 callback
-            )
-        );
+            );
+        });
 
         tasks.push((callback: ErrorCallback) => displaySubtitle("- dump the certificate for a check", callback));
         tasks.push((callback: ErrorCallback) =>

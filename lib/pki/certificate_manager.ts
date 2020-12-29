@@ -544,8 +544,7 @@ export class CertificateManager {
             //
             // cf: https://github.com/node-opcua/node-opcua/issues/554
 
-            fs.exists(this.privateKey, (exists: boolean) => {
-                if (!exists) {
+            if (!fs.existsSync(this.privateKey)) {
                     debugLog("generating private key ...");
                     setEnv("RANDFILE", this.randomFile);
                     createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
@@ -554,11 +553,10 @@ export class CertificateManager {
                         }
                         this._readCertificates(() => callback());
                     });
-                } else {
-                    // debugLog("   initialize :  private key already exists ... skipping");
-                    this._readCertificates(() => callback());
-                }
-            });
+            } else {
+                // debugLog("   initialize :  private key already exists ... skipping");
+                this._readCertificates(() => callback());
+            }
         });
     }
 
