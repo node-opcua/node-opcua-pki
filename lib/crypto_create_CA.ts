@@ -110,15 +110,16 @@ let g_certificateAuthority: CertificateAuthority; // the Certificate Authority
  * prerequisites :
  *   g_config.CAFolder : the folder of the CA
  */
-function construct_CertificateAuthority(callback: ErrorCallback) {
+function construct_CertificateAuthority(subject: string, callback: ErrorCallback) {
     // verify that g_config file has been loaded
-    assert(util.isString(gLocalConfig.CAFolder), "expecting a CAFolder in config");
-    assert(util.isNumber(gLocalConfig.keySize), "expecting a keySize in config");
+    assert(typeof gLocalConfig.CAFolder === "string", "expecting a CAFolder in config");
+    assert(typeof gLocalConfig.keySize === "number", "expecting a keySize in config");
 
     if (!g_certificateAuthority) {
         g_certificateAuthority = new CertificateAuthority({
             keySize: gLocalConfig.keySize!,
             location: gLocalConfig.CAFolder!,
+            subject
         });
         g_certificateAuthority.initialize(callback);
     } else {
@@ -134,7 +135,7 @@ let certificateManager: CertificateManager; // the Certificate Manager
  *   g_config.PKIFolder : the folder of the PKI
  */
 function construct_CertificateManager(callback: ErrorCallback) {
-    assert(util.isString(gLocalConfig.PKIFolder), "expecting a PKIFolder in config");
+    assert(typeof gLocalConfig.PKIFolder === "string", "expecting a PKIFolder in config");
 
     if (!certificateManager) {
         certificateManager = new CertificateManager({
@@ -215,6 +216,7 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
     }
 
     callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn) => {
+        // istanbul ignore next
         if (err) {
             return callback(err);
         }
@@ -269,6 +271,16 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
         gLocalConfig = require(default_config);
 
         gLocalConfig.subject = new Subject(gLocalConfig.subject!);
+
+        // if subject is provided on the command line , it has hight priority
+        if (argv.subject) {
+            gLocalConfig.subject = new Subject(argv.subject);
+        }
+        
+        // istanbul ignore next
+        if (!gLocalConfig.subject.commonName) {
+            throw new Error("subject must have a Common Name");
+        }
 
         gLocalConfig.certificateDir = certificateDir;
 
@@ -419,8 +431,6 @@ function createDefaultCertificate(
     const certificate_revoked = make_path(base_name, prefix + "cert_" + key_length + "_revoked.pem");
     const self_signed_certificate_file = make_path(base_name, prefix + "selfsigned_cert_" + key_length + ".pem");
 
-    console.log(" urn = ", applicationUri);
-
     const fqdn =  getFullyQualifiedDomainName();
     const hostname = os.hostname();
     const dns: string[] = [
@@ -463,25 +473,31 @@ function createDefaultCertificate(
         validity: number,
         callback: (err: Error | null, certificate?: string) => void
     ) {
-        const crs_file = certificate + ".csr";
+        const certificateSigningRequestFile = certificate + ".csr";
 
         const configFile = make_path(base_name, "../certificates/PKI/own/openssl.cnf");
 
+        const dns = [ os.hostname()];
+        const ip = [ "127.0.0.1"];
+
         const params: CreateCertificateSigningRequestWithConfigOptions = {
+            applicationUri,
             privateKey: private_key,
             rootDir: ".",
             configFile,
+            dns,
+            ip,
         };
 
         // create CSR
-        createCertificateSigningRequest(crs_file, params, (err?: Error) => {
+        createCertificateSigningRequest(certificateSigningRequestFile, params, (err?: Error) => {
             // istanbul ignore next
             if (err) {
                 return callback(err);
             }
             g_certificateAuthority.signCertificateRequest(
                 certificate,
-                crs_file,
+                certificateSigningRequestFile,
                 {
                     applicationUri,
                     dns,
@@ -705,7 +721,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
 function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
     async.series(
         [
-            (callback: ErrorCallback) => construct_CertificateAuthority(callback),
+            (callback: ErrorCallback) => construct_CertificateAuthority("",callback),
             (callback: ErrorCallback) => construct_CertificateManager(callback),
             (callback: ErrorCallback) => create_default_certificates(dev, callback),
         ],
@@ -808,7 +824,7 @@ commands
             const tasks = [];
             tasks.push(ensure_openssl_installed);
             tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
-            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority(callback));
+            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority(local_argv.subject, callback));
             async.series(tasks, (err?: Error | null) => on_completion(err, done));
         }
 
@@ -930,7 +946,7 @@ commands
 
             tasks.push((callback: ErrorCallback) => construct_CertificateManager(callback));
 
-            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority(callback));
+            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority("",callback));
 
             tasks.push((callback: ErrorCallback) => {
                 assert(fs.existsSync(gLocalConfig.CAFolder!), " CA folder must exist");
@@ -970,7 +986,7 @@ commands
             tasks.push((callback: ErrorCallback) => {
                 // console.error("g_config.outputFile=", gLocalConfig.outputFile);
 
-                assert(util.isString(gLocalConfig.outputFile));
+                assert(typeof gLocalConfig.outputFile === "string");
                 fs.writeFileSync(gLocalConfig.outputFile!, fs.readFileSync(certificate, "ascii"));
                 return callback();
             });
@@ -1054,7 +1070,7 @@ commands
             const tasks = [];
 
             tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
-            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority(callback));
+            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority("", callback));
             tasks.push((callback: ErrorCallback) => revoke_certificate(certificate, callback));
 
             async.series(tasks, (err?: Error | null) => {

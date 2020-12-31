@@ -31,7 +31,7 @@ import { ErrorCallback, Filename, KeySize } from "./common";
 import {
     adjustApplicationUri,
     adjustDate,
-    check_certificate_filename,
+    certificateFileExist,
     configurationFileTemplate,
     createRandomFileIfNotExist,
     debugLog,
@@ -345,7 +345,7 @@ export class CertificateAuthority {
         assert(fs.existsSync(privateKey));
         assert(typeof callback === "function");
 
-        if (!check_certificate_filename(certificateFile)) {
+        if (!certificateFileExist(certificateFile)) {
             return callback!();
         }
 
@@ -550,12 +550,13 @@ export class CertificateAuthority {
         params: Params,
         callback?: (err: Error | null, certificate?: Filename) => void
     ): any {
+        // istanbul ignore next
         if (!callback) {
             throw new Error("Internal Error");
         }
         assert(fs.existsSync(certificateSigningRequestFilename));
         assert(typeof callback === "function");
-        if (!check_certificate_filename(certificate)) {
+        if (!certificateFileExist(certificate)) {
             return callback(null);
         }
         adjustDate(params);

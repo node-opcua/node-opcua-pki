@@ -614,7 +614,7 @@ export function adjustApplicationUri(params: Params) {
     }
 }
 
-export function check_certificate_filename(certificateFile: string): boolean {
+export function certificateFileExist(certificateFile: string): boolean {
     assert(typeof certificateFile === "string");
 
     // istanbul ignore next
@@ -687,8 +687,8 @@ export function createSelfSignCertificate(
     if (!params.subject) {
         return callback(new Error("Missing subject"));
     }
-    assert(util.isString(params.applicationUri));
-    assert(util.isArray(params.dns));
+    assert(typeof params.applicationUri === "string");
+    assert(params.dns instanceof Array);
 
     // xx no key size in self-signed assert(params.keySize == 2048 || params.keySize == 4096);
 
