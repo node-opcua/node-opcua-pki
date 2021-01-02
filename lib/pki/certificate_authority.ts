@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2020 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -67,10 +67,15 @@ const q = quote;
 
 // convert 'c07b9179'  to    "192.123.145.121"
 function octetStringToIpAddress(a: string) {
-    return parseInt(a.substr(0,2),16).toString() + "." + 
-    parseInt(a.substr(2,2),16).toString() + "." + 
-    parseInt(a.substr(4,2),16).toString() + "." + 
-    parseInt(a.substr(6,2),16).toString()
+    return (
+        parseInt(a.substr(0, 2), 16).toString() +
+        "." +
+        parseInt(a.substr(2, 2), 16).toString() +
+        "." +
+        parseInt(a.substr(4, 2), 16).toString() +
+        "." +
+        parseInt(a.substr(6, 2), 16).toString()
+    );
 }
 
 function construct_CertificateAuthority(certificateAuthority: CertificateAuthority, callback: ErrorCallback) {
@@ -220,22 +225,27 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
 
         (callback: ErrorCallback) => displaySubtitle("generate initial CRL (Certificate Revocation List)", callback),
 
-        (callback: ErrorCallback) =>
-            execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options, callback),
-
-        // produce CRL in DER format
-        (callback: ErrorCallback) => displaySubtitle("Produce initial CRL in DER form ", callback),
-
-        (callback: ErrorCallback) =>
-            execute_openssl(
-                "crl " + " -in " + q(n(certificateAuthority.revocationList)) + " -out  crl/revocation_list.der " + " -outform der",
-                options,
-                callback
-            ),
+        (callback: ErrorCallback) => regenenerateCrl(certificateAuthority.revocationList, configOption, options, callback),
 
         (callback: ErrorCallback) => displayTitle("Create Certificate Authority (CA) ---> DONE", callback),
     ];
 
+    async.series(tasks, callback);
+}
+function regenenerateCrl(revocationList: string, configOption: any, options: any, callback: ErrorCallback) {
+    const tasks = [
+        (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
+
+        (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
+        (callback: ErrorCallback) =>
+            // produce a CRL in PEM format
+            execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options, callback),
+
+        (callback: ErrorCallback) => displaySubtitle("Display (Certificate Revocation List)", callback),
+
+        (callback: ErrorCallback) =>
+            execute_openssl("crl " + " -in " + q(n(revocationList)) + " -text " + " -noout", options, callback),
+    ];
     async.series(tasks, callback);
 }
 
@@ -271,6 +281,16 @@ export class CertificateAuthority {
         return make_path(this.rootDir, "./public/cacert.pem");
     }
 
+    /**
+     * the file name where  the current Certificate Revocation List is stored (in DER format)
+     */
+    public get revocationListDER() {
+        return make_path(this.rootDir, "./crl/revocation_list.der");
+    }
+
+    /**
+     * the file name where  the current Certificate Revocation List is stored (in PEM format)
+     */
     public get revocationList() {
         return make_path(this.rootDir, "./crl/revocation_list.crl");
     }
@@ -457,8 +477,14 @@ export class CertificateAuthority {
             openssl_conf: make_path(configFile),
         };
 
-        // tslint:disable-next-line:no-string-literal
-        assert(fs.existsSync((process.env as any)["OPENSSL_CONF"]));
+        setEnv("ALTNAME", "");
+        const randomFile = path.join(this.rootDir, "random.rnd");
+        setEnv("RANDFILE", randomFile);
+
+        // // tslint:disable-next-line:no-string-literal
+        // if (!fs.existsSync((process.env as any)["OPENSSL_CONF"])) {
+        //     throw new Error("Cannot find OPENSSL_CONF");
+        // }
 
         const configOption = " -config " + q(n(configFile));
 
@@ -467,23 +493,21 @@ export class CertificateAuthority {
 
         const tasks = [
             (callback: ErrorCallback) => displayTitle("Revoking certificate  " + certificate, callback),
+
+            (callback: ErrorCallback) => displaySubtitle("Make sure random file exists" + randomFile, callback),
+            (callback: ErrorCallback) => createRandomFileIfNotExist(randomFile, {}, callback),
+
             (callback: ErrorCallback) => displaySubtitle("Revoke certificate", callback),
-            // -crl_reason reason
-            (callback: ErrorCallback) =>
+
+            (callback: ErrorCallback) => {
                 execute_openssl_no_failure(
-                    "ca " + configOption + " -revoke " + q(certificate) + " -crl_reason " + reason,
+                    "ca -verbose " + configOption + " -revoke " + q(certificate) + " -crl_reason " + reason,
                     options,
                     callback
-                ),
-
+                );
+            },
             // regenerate CRL (Certificate Revocation List)
-            (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
-            (callback: ErrorCallback) =>
-                execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options, callback),
-
-            (callback: ErrorCallback) => displaySubtitle("Display (Certificate Revocation List)", callback),
-            (callback: ErrorCallback) =>
-                execute_openssl("crl " + " -in " + q(n(this.revocationList)) + " -text " + " -noout", options, callback),
+            (callback: ErrorCallback) => regenenerateCrl(this.revocationList, configOption, options, callback),
 
             (callback: ErrorCallback) => displaySubtitle("Verify that certificate is revoked  ", callback),
 
@@ -511,10 +535,17 @@ export class CertificateAuthority {
                     options,
                     callback
                 ),
+            // produce CRL in PEM format with text
             (callback: ErrorCallback) => displaySubtitle("Produce CRL in PEM form ", callback),
             (callback: ErrorCallback) =>
                 execute_openssl(
-                    "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.pem " + " -outform pem",
+                    "crl " +
+                        " -in " +
+                        q(n(this.revocationList)) +
+                        " -out " +
+                        "crl/revocation_list.pem " +
+                        " -outform pem" +
+                        " -text ",
                     options,
                     callback
                 ),
@@ -572,14 +603,15 @@ export class CertificateAuthority {
         // subjectAltName is not copied across
         //  see https://github.com/openssl/openssl/issues/10458
         tasks.push((callback: ErrorCallback) => {
-           readCertificateSigningRequest(certificateSigningRequestFilename).then((csr: Buffer)=>{
-                csrInfo = exploreCertificateSigningRequest(csr);
-                callback();
-           }).catch((err)=> callback(err));
+            readCertificateSigningRequest(certificateSigningRequestFilename)
+                .then((csr: Buffer) => {
+                    csrInfo = exploreCertificateSigningRequest(csr);
+                    callback();
+                })
+                .catch((err) => callback(err));
         });
         tasks.push((callback: ErrorCallback) => {
-            
-            const applicationUri =  csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0];
+            const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0];
             if (typeof applicationUri !== "string") {
                 return callback(new Error("Cannot find applicationUri in CSR"));
             }
@@ -588,12 +620,12 @@ export class CertificateAuthority {
             let ip = csrInfo.extensionRequest.subjectAltName.iPAddress || [];
             ip = ip.map(octetStringToIpAddress);
 
-            const params: ProcessAltNamesParam =  {
+            const params: ProcessAltNamesParam = {
                 applicationUri,
                 dns,
-                ip
-            }
-            
+                ip,
+            };
+
             processAltNames(params);
 
             configFile = generateStaticConfig("conf/caconfig.cnf", options);

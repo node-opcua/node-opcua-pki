@@ -28,7 +28,10 @@
         "toder"
     ],
     "grammarly.userWords": [
+        "createCA",
+        "createPKI",
         "opcua",
+        "toder",
         "yauzl"
     ]
 }

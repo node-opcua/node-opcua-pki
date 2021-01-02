@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2020 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -58,11 +58,14 @@ import {
     mkdir,
     setEnv,
     toDer,
+    debugLog,
 } from "./pki/toolbox";
 
 // see https://github.com/yargs/yargs/issues/781
 import * as commands from "yargs";
 const command = require("yargs/yargs");
+
+const epilog = "Copyright (c) sterfive - node-opcua - 2017-2021";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nbDays: number): Date {
@@ -119,7 +122,7 @@ function construct_CertificateAuthority(subject: string, callback: ErrorCallback
         g_certificateAuthority = new CertificateAuthority({
             keySize: gLocalConfig.keySize!,
             location: gLocalConfig.CAFolder!,
-            subject
+            subject,
         });
         g_certificateAuthority.initialize(callback);
     } else {
@@ -254,18 +257,20 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
 
         if (!fs.existsSync(default_config)) {
             // copy
-            console.log(chalk.yellow(" Creating default g_config file "), chalk.cyan(default_config));
+            debugLog(chalk.yellow(" Creating default g_config file "), chalk.cyan(default_config));
             const default_config_template_content = default_template_content();
             fs.writeFileSync(default_config, default_config_template_content);
         } else {
-            console.log(chalk.yellow(" using  g_config file "), chalk.cyan(default_config));
+            debugLog(chalk.yellow(" using  g_config file "), chalk.cyan(default_config));
         }
         if (!fs.existsSync(default_config)) {
             console.log(chalk.redBright(" cannot find config file ", default_config));
         }
+
         // see http://stackoverflow.com/questions/94445/using-openssl-what-does-unable-to-write-random-state-mean
         // set random file to be random.rnd in the same folder as the g_config file
-        setEnv("RANDFILE", path.join(path.dirname(default_config), "random.rnd"));
+        const defaultRandomFile = path.join(path.dirname(default_config), "random.rnd");
+        setEnv("RANDFILE", defaultRandomFile);
 
         /* eslint global-require: 0*/
         gLocalConfig = require(default_config);
@@ -276,7 +281,7 @@ function readConfiguration(argv: any, callback: ErrorCallback) {
         if (argv.subject) {
             gLocalConfig.subject = new Subject(argv.subject);
         }
-        
+
         // istanbul ignore next
         if (!gLocalConfig.subject.commonName) {
             throw new Error("subject must have a Common Name");
@@ -431,7 +436,7 @@ function createDefaultCertificate(
     const certificate_revoked = make_path(base_name, prefix + "cert_" + key_length + "_revoked.pem");
     const self_signed_certificate_file = make_path(base_name, prefix + "selfsigned_cert_" + key_length + ".pem");
 
-    const fqdn =  getFullyQualifiedDomainName();
+    const fqdn = getFullyQualifiedDomainName();
     const hostname = os.hostname();
     const dns: string[] = [
         // for conformance reason, localhost shall not be present in the DNS field of COP
@@ -439,7 +444,7 @@ function createDefaultCertificate(
         getFullyQualifiedDomainName(),
     ];
     if (hostname !== fqdn) {
-        dns.push(hostname);  
+        dns.push(hostname);
     }
 
     const ip: string[] = [];
@@ -454,11 +459,7 @@ function createDefaultCertificate(
     ) {
         // istanbul ignore next
         if (fs.existsSync(certificate)) {
-            console.log(
-                chalk.yellow("         certificate"),
-                chalk.cyan(certificate),
-                chalk.yellow(" already exists => skipping")
-            );
+            console.log(chalk.yellow("         certificate"), chalk.cyan(certificate), chalk.yellow(" already exists => skipping"));
             return callback();
         } else {
             createCertificate(certificate, private_key, applicationUri, startDate, validity, callback);
@@ -477,8 +478,8 @@ function createDefaultCertificate(
 
         const configFile = make_path(base_name, "../certificates/PKI/own/openssl.cnf");
 
-        const dns = [ os.hostname()];
-        const ip = [ "127.0.0.1"];
+        const dns = [os.hostname()];
+        const ip = ["127.0.0.1"];
 
         const params: CreateCertificateSigningRequestWithConfigOptions = {
             applicationUri,
@@ -538,11 +539,7 @@ function createDefaultCertificate(
 
     function createPrivateKeyIfNotExist(privateKey: Filename, keyLength: KeySize, callback: ErrorCallback) {
         if (fs.existsSync(privateKey)) {
-            console.log(
-                chalk.yellow("         privateKey"),
-                chalk.cyan(privateKey),
-                chalk.yellow(" already exists => skipping")
-            );
+            console.log(chalk.yellow("         privateKey"), chalk.cyan(privateKey), chalk.yellow(" already exists => skipping"));
             return callback();
         } else {
             createPrivateKey(privateKey, keyLength, callback);
@@ -567,17 +564,10 @@ function createDefaultCertificate(
 
         (callback: ErrorCallback) => {
             if (fs.existsSync(self_signed_certificate_file)) {
-                    // self_signed certificate already exists
-                    return callback();
-             }
-                createSelfSignedCertificate(
-                    self_signed_certificate_file,
-                    private_key_file,
-                    applicationUri,
-                    yesterday,
-                    365,
-                    callback
-                );
+                // self_signed certificate already exists
+                return callback();
+            }
+            createSelfSignedCertificate(self_signed_certificate_file, private_key_file, applicationUri, yesterday, 365, callback);
         },
     ];
 
@@ -604,19 +594,12 @@ function createDefaultCertificate(
                 ),
 
             (callback: ErrorCallback) => {
-                if (!fs.existsSync(certificate_revoked)) {            
+                if (!fs.existsSync(certificate_revoked)) {
                     return callback();
                 }
-                createCertificate(
-                    certificate_revoked,
-                    private_key_file,
-                    applicationUri,
-                    yesterday,
-                    365,
-                    (err: Error | null) => {
-                        revoke_certificate(certificate_revoked, callback);
-                    }
-                );
+                createCertificate(certificate_revoked, private_key_file, applicationUri, yesterday, 365, (err: Error | null) => {
+                    revoke_certificate(certificate_revoked, callback);
+                });
             },
         ];
         tasks1 = tasks1.concat(tasks2);
@@ -626,7 +609,7 @@ function createDefaultCertificate(
 }
 
 // tslint:disable-next-line:no-empty
-let done: ErrorCallback = (err?: Error | null) => { };
+let done: ErrorCallback = (err?: Error | null) => {};
 
 function create_default_certificates(dev: boolean, done: ErrorCallback) {
     function __create_default_certificates(
@@ -721,7 +704,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
 function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
     async.series(
         [
-            (callback: ErrorCallback) => construct_CertificateAuthority("",callback),
+            (callback: ErrorCallback) => construct_CertificateAuthority("", callback),
             (callback: ErrorCallback) => construct_CertificateManager(callback),
             (callback: ErrorCallback) => create_default_certificates(dev, callback),
         ],
@@ -735,15 +718,39 @@ function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
     );
 }
 
+assert(typeof done === "function");
+
 commands
     .strict()
     .wrap(132)
-    .command("demo", "create default certificate for node-opcua demos", (yargs: commands.Argv) => {
-        assert(typeof done === "function");
+    .command(
+        "demo",
+        "create default certificate for node-opcua demos",
+        (yargs: commands.Argv) => {
+            const options: { [key: string]: commands.Options } = {};
+            options.dev = {
+                type: "boolean",
+                describe: "create all sort of fancy certificates for dev testing purposes",
+            };
+            options.clean = {
+                type: "boolean",
+                describe: "Purge existing directory [use with care!]",
+            };
 
-        function command_demo(local_argv: any, done: ErrorCallback) {
-            assert(typeof done === "function", "expecting a callback");
+            add_standard_option(options, "silent");
+            add_standard_option(options, "root");
 
+            const local_argv = yargs
+                .strict()
+                .wrap(132)
+                .options(options)
+                .usage("$0  demo [--dev] [--silent] [--clean]")
+                .example("$0  demo --dev", "create a set of demo certificates")
+                .help("help").argv;
+
+            return local_argv;
+        },
+        (local_argv: any) => {
             const tasks = [];
 
             tasks.push((callback: ErrorCallback) => ensure_openssl_installed(callback));
@@ -786,282 +793,259 @@ commands
 
             async.series(tasks, (err?: Error | null) => on_completion(err, done));
         }
+    )
 
-        const options: { [key: string]: commands.Options } = {};
-        options.dev = {
-            type: "boolean",
-            describe: "create all sort of fancy certificates for dev testing purposes",
-        };
-        options.clean = {
-            type: "boolean",
-            describe: "Purge existing directory [use with care!]",
-        };
+    .command(
+        "createCA",
+        "create a Certificate Authority",
+        /* builder*/ (yargs: commands.Argv) => {
+            const options: any = {
+                subject: {
+                    default: defaultSubject,
+                    type: "string",
+                    describe: "the CA certificate subject",
+                },
+            };
 
-        add_standard_option(options, "silent");
-        add_standard_option(options, "root");
+            add_standard_option(options, "root");
+            add_standard_option(options, "CAFolder");
+            add_standard_option(options, "keySize");
+            add_standard_option(options, "silent");
 
-        const local_argv = yargs
-            .strict()
-            .wrap(132)
-            .options(options)
-            .usage("$0  demo [--dev] [--silent] [--clean]")
-            .example("$0  demo --dev", "create a set of demo certificates")
-            .help("help").argv;
-
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
-            command_demo(local_argv, done);
-        }
-        return yargs;
-    })
-
-    .command("createCA", "create a Certificate Authority", (yargs: commands.Argv) => {
-        assert(typeof done === "function");
-
-        function command_new_certificate_authority(local_argv: any, done: ErrorCallback) {
+            const local_argv = yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
+            return local_argv;
+        },
+        /*handler*/ (local_argv: any) => {
             const tasks = [];
             tasks.push(ensure_openssl_installed);
             tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
             tasks.push((callback: ErrorCallback) => construct_CertificateAuthority(local_argv.subject, callback));
             async.series(tasks, (err?: Error | null) => on_completion(err, done));
         }
+    )
 
-        const options: any = {
-            subject: {
-                default: defaultSubject,
-                type: "string",
-                describe: "the CA certificate subject",
-            },
-        };
+    .command(
+        "createPKI",
+        "create a Public Key Infrastructure",
+        (yargs: commands.Argv) => {
+            const options = {};
 
-        add_standard_option(options, "root");
-        add_standard_option(options, "CAFolder");
-        add_standard_option(options, "keySize");
+            add_standard_option(options, "root");
+            add_standard_option(options, "PKIFolder");
+            add_standard_option(options, "keySize");
+            add_standard_option(options, "silent");
 
-        const local_argv = yargs.strict().wrap(132).options(options).help("help").argv;
-
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
-            command_new_certificate_authority(local_argv, done);
-        }
-        return yargs;
-    })
-
-    .command("createPKI", "create a Public Key Infrastructure", (yargs: commands.Argv) => {
-        function command_new_public_key_infrastructure(local_argv: any, done: ErrorCallback) {
+            return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
+        },
+        (local_argv: any) => {
             const tasks = [];
             tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
             tasks.push((callback: ErrorCallback) => construct_CertificateManager(callback));
             async.series(tasks, (err?: Error | null) => on_completion(err, done));
         }
-
-        const options = {};
-
-        add_standard_option(options, "root");
-        add_standard_option(options, "PKIFolder");
-        add_standard_option(options, "keySize");
-
-        const local_argv = yargs.strict().wrap(132).options(options).help("help").argv;
-
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
-            command_new_public_key_infrastructure(local_argv, done);
-        }
-        return yargs;
-    })
+    )
 
     // ----------------------------------------------- certificate
-    .command("certificate", "create a new certificate", (yargs: commands.Argv) => {
-        assert(typeof done === "function");
+    .command(
+        "certificate",
+        "create a new certificate",
+        (yargs: commands.Argv) => {
+            const options: OptionMap = {
+                applicationUri: {
+                    alias: "a",
+                    demand: true,
+                    describe: "the application URI",
+                    default: "urn:{hostname}:Node-OPCUA-Server",
+                    type: "string",
+                },
+                output: {
+                    default: "my_certificate.pem",
+                    alias: "o",
+                    demand: true,
+                    describe: "the name of the generated certificate =>",
+                    type: "string",
+                },
+                selfSigned: {
+                    alias: "s",
+                    default: false,
+                    type: "boolean",
+                    describe: "if true, certificate will be self-signed",
+                },
+                validity: {
+                    alias: "v",
+                    default: null,
+                    type: "number",
+                    describe: "the certificate validity in days",
+                },
+                dns: {
+                    default: "{hostname}",
+                    type: "string",
+                    describe: "the list of valid domain name (comma separated)",
+                },
+                ip: {
+                    default: "",
+                    type: "string",
+                    describe: "the list of valid IPs (comma separated)",
+                },
+                subject: {
+                    default: "",
+                    type: "string",
+                    describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )",
+                },
+            };
+            add_standard_option(options, "silent");
+            add_standard_option(options, "root");
+            add_standard_option(options, "CAFolder");
+            add_standard_option(options, "PKIFolder");
+            add_standard_option(options, "privateKey");
 
-        function command_certificate(local_argv: any, done: ErrorCallback) {
-            assert(typeof done === "function");
-            const selfSigned = local_argv.selfSigned;
+            const local_argv = yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
+            return local_argv;
+        },
+        (local_argv: any) => {
+            function command_certificate(local_argv: any, done: ErrorCallback) {
+                assert(typeof done === "function");
+                const selfSigned = local_argv.selfSigned;
 
-            if (!selfSigned) {
-                command_full_certificate(local_argv, done);
-            } else {
-                command_selfsigned_certificate(local_argv, done);
+                if (!selfSigned) {
+                    command_full_certificate(local_argv, done);
+                } else {
+                    command_selfsigned_certificate(local_argv, done);
+                }
             }
-            return yargs;
-        }
 
-        function command_selfsigned_certificate(local_argv: any, done: ErrorCallback) {
-            const tasks = [];
+            function command_selfsigned_certificate(local_argv: any, done: ErrorCallback) {
+                const tasks = [];
 
-            tasks.push((callback: ErrorCallback) => {
-                callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn?: string) => {
-                    // xx console.log("FQDN = ", fqdn, err ? err.message : "");
-                    callback();
+                tasks.push((callback: ErrorCallback) => {
+                    callbackify(extractFullyQualifiedDomainName)((err: Error | null, fqdn?: string) => {
+                        // xx console.log("FQDN = ", fqdn, err ? err.message : "");
+                        callback();
+                    });
                 });
-            });
 
-            tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
+                tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
 
-            tasks.push((callback: ErrorCallback) => construct_CertificateManager(callback));
+                tasks.push((callback: ErrorCallback) => construct_CertificateManager(callback));
 
-            tasks.push((callback: ErrorCallback) =>
-                displaySubtitle(" create self signed Certificate " + gLocalConfig.outputFile, callback)
-            );
+                tasks.push((callback: ErrorCallback) =>
+                    displaySubtitle(" create self signed Certificate " + gLocalConfig.outputFile, callback)
+                );
 
-            tasks.push((callback: ErrorCallback) => {
-                let subject =
-                    local_argv.subject && local_argv.subject.length > 1 ? new Subject(local_argv.subject) : gLocalConfig.subject!;
+                tasks.push((callback: ErrorCallback) => {
+                    let subject =
+                        local_argv.subject && local_argv.subject.length > 1
+                            ? new Subject(local_argv.subject)
+                            : gLocalConfig.subject!;
 
-                subject = JSON.parse(JSON.stringify(subject));
+                    subject = JSON.parse(JSON.stringify(subject));
 
-                const params: CreateSelfSignCertificateParam1 = {
-                    applicationUri: gLocalConfig.applicationUri || "",
-                    dns: gLocalConfig.dns || [],
-                    ip: gLocalConfig.ip || [],
-                    outputFile: gLocalConfig.outputFile || "self_signed_certificate.pem",
-                    startDate: gLocalConfig.startDate || new Date(),
-                    subject,
-                    validity: gLocalConfig.validity || 365,
-                };
+                    const params: CreateSelfSignCertificateParam1 = {
+                        applicationUri: gLocalConfig.applicationUri || "",
+                        dns: gLocalConfig.dns || [],
+                        ip: gLocalConfig.ip || [],
+                        outputFile: gLocalConfig.outputFile || "self_signed_certificate.pem",
+                        startDate: gLocalConfig.startDate || new Date(),
+                        subject,
+                        validity: gLocalConfig.validity || 365,
+                    };
 
-                certificateManager.createSelfSignedCertificate(params, (err?: Error | null) => {
-                    callback(err!);
+                    certificateManager.createSelfSignedCertificate(params, (err?: Error | null) => {
+                        callback(err!);
+                    });
                 });
-            });
-            // console.log(" output file =  ",g_config.output);
+                // console.log(" output file =  ",g_config.output);
 
-            async.series(tasks, (err?: Error | null) => on_completion(err, done));
+                async.series(tasks, (err?: Error | null) => on_completion(err, done));
+            }
 
-            return yargs;
-        }
+            function command_full_certificate(local_argv: any, done: ErrorCallback) {
+                let the_csr_file: Filename;
+                let certificate: Filename;
+                const tasks = [];
 
-        function command_full_certificate(local_argv: any, done: ErrorCallback) {
-            let the_csr_file: Filename;
-            let certificate: Filename;
-            const tasks = [];
+                tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
 
-            tasks.push((callback: ErrorCallback) => readConfiguration(local_argv, callback));
+                tasks.push((callback: ErrorCallback) => construct_CertificateManager(callback));
 
-            tasks.push((callback: ErrorCallback) => construct_CertificateManager(callback));
+                tasks.push((callback: ErrorCallback) => construct_CertificateAuthority("", callback));
 
-            tasks.push((callback: ErrorCallback) => construct_CertificateAuthority("",callback));
-
-            tasks.push((callback: ErrorCallback) => {
-                assert(fs.existsSync(gLocalConfig.CAFolder!), " CA folder must exist");
-                return callback();
-            });
-
-            tasks.push((callback: ErrorCallback) => {
-                gLocalConfig.privateKey = undefined; // use PKI private key
-                // create a Certificate Request from the certificate Manager
-
-                gLocalConfig.subject =
-                    local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
-
-                certificateManager.createCertificateRequest(gLocalConfig, (err: Error | null, csr_file?: string) => {
-                    // istanbul ignore next
-                    if (err) {
-                        return callback(err);
-                    }
-
-                    the_csr_file = csr_file!;
-                    console.log(" csr_file = ", csr_file);
+                tasks.push((callback: ErrorCallback) => {
+                    assert(fs.existsSync(gLocalConfig.CAFolder!), " CA folder must exist");
                     return callback();
                 });
-            });
-            tasks.push((callback: ErrorCallback) => {
-                certificate = the_csr_file.replace(".csr", ".pem");
 
-                if (fs.existsSync(certificate)) {
-                    return callback(new Error(" File " + certificate + " already exist"));
-                }
+                tasks.push((callback: ErrorCallback) => {
+                    gLocalConfig.privateKey = undefined; // use PKI private key
+                    // create a Certificate Request from the certificate Manager
 
-                g_certificateAuthority.signCertificateRequest(certificate, the_csr_file, gLocalConfig, (err: Error | null) => {
-                    return callback(err!);
+                    gLocalConfig.subject =
+                        local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
+
+                    certificateManager.createCertificateRequest(gLocalConfig, (err: Error | null, csr_file?: string) => {
+                        // istanbul ignore next
+                        if (err) {
+                            return callback(err);
+                        }
+
+                        the_csr_file = csr_file!;
+                        console.log(" csr_file = ", csr_file);
+                        return callback();
+                    });
                 });
-            });
+                tasks.push((callback: ErrorCallback) => {
+                    certificate = the_csr_file.replace(".csr", ".pem");
 
-            tasks.push((callback: ErrorCallback) => {
-                // console.error("g_config.outputFile=", gLocalConfig.outputFile);
+                    if (fs.existsSync(certificate)) {
+                        return callback(new Error(" File " + certificate + " already exist"));
+                    }
 
-                assert(typeof gLocalConfig.outputFile === "string");
-                fs.writeFileSync(gLocalConfig.outputFile!, fs.readFileSync(certificate, "ascii"));
-                return callback();
-            });
+                    g_certificateAuthority.signCertificateRequest(certificate, the_csr_file, gLocalConfig, (err: Error | null) => {
+                        return callback(err!);
+                    });
+                });
 
-            async.series(tasks, (err?: Error | null) => on_completion(err, done));
-        }
+                tasks.push((callback: ErrorCallback) => {
+                    // console.error("g_config.outputFile=", gLocalConfig.outputFile);
 
-        const options: OptionMap = {
-            applicationUri: {
-                alias: "a",
-                demand: true,
-                describe: "the application URI",
-                default: "urn:{hostname}:Node-OPCUA-Server",
-                type: "string",
-            },
-            output: {
-                default: "my_certificate.pem",
-                alias: "o",
-                demand: true,
-                describe: "the name of the generated certificate =>",
-                type: "string",
-            },
-            selfSigned: {
-                alias: "s",
-                default: false,
-                type: "boolean",
-                describe: "if true, certificate will be self-signed",
-            },
-            validity: {
-                alias: "v",
-                default: null,
-                type: "number",
-                describe: "the certificate validity in days",
-            },
-            dns: {
-                default: "{hostname}",
-                type: "string",
-                describe: "the list of valid domain name (comma separated)",
-            },
-            ip: {
-                default: "",
-                type: "string",
-                describe: "the list of valid IPs (comma separated)",
-            },
-            subject: {
-                default: "",
-                type: "string",
-                describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )",
-            },
-        };
-        add_standard_option(options, "silent");
-        add_standard_option(options, "root");
-        add_standard_option(options, "CAFolder");
-        add_standard_option(options, "PKIFolder");
-        add_standard_option(options, "privateKey");
+                    assert(typeof gLocalConfig.outputFile === "string");
+                    fs.writeFileSync(gLocalConfig.outputFile!, fs.readFileSync(certificate, "ascii"));
+                    return callback();
+                });
 
-        const local_argv = yargs.strict().wrap(132).options(options).help("help").argv;
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
+                async.series(tasks, (err?: Error | null) => on_completion(err, done));
+            }
+
             command_certificate(local_argv, done);
         }
-        return yargs;
-    })
+    )
 
     // ----------------------------------------------- revoke
-    .command("revoke", "revoke a existing certificate", (yargs: commands.Argv) => {
-        function revokeCertificateFromCommandLine(argv: any, done: ErrorCallback) {
+    .command(
+        "revoke <certificateFile>",
+        "revoke a existing certificate",
+        (yargs: commands.Argv) => {
+         
+            const options = {};
+            add_standard_option(options, "root");
+            add_standard_option(options, "CAFolder");
+
+            yargs
+                .strict()
+                .wrap(132)
+                .help("help")
+                .usage("$0 revoke  my_certificate.pem")
+                .options(options)
+                .epilog(epilog);
+            return yargs;
+        },
+        (local_argv: any) => {
             function revoke_certificate(certificate: Filename, callback: ErrorCallback) {
                 g_certificateAuthority.revokeCertificate(certificate, {}, callback);
             }
 
             // example : node bin\crypto_create_CA.js revoke my_certificate.pem
-            const certificate = path.resolve(argv._[1]);
+            const certificate = path.resolve(local_argv.certificateFile);
             console.log(chalk.yellow(" Certificate to revoke : "), chalk.cyan(certificate));
 
             if (!fs.existsSync(certificate)) {
@@ -1075,79 +1059,49 @@ commands
 
             async.series(tasks, (err?: Error | null) => {
                 if (!err) {
-                    console.log("done ... ", err);
+                    console.log("done ... ");
+                    console.log("  crl = ", g_certificateAuthority.revocationList);
                     console.log("\nyou should now publish the new Certificate Revocation List");
                 } else {
-                    console.log("done ... ", err.message);
+                    console.log("failed ... ", err.message);
                 }
                 done(err);
             });
-
-            return yargs;
         }
+    )
 
-        const options = {};
-        add_standard_option(options, "root");
-        add_standard_option(options, "CAFolder");
-
-        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 revoke  my_certificate.pem").options(options).demand(2)
-            .argv;
-
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
-            revokeCertificateFromCommandLine(local_argv, done);
+    .command(
+        "dump <certificateFile>",
+        "display a certificate",
+        () => {},
+        (yargs: any) => {
+            dumpCertificate(yargs.certificateFile, (err: Error | null, data?: string) => {
+                if (!err) {
+                    console.log(data);
+                }
+                done(err!);
+            });
         }
+    )
 
-        return yargs;
-    })
-
-    .command("dump", "display a certificate", (yargs: commands.Argv) => {
-        function dumpCertificateFromCommandLine(argv: any, done: ErrorCallback) {
-            const certificate = path.resolve(argv._[1]);
-            dumpCertificate(certificate, (err: Error | null) => done(err!));
+    .command(
+        "toder <pemCertificate>",
+        "convert a certificate to a DER format with finger print",
+        () => {},
+        (yargs: commands.Argv) => {
+            function convertToDerFromCommandLine(argv: any, done: ErrorCallback) {
+                toDer(argv.pemCertificate, (err: Error | null) => done(err!));
+            }
+            convertToDerFromCommandLine(yargs, done);
         }
+    )
 
-        const options = {};
-
-        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 dump  my_certificate.pem").options(options).demand(1)
-            .argv;
-        if (local_argv.help || local_argv._.length <= 1) {
-            yargs.showHelp();
-            done();
-        } else {
-            dumpCertificateFromCommandLine(local_argv, done);
-        }
-        return yargs;
-    })
-
-    .command("toder", "convert a certificate to a DER format with finger print", (yargs: commands.Argv) => {
-        g_config.silent = true;
-
-        function convertToDerFromCommandLine(argv: any, done: ErrorCallback) {
-            const certificate = path.resolve(argv._[1]);
-            toDer(certificate, (err: Error | null) => done(err!));
-        }
-
-        const options = {};
-
-        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 toder  my_certificate.pem").options(options).demand(1)
-            .argv;
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
-            convertToDerFromCommandLine(local_argv, done);
-        }
-        return yargs;
-    })
-
-    .command("fingerprint", "print the certificate fingerprint", (yargs: commands.Argv) => {
-        g_config.silent = true;
-
-        function cmdFingerPrint(argv: any, done: ErrorCallback) {
-            const certificate = path.resolve(argv._[1]);
+    .command(
+        "fingerprint <certificateFile>",
+        "print the certificate fingerprint",
+        () => {},
+        (local_argv: any) => {
+            const certificate = local_argv.certificateFile;
             fingerprint(certificate, (err: Error | null, data?: string) => {
                 if (!err) {
                     const s = data!.split("=")[1].split(":").join("").trim();
@@ -1156,26 +1110,12 @@ commands
                 done(err!);
             });
         }
-
-        const options = {};
-        add_standard_option(options, "silent");
-
-        const local_argv = yargs.strict().wrap(132).help("help").usage("$0 toder  my_certificate.pem").options(options).demand(1)
-            .argv;
-
-        if (local_argv.help) {
-            yargs.showHelp();
-            done();
-        } else {
-            cmdFingerPrint(local_argv, done);
-        }
-        return yargs;
-    })
+    )
     .command("$0", "help", (yargs: commands.Argv) => {
         console.log("--help for help");
         return yargs;
     })
-    .epilog("Copyright (c) - NodeOPCUA - 2020")
+    .epilog(epilog)
     .help("help")
     .strict();
 

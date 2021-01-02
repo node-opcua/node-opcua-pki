@@ -1,8 +1,7 @@
-/* global exports,process,require */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua-pki
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2020 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -49,7 +48,7 @@ export function quote(str: string): string {
 // tslint:disable-next-line:variable-name
 export const g_config = {
     opensslVersion: "unset",
-    silent: true,
+    silent: process.env.VERBOSE ? (!process.env.VERBOSE) :true,
     force: false,
 };
 
@@ -93,6 +92,10 @@ export function setEnv(varName: string, value: string): void {
     if (["OPENSSL_CONF"].indexOf(varName) >= 0) {
         process.env[varName] = value;
     }
+    if (["RANDFILE"].indexOf(varName) >= 0) {
+        process.env[varName] = value;
+    }
+
 }
 
 export function hasEnv(varName: string): boolean {

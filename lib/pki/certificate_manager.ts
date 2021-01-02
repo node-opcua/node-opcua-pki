@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2020 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -223,7 +223,7 @@ export class CertificateManager {
     }
 
     get randomFile() {
-        return path.join(this.rootDir, "own/private/random.rnd");
+        return path.join(this.rootDir, "./random.rnd");
     }
 
     /**
