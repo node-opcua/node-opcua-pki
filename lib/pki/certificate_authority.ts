@@ -236,11 +236,17 @@ function regenenerateCrl(revocationList: string, configOption: any, options: any
     const tasks = [
         (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
 
-        (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
         (callback: ErrorCallback) =>
             // produce a CRL in PEM format
             execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options, callback),
 
+        (callback: ErrorCallback) =>
+            execute_openssl(
+                "crl " + " -in  crl/revocation_list.crl -out  crl/revocation_list.der " + " -outform der",
+                options,
+                callback
+            ),
+            
         (callback: ErrorCallback) => displaySubtitle("Display (Certificate Revocation List)", callback),
 
         (callback: ErrorCallback) =>
