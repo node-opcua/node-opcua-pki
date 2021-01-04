@@ -640,7 +640,7 @@ function create_default_certificates(dev: boolean, done: ErrorCallback) {
             const fqdn = getFullyQualifiedDomainName();
             console.log(chalk.yellow("     hostname = "), chalk.cyan(hostname));
             console.log(chalk.yellow("     fqdn     = "), chalk.cyan(fqdn));
-            clientURN = makeApplicationUrn(hostname, "NodeOPCUA-Client");
+            clientURN = "NodeOPCUA-Client";
             serverURN = makeApplicationUrn(hostname, "NodeOPCUA-Server");
             discoveryServerURN = makeApplicationUrn(hostname, "NodeOPCUA-DiscoveryServer");
             setImmediate(callback);
