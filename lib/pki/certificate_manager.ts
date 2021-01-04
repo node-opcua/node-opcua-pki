@@ -28,8 +28,7 @@ import * as chalk from "chalk";
 import * as chokidar from "chokidar";
 import * as fs from "fs";
 import * as path from "path";
-import * as util from "util";
-import { callbackify, promisify, inspect } from "util";
+import { callbackify, promisify } from "util";
 
 import {
     Certificate,

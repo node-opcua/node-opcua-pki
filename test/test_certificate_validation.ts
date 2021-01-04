@@ -139,6 +139,8 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         callback();
     }
     */
+
+        await certificateManager.dispose();
     });
 
     describe("should verify ", () => {

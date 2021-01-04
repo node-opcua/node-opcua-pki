@@ -60,6 +60,8 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         // config file must have a distinguish name section
         grep(data, /distinguished_name/).should.match(/distinguished_name/);
 
+        await cm.dispose();
+
     });
 
     it("should create its own self-signed certificate", async () => {
@@ -131,6 +133,8 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         grep(data, /Not Before/).should.match(new RegExp(y.toString() + " GMT"));
         grep(data, /Not After/).should.match(new RegExp((y + 7).toString() + " GMT"));
 
+        await cm.dispose();
+
     });
 
 });
@@ -175,6 +179,8 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         await createSampleCertificateDer(sample_certificate2_der);
         await createSampleCertificateDer(sample_certificate3_der);
         await createSampleCertificateDer(sample_certificate4_der);
+
+        await cm.dispose();
 
     });
 

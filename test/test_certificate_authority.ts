@@ -54,7 +54,7 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
 
     it("should create a CertificateAuthority", async () => {
         const ca = new CertificateAuthority(options);
-        await ca.initialize();
+        await ca.initialize();        
     });
 });
 
@@ -76,6 +76,9 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         await cm.initialize();
         await ca.initialize();
+
+        await cm.dispose();
+
     });
 
     async function createCertificateRequest(): Promise<string> {
@@ -285,6 +288,9 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         const validate2 = await cm.verifyCertificate(certificate);
         validate2.should.eql(VerificationStatus.BadCertificateRevoked);
+
+        await cm.dispose();
+
     });
 
     it("T7 - it should automatically accept Certificate issued by a trusted issuer that is not in the CRL", async () => {
@@ -312,5 +318,8 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         const validate1 = await cm.verifyCertificate(certificate);
         validate1.should.eql(VerificationStatus.BadCertificateUntrusted);
+
+        await cm.dispose();
+
     });
 });

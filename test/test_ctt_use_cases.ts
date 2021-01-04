@@ -228,6 +228,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         });
         await applicationPKI.initialize();
 
+        
         const x509userIdentityPKI = new CertificateManager({
             location: path.join(testData.tmpFolder, "ctt/userIdentityPKI"),
         });
@@ -254,6 +255,10 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         console.log(legend());
         // tslint:disable-next-line: no-console
         console.log(flagsHeader());
+
+        await applicationPKI.dispose();
+        await x509userIdentityPKI.dispose();
+
     });
 
     async function test_verify(certFilename: string, certificateManager: CertificateManager) {
@@ -294,6 +299,11 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             });
             await applicationPKI.initialize();
         });
+        
+        after(async ()=>{
+            await applicationPKI.dispose();    
+        });
+
         it("A1: ctt_ca1TC_ca2I_appT : trusted X509 user certificate of a ca not trusted but known should be OK", async () => {
             const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1TC_ca2I_appT.der");
             const { status } = await test_verify(file1, applicationPKI);
@@ -332,6 +342,11 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             });
             await x509userIdentityPKI.initialize();
         });
+
+        after(async()=>{
+            await x509userIdentityPKI.dispose();
+        });
+
         it("T1: ctt_ca1I_usrT : trusted X509 user certificate of a ca not trusted but known should be OK", async () => {
             const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_usrT.der");
             const { status } = await test_verify(file1, x509userIdentityPKI);
@@ -383,6 +398,9 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         const cert2R = await readCertificate(file2R);
         const isRevoked2 = await applicationPKI.isCertificateRevoked(cert2R);
         isRevoked2.should.eql(VerificationStatus.BadCertificateRevoked);
+
+        await applicationPKI.dispose();
+
     });
     it("XGXG4 debug", async () => {
         const applicationPKI = new CertificateManager({
@@ -396,6 +414,9 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         (await applicationPKI.isCertificateRevoked(certificate)).should.eql("Good");
         const status = await applicationPKI.verifyCertificate(certificate);
         status.should.eql(VerificationStatus.BadCertificateIssuerRevocationUnknown);
+
+        await applicationPKI.dispose();
+
     });
     it("XGXG5 debug", async () => {
         const userPKI = new CertificateManager({
@@ -409,5 +430,9 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         (await userPKI.isCertificateRevoked(certificate)).should.eql(VerificationStatus.Good);
         const status = await userPKI.verifyCertificate(certificate);
         status.should.eql(VerificationStatus.BadCertificateUntrusted); //
+
+
+        await userPKI.dispose();
+        
     });
 });
