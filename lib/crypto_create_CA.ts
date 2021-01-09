@@ -63,6 +63,7 @@ import {
 
 // see https://github.com/yargs/yargs/issues/781
 import * as commands from "yargs";
+import { Certificate } from "node-opcua-crypto";
 const command = require("yargs/yargs");
 
 const epilog = "Copyright (c) sterfive - node-opcua - 2017-2021";
@@ -468,7 +469,7 @@ function createDefaultCertificate(
 
     function createCertificate(
         certificate: Filename,
-        private_key: Filename,
+        privateKey: Filename,
         applicationUri: string,
         startDate: Date,
         validity: number,
@@ -483,7 +484,7 @@ function createDefaultCertificate(
 
         const params: CreateCertificateSigningRequestWithConfigOptions = {
             applicationUri,
-            privateKey: private_key,
+            privateKey,
             rootDir: ".",
             configFile,
             dns,
@@ -594,10 +595,17 @@ function createDefaultCertificate(
                 ),
 
             (callback: ErrorCallback) => {
-                if (!fs.existsSync(certificate_revoked)) {
+                if (fs.existsSync(certificate_revoked)) {
+                    // self_signed certificate already exists
                     return callback();
                 }
-                createCertificate(certificate_revoked, private_key_file, applicationUri, yesterday, 365, (err: Error | null) => {
+                createCertificateIfNotExist(
+                    certificate_revoked, 
+                    private_key_file, 
+                    applicationUri + "Revoked",  // make sure we used a uniq URI here
+                    yesterday, 
+                    365, (err?: Error | null, certificate?: string) => {
+                        console.log(" certificate to revoke => ", certificate);
                     revoke_certificate(certificate_revoked, callback);
                 });
             },
