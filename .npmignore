@@ -29,3 +29,8 @@ Makefile
 debug*
 tslint.json
 .vs_code/
+.nyc_output/
+random.*
+*.tgz
+makeLink.bat
+.vscode/
