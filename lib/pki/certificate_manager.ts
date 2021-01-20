@@ -166,7 +166,7 @@ function buildIdealCertificateName(certificate: Certificate): string {
     }
 }
 function findMatchingIssuerKey(entries: Entry[], wantedIssuerKey: string): Entry[] {
-    const selected = entries.filter(({certificate}) => {
+    const selected = entries.filter(({ certificate }) => {
         const info = exploreCertificate(certificate);
         return info.tbsCertificate.extensions && info.tbsCertificate.extensions.subjectKeyIdentifier === wantedIssuerKey;
     });
@@ -174,8 +174,10 @@ function findMatchingIssuerKey(entries: Entry[], wantedIssuerKey: string): Entry
 }
 
 function isSelfSigned2(info: CertificateInternals): boolean {
-    return info.tbsCertificate.extensions?.subjectKeyIdentifier ===
-    info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
+    return (
+        info.tbsCertificate.extensions?.subjectKeyIdentifier ===
+        info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier
+    );
 }
 
 function isSelfSigned3(certificate: Buffer): boolean {
@@ -360,8 +362,8 @@ export class CertificateManager {
         // console.log(inspect(info, { depth: 100 }));
 
         if (hasIssuerKey) {
-            const isSelfSigned =isSelfSigned2(info);
-               
+            const isSelfSigned = isSelfSigned2(info);
+
             debugLog("Is the Certificate self-signed  ?", isSelfSigned);
             if (!isSelfSigned) {
                 const issuerCertificate = await this.findIssuerCertificate(chain[0]);
@@ -554,14 +556,14 @@ export class CertificateManager {
             // cf: https://github.com/node-opcua/node-opcua/issues/554
 
             if (!fs.existsSync(this.privateKey)) {
-                    debugLog("generating private key ...");
-                    setEnv("RANDFILE", this.randomFile);
-                    createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
-                        if (err) {
-                            return callback(err);
-                        }
-                        this._readCertificates(() => callback());
-                    });
+                debugLog("generating private key ...");
+                setEnv("RANDFILE", this.randomFile);
+                createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
+                    if (err) {
+                        return callback(err);
+                    }
+                    this._readCertificates(() => callback());
+                });
             } else {
                 // debugLog("   initialize :  private key already exists ... skipping");
                 this._readCertificates(() => callback());
@@ -689,10 +691,9 @@ export class CertificateManager {
     // find the issuer certificate
     public async findIssuerCertificate(certificate: Certificate): Promise<Certificate | null> {
         const certInfo = exploreCertificate(certificate);
-        
+
         if (isSelfSigned2(certInfo)) {
-            console.log(" WARNNING §§§");
-            console.log((new Error));
+            // the certificate is self signed so is it's own issuer.
             return certificate;
         }
 
@@ -704,7 +705,7 @@ export class CertificateManager {
         }
 
         const issuerCertificates = Object.values(this._thumbs.issuers.certs);
-        
+
         const selectedIssuerCertificates = findMatchingIssuerKey(issuerCertificates, wantedIssuerKey);
 
         if (selectedIssuerCertificates.length > 0) {
@@ -721,16 +722,17 @@ export class CertificateManager {
             // tslint:disable-next-line: no-console
             console.log(
                 "Warning more than one certificate exists with subjectKeyIdentifier in trusted certificate list ",
-                wantedIssuerKey, selectedTrustedCertificates.length 
+                wantedIssuerKey,
+                selectedTrustedCertificates.length
             );
             for (const entry of selectedTrustedCertificates) {
-                dumpCertificate(entry.filename,(err:Error|null, data?: string)=>{
-                    console.log("    ", entry.filename);
-                    console.log(data);
+                dumpCertificate(entry.filename, (err: Error | null, data?: string) => {
+                    debugLog("    ", entry.filename);
+                    debugLog(data);
                 });
             }
         }
-        return selectedTrustedCertificates.length > 0  ? selectedTrustedCertificates[0].certificate:  null;
+        return selectedTrustedCertificates.length > 0 ? selectedTrustedCertificates[0].certificate : null;
     }
 
     /**
@@ -818,7 +820,6 @@ export class CertificateManager {
         certificate: Certificate,
         issuerCertificate?: Certificate | null
     ): Promise<VerificationStatus> {
-
         if (isSelfSigned3(certificate)) {
             return VerificationStatus.Good;
         }

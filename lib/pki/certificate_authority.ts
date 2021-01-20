@@ -120,9 +120,9 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
             fs.writeFileSync(serial, "1000");
         }
 
-        const crlnumber = path.join(caRootDir, "crlnumber");
-        if (!fs.existsSync(crlnumber)) {
-            fs.writeFileSync(crlnumber, "1000");
+        const crlNumber = path.join(caRootDir, "crlnumber");
+        if (!fs.existsSync(crlNumber)) {
+            fs.writeFileSync(crlNumber, "1000");
         }
 
         const indexFile = path.join(caRootDir, "index.txt");
@@ -225,14 +225,14 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
 
         (callback: ErrorCallback) => displaySubtitle("generate initial CRL (Certificate Revocation List)", callback),
 
-        (callback: ErrorCallback) => regenenerateCrl(certificateAuthority.revocationList, configOption, options, callback),
+        (callback: ErrorCallback) => regenerateCrl(certificateAuthority.revocationList, configOption, options, callback),
 
         (callback: ErrorCallback) => displayTitle("Create Certificate Authority (CA) ---> DONE", callback),
     ];
 
     async.series(tasks, callback);
 }
-function regenenerateCrl(revocationList: string, configOption: any, options: any, callback: ErrorCallback) {
+function regenerateCrl(revocationList: string, configOption: any, options: any, callback: ErrorCallback) {
     const tasks = [
         (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
 
@@ -246,7 +246,7 @@ function regenenerateCrl(revocationList: string, configOption: any, options: any
                 options,
                 callback
             ),
-            
+
         (callback: ErrorCallback) => displaySubtitle("Display (Certificate Revocation List)", callback),
 
         (callback: ErrorCallback) =>
@@ -513,7 +513,7 @@ export class CertificateAuthority {
                 );
             },
             // regenerate CRL (Certificate Revocation List)
-            (callback: ErrorCallback) => regenenerateCrl(this.revocationList, configOption, options, callback),
+            (callback: ErrorCallback) => regenerateCrl(this.revocationList, configOption, options, callback),
 
             (callback: ErrorCallback) => displaySubtitle("Verify that certificate is revoked  ", callback),
 
