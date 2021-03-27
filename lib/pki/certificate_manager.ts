@@ -66,6 +66,10 @@ import {
     setEnv,
 } from "./toolbox";
 
+import * as lockfile from "proper-lockfile";
+
+type C = ((err?: Error | null, ...args: [any, ...any]) => void) | ((err?: Error | null) => void);
+
 type ReadFileFunc = (filename: string, encoding: string, callback: (err: Error | null, content?: Buffer) => void) => void;
 
 const fsFileExists = promisify(fs.exists);
@@ -283,7 +287,9 @@ export class CertificateManager {
     public rejectCertificate(certificate: Certificate, ...args: any[]): any {
         const callback = args[0];
         assert(callback && callback instanceof Function, "expecting callback");
-        this._moveCertificate(certificate, "rejected", callback);
+        this.withLock((callback) => {
+            this._moveCertificate(certificate, "rejected", callback);
+        }, callback);
     }
 
     public async trustCertificate(certificate: Certificate): Promise<void>;
@@ -291,7 +297,9 @@ export class CertificateManager {
     public trustCertificate(certificate: Certificate, ...args: any[]): any {
         const callback = args[0];
         assert(callback && callback instanceof Function, "expecting callback");
-        this._moveCertificate(certificate, "trusted", callback);
+        this.withLock((callback) => {
+            this._moveCertificate(certificate, "trusted", callback);
+        }, callback);
     }
 
     public get rejectedFolder(): string {
@@ -521,60 +529,91 @@ export class CertificateManager {
         if (this.initialized) {
             return callback();
         }
-        this.initialized = true;
+        this.withLock((callback) => {
+            this.initialized = true;
 
-        const pkiDir = this.location;
-        mkdir(pkiDir);
-        mkdir(path.join(pkiDir, "own"));
-        mkdir(path.join(pkiDir, "own/certs"));
-        mkdir(path.join(pkiDir, "own/private"));
-        mkdir(path.join(pkiDir, "rejected"));
-        mkdir(path.join(pkiDir, "trusted"));
-        mkdir(path.join(pkiDir, "trusted/certs"));
-        mkdir(path.join(pkiDir, "trusted/crl"));
+            const pkiDir = this.location;
+            mkdir(pkiDir);
+            mkdir(path.join(pkiDir, "own"));
+            mkdir(path.join(pkiDir, "own/certs"));
+            mkdir(path.join(pkiDir, "own/private"));
+            mkdir(path.join(pkiDir, "rejected"));
+            mkdir(path.join(pkiDir, "trusted"));
+            mkdir(path.join(pkiDir, "trusted/certs"));
+            mkdir(path.join(pkiDir, "trusted/crl"));
 
-        mkdir(path.join(pkiDir, "issuers"));
-        mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
-        mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
+            mkdir(path.join(pkiDir, "issuers"));
+            mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
+            mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
-        ensure_openssl_installed(() => {
-            // if (1 || !fs.existsSync(this.configFile)) {
-            //    var data = toolbox.configurationFileTemplate;
-            //    data = data.replace(/%%ROOT_FOLDER%%/, toolbox.make_path(pkiDir,"own"));
-            //    fs.writeFileSync(this.configFile, data);
-            // }
-            //
+            ensure_openssl_installed(() => {
+                // if (1 || !fs.existsSync(this.configFile)) {
+                //    var data = toolbox.configurationFileTemplate;
+                //    data = data.replace(/%%ROOT_FOLDER%%/, toolbox.make_path(pkiDir,"own"));
+                //    fs.writeFileSync(this.configFile, data);
+                // }
+                //
 
-            fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
+                fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
 
-            // note : openssl 1.1.1 has a bug that causes a failure if
-            // random file cannot be found. (should be fixed in 1.1.1.a)
-            // if this issue become important we may have to consider checking that rndFile exists and recreate
-            // it if not . this could be achieved with the command :
-            //      "openssl rand -writerand ${this.randomFile}"
-            //
-            // cf: https://github.com/node-opcua/node-opcua/issues/554
+                // note : openssl 1.1.1 has a bug that causes a failure if
+                // random file cannot be found. (should be fixed in 1.1.1.a)
+                // if this issue become important we may have to consider checking that rndFile exists and recreate
+                // it if not . this could be achieved with the command :
+                //      "openssl rand -writerand ${this.randomFile}"
+                //
+                // cf: https://github.com/node-opcua/node-opcua/issues/554
 
-            if (!fs.existsSync(this.privateKey)) {
-                debugLog("generating private key ...");
-                setEnv("RANDFILE", this.randomFile);
-                createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
-                    if (err) {
-                        return callback(err);
-                    }
+                if (!fs.existsSync(this.privateKey)) {
+                    debugLog("generating private key ...");
+                    setEnv("RANDFILE", this.randomFile);
+                    createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
+                        if (err) {
+                            return callback(err);
+                        }
+                        this._readCertificates(() => callback());
+                    });
+                } else {
+                    // debugLog("   initialize :  private key already exists ... skipping");
                     this._readCertificates(() => callback());
-                });
-            } else {
-                // debugLog("   initialize :  private key already exists ... skipping");
-                this._readCertificates(() => callback());
-            }
-        });
+                }
+            });
+        }, callback);
     }
 
     public async dispose(): Promise<void> {
         await Promise.all(this._watchers.map((w) => w.close()));
         this._watchers.forEach((w) => w.removeAllListeners());
         this._watchers.splice(0);
+    }
+
+    private withLock<C>(action: (callback: C) => void, callback: C) {
+        lockfile
+            .lock(this.rootDir, { retries: 1000, lockfilePath: path.join(this.rootDir, "mutex.lock") })
+            .then((release) => {
+                // Do something while the file is locked
+                (action as any)((err: Error | null, ...args: [any, ...any]) => {
+                    // Call the provided release function when you're done,
+                    // which will also return a promise
+                    const a = release();
+                    (callback as any).apply(null, [err, ...args]);
+                    return a;
+                });
+            })
+            .catch((e: Error) => {
+                // either lock could not be acquired
+                // or releasing it failed
+                console.error(e);
+                (callback as any)(e, undefined);
+            });
+    }
+    private async withLock2<T>(action: () => Promise<T>): Promise<T> {
+        let result: T;
+        const releaser = await lockfile.lock(this.rootDir, { retries: 1000, lockfilePath: path.join(this.rootDir, "mutex.lock") });
+        // Do something while the file is locked
+        result = await action();
+        await releaser();
+        return result;
     }
     /**
      *
@@ -586,20 +625,22 @@ export class CertificateManager {
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, ...args: any[]): any {
         const callback = args[0];
         const self = this;
-        assert(typeof params.applicationUri === "string", "expecting applicationUri");
-        if (!fs.existsSync(self.privateKey)) {
-            return callback(new Error("Cannot find private key " + self.privateKey));
-        }
+        this.withLock<ErrorCallback>((callback) => {
+            assert(typeof params.applicationUri === "string", "expecting applicationUri");
+            if (!fs.existsSync(self.privateKey)) {
+                return callback(new Error("Cannot find private key " + self.privateKey));
+            }
 
-        let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
-        certificateFilename = params.outputFile || certificateFilename;
+            let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
+            certificateFilename = params.outputFile || certificateFilename;
 
-        const _params = (params as any) as CreateSelfSignCertificateWithConfigParam;
-        _params.rootDir = self.rootDir;
-        _params.configFile = self.configFile;
-        _params.privateKey = self.privateKey;
+            const _params = (params as any) as CreateSelfSignCertificateWithConfigParam;
+            _params.rootDir = self.rootDir;
+            _params.configFile = self.configFile;
+            _params.privateKey = self.privateKey;
 
-        createSelfSignCertificate(certificateFilename, _params, callback);
+            createSelfSignCertificate(certificateFilename, _params, callback);
+        }, callback);
     }
 
     public async createCertificateRequest(params: CreateSelfSignCertificateParam): Promise<Filename>;
@@ -612,12 +653,11 @@ export class CertificateManager {
         callback?: (err: Error | null, certificateSigningRequestFilename?: string) => void
     ): any {
         assert(params);
-        assert(typeof callback === "function");
-
         const _params = params as CreateSelfSignCertificateWithConfigParam;
         if (_params.hasOwnProperty("rootDir")) {
             throw new Error("rootDir should not be specified ");
         }
+        assert(typeof callback === "function");
         assert(!_params.rootDir);
         assert(!_params.configFile);
         assert(!_params.privateKey);
@@ -625,13 +665,15 @@ export class CertificateManager {
         _params.configFile = this.configFile;
         _params.privateKey = this.privateKey;
 
-        // compose a file name for the request
-        const now = new Date();
-        const today = now.toISOString().slice(0, 10) + "_" + now.getTime();
-        const certificateSigningRequestFilename = path.join(this.rootDir, "own/certs", "certificate_" + today + ".csr");
-        createCertificateSigningRequest(certificateSigningRequestFilename, _params, (err?: Error) => {
-            return callback!(err!, certificateSigningRequestFilename);
-        });
+        this.withLock((callback) => {
+            // compose a file name for the request
+            const now = new Date();
+            const today = now.toISOString().slice(0, 10) + "_" + now.getTime();
+            const certificateSigningRequestFilename = path.join(this.rootDir, "own/certs", "certificate_" + today + ".csr");
+            createCertificateSigningRequest(certificateSigningRequestFilename, _params, (err?: Error) => {
+                return callback!(err!, certificateSigningRequestFilename);
+            });
+        }, callback);
     }
 
     public async addIssuer(
@@ -667,25 +709,27 @@ export class CertificateManager {
     }
 
     public async addRevocationList(crl: CertificateRevocationList): Promise<VerificationStatus> {
-        try {
-            const crlInfo = exploreCertificateRevocationList(crl);
-            const key = crlInfo.tbsCertList.issuerFingerprint;
-            if (!this._thumbs.issuersCrl[key]) {
-                this._thumbs.issuersCrl[key] = { crls: [], serialNumbers: {} };
+        return this.withLock2<VerificationStatus>(async () => {
+            try {
+                const crlInfo = exploreCertificateRevocationList(crl);
+                const key = crlInfo.tbsCertList.issuerFingerprint;
+                if (!this._thumbs.issuersCrl[key]) {
+                    this._thumbs.issuersCrl[key] = { crls: [], serialNumbers: {} };
+                }
+                const pemCertificate = toPem(crl, "X509 CRL");
+                const filename = path.join(this.issuersCrlFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
+                await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
+
+                await this._on_crl_file_added(this._thumbs.issuersCrl, filename);
+
+                await this.waitAndCheckCRLProcessingStatus();
+
+                return VerificationStatus.Good;
+            } catch (err) {
+                debugLog(err);
+                return VerificationStatus.BadSecurityChecksFailed;
             }
-            const pemCertificate = toPem(crl, "X509 CRL");
-            const filename = path.join(this.issuersCrlFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
-            await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
-
-            await this._on_crl_file_added(this._thumbs.issuersCrl, filename);
-
-            await this.waitAndCheckCRLProcessingStatus();
-
-            return VerificationStatus.Good;
-        } catch (err) {
-            debugLog(err);
-            return VerificationStatus.BadSecurityChecksFailed;
-        }
+        });
     }
 
     // find the issuer certificate
