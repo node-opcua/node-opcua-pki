@@ -3,7 +3,11 @@
 
    "exclude": [
        "lib/misc/install*",
-       "test/",
-       "bin/"
-   ]
+       "lib/misc/hostname.ts*",
+       "test/**/*.ts",
+       "test/**/*.js",
+       "bin/",
+       "tmp/"
+   ],
+    "check-coverage": false
 }

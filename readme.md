@@ -1,8 +1,7 @@
 ### node-opcua-pki
 
-[![Build Status](https://travis-ci.org/node-opcua/node-opcua-pki.png?branch=master)](https://travis-ci.org/node-opcua/node-opcua-pki)
-[![Code Climate](https://codeclimate.com/github/node-opcua/node-opcua-pki/badges/gpa.svg)](https://codeclimate.com/github/node-opcua/node-opcua-pki)
-[![Test Coverage](https://codeclimate.com/github/node-opcua/node-opcua-pki/badges/coverage.svg)](https://codeclimate.com/github/node-opcua/node-opcua-pki/coverage)
+[![Build Status](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml/badge.svg)](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/node-opcua/node-opcua-pki/badge.svg?branch=master)](https://coveralls.io/github/node-opcua/node-opcua-pki?branch=master)
 [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
 [![dependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/status.svg)](https://david-dm.org/node-opcua/node-opcua-pki)
 [![devDependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/dev-status.svg)](https://david-dm.org/node-opcua/node-opcua-pki?type=dev)
@@ -89,6 +88,7 @@ Options:
 | --CAFolder, -c       | the location of the Certificate Authority folder        | {root}/CA                        |
 | --PKIFolder, -p      | the location of the Public Key Infrastructure           | {root}/PKI                       |
 | --privateKey, -p     | optional:the private key to use to generate certificate |                                  |
+| --subject            | the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello ) | |
 
 #### References
 

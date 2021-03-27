@@ -127,6 +127,7 @@ function construct_CertificateAuthority(subject: string, callback: ErrorCallback
         });
         g_certificateAuthority.initialize(callback);
     } else {
+        // istanbul ignore next
         return callback();
     }
 }
@@ -148,6 +149,7 @@ function construct_CertificateManager(callback: ErrorCallback) {
         });
         return certificateManager.initialize(callback);
     } else {
+        // istanbul ignore next
         return callback();
     }
 }
@@ -165,6 +167,7 @@ function displayConfig(config: { [key: string]: any }) {
 }
 
 function default_template_content(): string {
+    // istanbul ignore next
     if ((process as any).pkg && (process as any).pkg.entrypoint) {
         // we are using PKG compiled package !
 
