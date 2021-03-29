@@ -287,9 +287,7 @@ export class CertificateManager {
     public rejectCertificate(certificate: Certificate, ...args: any[]): any {
         const callback = args[0];
         assert(callback && callback instanceof Function, "expecting callback");
-        this.withLock((callback) => {
-            this._moveCertificate(certificate, "rejected", callback);
-        }, callback);
+        this._moveCertificate(certificate, "rejected", callback);
     }
 
     public async trustCertificate(certificate: Certificate): Promise<void>;
@@ -297,9 +295,7 @@ export class CertificateManager {
     public trustCertificate(certificate: Certificate, ...args: any[]): any {
         const callback = args[0];
         assert(callback && callback instanceof Function, "expecting callback");
-        this.withLock((callback) => {
-            this._moveCertificate(certificate, "trusted", callback);
-        }, callback);
+        this._moveCertificate(certificate, "trusted", callback);
     }
 
     public get rejectedFolder(): string {
