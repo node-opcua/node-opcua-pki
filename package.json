@@ -40,7 +40,7 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
-    "@types/proper-lockfile": "^4.1.1",
+    "@ster5/global-mutex": "^1.0.0",
     "async": "^3.2.0",
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
@@ -51,7 +51,6 @@
     "del": "6.0.0",
     "node-opcua-crypto": "^1.7.1",
     "progress": "^2.0.3",
-    "proper-lockfile": "^4.1.2",
     "rimraf": "^3.0.2",
     "thenify": "^3.3.1",
     "update-notifier": "5.1.0",

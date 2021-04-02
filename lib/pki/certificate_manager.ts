@@ -66,7 +66,7 @@ import {
     setEnv,
 } from "./toolbox";
 
-import * as lockfile from "proper-lockfile";
+import { withLock } from "@ster5/global-mutex"
 
 type C = ((err?: Error | null, ...args: [any, ...any]) => void) | ((err?: Error | null) => void);
 
@@ -455,8 +455,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                    "  not before date =" +
-                    certificateInfo.notBefore
+                "  not before date =" +
+                certificateInfo.notBefore
             );
             isTimeInvalid = true;
         }
@@ -526,6 +526,11 @@ export class CertificateManager {
             return callback();
         }
         this.withLock((callback) => {
+
+            if (this.initialized) {
+                return callback();
+            }
+
             this.initialized = true;
 
             const pkiDir = this.location;
@@ -583,33 +588,18 @@ export class CertificateManager {
         this._watchers.splice(0);
     }
 
-    private withLock<C>(action: (callback: C) => void, callback: C) {
-        lockfile
-            .lock(this.rootDir, { retries: 1000, lockfilePath: path.join(this.rootDir, "mutex.lock") })
-            .then((release) => {
-                // Do something while the file is locked
-                (action as any)((err: Error | null, ...args: [any, ...any]) => {
-                    // Call the provided release function when you're done,
-                    // which will also return a promise
-                    const a = release();
-                    (callback as any).apply(null, [err, ...args]);
-                    return a;
-                });
-            })
-            .catch((e: Error) => {
-                // either lock could not be acquired
-                // or releasing it failed
-                console.error(e);
-                (callback as any)(e, undefined);
-            });
+    private withLock<C extends Function>(action: (callback: C) => void, callback: C) {
+        this
+            .withLock2(promisify<any>(action as any))
+            .then((t: any) => callback(null, t))
+            .catch((err) => callback(err));
+
     }
     private async withLock2<T>(action: () => Promise<T>): Promise<T> {
-        let result: T;
-        const releaser = await lockfile.lock(this.rootDir, { retries: 1000, lockfilePath: path.join(this.rootDir, "mutex.lock") });
-        // Do something while the file is locked
-        result = await action();
-        await releaser();
-        return result;
+        const lockFileName = path.join(this.rootDir, "mutex.lock");
+        return withLock<T>({ lockfile: lockFileName }, async () => {
+            return await action();
+        });
     }
     /**
      *
@@ -621,20 +611,19 @@ export class CertificateManager {
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, ...args: any[]): any {
         const callback = args[0];
         const self = this;
+        assert(typeof params.applicationUri === "string", "expecting applicationUri");
+        if (!fs.existsSync(self.privateKey)) {
+            return callback(new Error("Cannot find private key " + self.privateKey));
+        }
+
+        let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
+        certificateFilename = params.outputFile || certificateFilename;
+
+        const _params = (params as any) as CreateSelfSignCertificateWithConfigParam;
+        _params.rootDir = self.rootDir;
+        _params.configFile = self.configFile;
+        _params.privateKey = self.privateKey;
         this.withLock<ErrorCallback>((callback) => {
-            assert(typeof params.applicationUri === "string", "expecting applicationUri");
-            if (!fs.existsSync(self.privateKey)) {
-                return callback(new Error("Cannot find private key " + self.privateKey));
-            }
-
-            let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
-            certificateFilename = params.outputFile || certificateFilename;
-
-            const _params = (params as any) as CreateSelfSignCertificateWithConfigParam;
-            _params.rootDir = self.rootDir;
-            _params.configFile = self.configFile;
-            _params.privateKey = self.privateKey;
-
             createSelfSignCertificate(certificateFilename, _params, callback);
         }, callback);
     }
@@ -837,8 +826,8 @@ export class CertificateManager {
                     newStatus === "rejected"
                         ? this.rejectedFolder
                         : newStatus === "trusted"
-                        ? this.trustedFolder
-                        : this.rejectedFolder;
+                            ? this.trustedFolder
+                            : this.rejectedFolder;
                 const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
                 debugLog("_moveCertificate1", fingerprint.substr(0, 10), "old name", certificateSrc);
