@@ -40,7 +40,7 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "dependencies": {
-    "@ster5/global-mutex": "^1.1.0",
+    "@ster5/global-mutex": "^1.1.1",
     "async": "^3.2.0",
     "better-assert": "^1.0.2",
     "byline": "^5.0.0",
@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
-    "@types/async": "^3.2.5",
+    "@types/async": "^3.2.6",
     "@types/byline": "^4.2.32",
     "@types/cli-spinner": "^0.2.0",
     "@types/cli-table": "^0.3.0",
