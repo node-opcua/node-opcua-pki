@@ -278,4 +278,39 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         const verificationStatus = await cm.verifyCertificateAsync(certificate);
         console.log("status ", verificationStatus.toString());
     });
+
+    it("Q8A - Disposing while initializing ", async()=>{
+
+        const options = {
+            location: path.join(testData.tmpFolder, "PKI_aa"),
+        };
+        const cm = new CertificateManager(options);
+
+        await new Promise<void>((resolve)=>{
+            cm.initialize((err)=>{
+                console.log("initialized done", err);
+                resolve();
+            });
+            cm.dispose();
+        });
+
+    });
+    it("Q8B - Disposing while initializing ", async()=>{
+
+        const options = {
+            location: path.join(testData.tmpFolder, "PKI_aa"),
+        };
+        const cm = new CertificateManager(options);
+
+        await new Promise<void>((resolve)=>{
+            cm.initialize((err)=>{
+                console.log("initialized done", err);
+                resolve();
+            });
+            setImmediate(()=> {
+                cm.dispose();
+                console.log("disposed");    
+            });
+        });
+    })
 });

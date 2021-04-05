@@ -188,9 +188,17 @@ function isSelfSigned3(certificate: Buffer): boolean {
     const info = exploreCertificate(certificate);
     return isSelfSigned2(info);
 }
+
+export enum CertificateManagerState {
+    Uninitialized= 0,
+    Initializing= 1,
+    Initialized= 2,
+    Disposing=3,
+    Disposed=4,
+}
 export class CertificateManager {
     public untrustUnknownCertificate: boolean = true;
-    public initialized: boolean = false;
+    public state: CertificateManagerState = CertificateManagerState.Uninitialized;
     public folderPoolingInterval = 5000;
 
     private readonly keySize: KeySize;
@@ -213,11 +221,11 @@ export class CertificateManager {
         options.keySize = options.keySize || 2048;
         assert(options.hasOwnProperty("location"));
         assert(options.hasOwnProperty("keySize"));
-        assert(!this.initialized);
+        assert(this.state === CertificateManagerState.Uninitialized);
 
         this.location = make_path(options.location, "");
         this.keySize = options.keySize;
-
+    
         mkdir(options.location);
 
         // istanbul ignore next
@@ -519,20 +527,27 @@ export class CertificateManager {
     public async initialize(): Promise<void>;
     public initialize(callback: (err?: Error) => void): void;
     public initialize(...args: any[]): any {
+
         const callback = args[0];
         assert(callback && callback instanceof Function);
 
-        if (this.initialized) {
+        if ( this.state !== CertificateManagerState.Uninitialized)  {
             return callback();
         }
+        this.state = CertificateManagerState.Initializing;
+        return this._initialize((err?: Error) =>{
+            this.state = CertificateManagerState.Initialized;
+            return callback(err);
+        });
+    }
+    private _initialize(callback: (err?: Error)=> void): void {
         this.withLock((callback) => {
-
-            if (this.initialized) {
+            assert(this.state !== CertificateManagerState.Disposing);
+            if (this.state === CertificateManagerState.Disposed) {
                 return callback();
             }
-
-            this.initialized = true;
-
+            assert(this.state === CertificateManagerState.Initializing);
+            
             const pkiDir = this.location;
             mkdir(pkiDir);
             mkdir(path.join(pkiDir, "own"));
@@ -583,9 +598,29 @@ export class CertificateManager {
     }
 
     public async dispose(): Promise<void> {
-        await Promise.all(this._watchers.map((w) => w.close()));
-        this._watchers.forEach((w) => w.removeAllListeners());
-        this._watchers.splice(0);
+        if (this.state === CertificateManagerState.Disposing) {
+            throw new Error("Already disposing");
+        }
+
+        if (this.state === CertificateManagerState.Uninitialized) {
+            this.state = CertificateManagerState.Disposed;
+            return;
+        }
+        
+        // wait for initialization to be completed
+        if (this.state === CertificateManagerState.Initializing) {
+            await new Promise((resolve)=>setTimeout(resolve,100));
+            return await this.dispose();
+        }
+
+        try {
+            this.state = CertificateManagerState.Disposing;
+            await Promise.all(this._watchers.map((w) => w.close()));
+            this._watchers.forEach((w) => w.removeAllListeners());
+            this._watchers.splice(0);
+        } finally {
+            this.state = CertificateManagerState.Disposed;
+        }
     }
 
     private withLock<C extends Function>(action: (callback: C) => void, callback: C) {
