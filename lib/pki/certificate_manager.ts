@@ -190,11 +190,11 @@ function isSelfSigned3(certificate: Buffer): boolean {
 }
 
 export enum CertificateManagerState {
-    Uninitialized= 0,
-    Initializing= 1,
-    Initialized= 2,
-    Disposing=3,
-    Disposed=4,
+    Uninitialized = 0,
+    Initializing = 1,
+    Initialized = 2,
+    Disposing = 3,
+    Disposed = 4,
 }
 export class CertificateManager {
     public untrustUnknownCertificate: boolean = true;
@@ -225,7 +225,7 @@ export class CertificateManager {
 
         this.location = make_path(options.location, "");
         this.keySize = options.keySize;
-    
+
         mkdir(options.location);
 
         // istanbul ignore next
@@ -531,37 +531,37 @@ export class CertificateManager {
         const callback = args[0];
         assert(callback && callback instanceof Function);
 
-        if ( this.state !== CertificateManagerState.Uninitialized)  {
+        if (this.state !== CertificateManagerState.Uninitialized) {
             return callback();
         }
         this.state = CertificateManagerState.Initializing;
-        return this._initialize((err?: Error) =>{
+        return this._initialize((err?: Error) => {
             this.state = CertificateManagerState.Initialized;
             return callback(err);
         });
     }
-    private _initialize(callback: (err?: Error)=> void): void {
+    private _initialize(callback: (err?: Error) => void): void {
+        assert(this.state = CertificateManagerState.Initializing);
+        const pkiDir = this.location;
+        mkdir(pkiDir);
+        mkdir(path.join(pkiDir, "own"));
+        mkdir(path.join(pkiDir, "own/certs"));
+        mkdir(path.join(pkiDir, "own/private"));
+        mkdir(path.join(pkiDir, "rejected"));
+        mkdir(path.join(pkiDir, "trusted"));
+        mkdir(path.join(pkiDir, "trusted/certs"));
+        mkdir(path.join(pkiDir, "trusted/crl"));
+
+        mkdir(path.join(pkiDir, "issuers"));
+        mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
+        mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
+        
         this.withLock((callback) => {
             assert(this.state !== CertificateManagerState.Disposing);
             if (this.state === CertificateManagerState.Disposed) {
                 return callback();
             }
             assert(this.state === CertificateManagerState.Initializing);
-            
-            const pkiDir = this.location;
-            mkdir(pkiDir);
-            mkdir(path.join(pkiDir, "own"));
-            mkdir(path.join(pkiDir, "own/certs"));
-            mkdir(path.join(pkiDir, "own/private"));
-            mkdir(path.join(pkiDir, "rejected"));
-            mkdir(path.join(pkiDir, "trusted"));
-            mkdir(path.join(pkiDir, "trusted/certs"));
-            mkdir(path.join(pkiDir, "trusted/crl"));
-
-            mkdir(path.join(pkiDir, "issuers"));
-            mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
-            mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
-
             ensure_openssl_installed(() => {
                 // if (1 || !fs.existsSync(this.configFile)) {
                 //    var data = toolbox.configurationFileTemplate;
@@ -606,10 +606,10 @@ export class CertificateManager {
             this.state = CertificateManagerState.Disposed;
             return;
         }
-        
+
         // wait for initialization to be completed
         if (this.state === CertificateManagerState.Initializing) {
-            await new Promise((resolve)=>setTimeout(resolve,100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
             return await this.dispose();
         }
 
