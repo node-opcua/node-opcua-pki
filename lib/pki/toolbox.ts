@@ -48,7 +48,7 @@ export function quote(str: string): string {
 // tslint:disable-next-line:variable-name
 export const g_config = {
     opensslVersion: "unset",
-    silent: process.env.VERBOSE ? (!process.env.VERBOSE) :true,
+    silent: process.env.VERBOSE ? (!process.env.VERBOSE) : true,
     force: false,
 };
 
@@ -677,117 +677,129 @@ export function createSelfSignCertificate(
     params: CreateSelfSignCertificateWithConfigParam,
     callback: (err?: Error | null) => void
 ) {
-    params.purpose = params.purpose || CertificatePurpose.ForApplication;
-    assert(params.purpose, "Please provide a Certificate Purpose");
-    /**
-     * note: due to a limitation of openssl ,
-     *       it is not possible to control the startDate of the certificate validity
-     *       to achieve this the certificateAuthority tool shall be used.
-     */
-    assert(fs.existsSync(params.configFile));
-    assert(fs.existsSync(params.rootDir));
-    assert(fs.existsSync(params.privateKey));
-    if (!params.subject) {
-        return callback(new Error("Missing subject"));
-    }
-    assert(typeof params.applicationUri === "string");
-    assert(params.dns instanceof Array);
 
-    // xx no key size in self-signed assert(params.keySize == 2048 || params.keySize == 4096);
+    ensure_openssl_installed((err) => {
+        if (err) {
+            return callback(err);
+        }
+        try {
 
-    processAltNames(params);
+            params.purpose = params.purpose || CertificatePurpose.ForApplication;
+            assert(params.purpose, "Please provide a Certificate Purpose");
+            /**
+             * note: due to a limitation of openssl ,
+             *       it is not possible to control the startDate of the certificate validity
+             *       to achieve this the certificateAuthority tool shall be used.
+             */
+            assert(fs.existsSync(params.configFile));
+            assert(fs.existsSync(params.rootDir));
+            assert(fs.existsSync(params.privateKey));
+            if (!params.subject) {
+                return callback(new Error("Missing subject"));
+            }
+            assert(typeof params.applicationUri === "string");
+            assert(params.dns instanceof Array);
 
-    adjustDate(params);
-    assert(params.hasOwnProperty("validity"));
+            // xx no key size in self-signed assert(params.keySize == 2048 || params.keySize == 4096);
 
-    let subject = new Subject(params.subject);
-    subject = subject.toString();
+            processAltNames(params);
 
-    const certificateRequestFilename = certificate + ".csr";
+            adjustDate(params);
+            assert(params.hasOwnProperty("validity"));
 
-    const configFile = generateStaticConfig(params.configFile!);
-    const configOption = " -config " + q(n(configFile));
+            let subject = new Subject(params.subject);
+            subject = subject.toString();
 
-    let extension: string;
-    switch (params.purpose) {
-        case CertificatePurpose.ForApplication:
-            extension = "v3_selfsigned";
-            break;
-        case CertificatePurpose.ForCertificateAuthority:
-            extension = "v3_ca";
-            break;
-        case CertificatePurpose.ForUserAuthentication:
-        default:
-            extension = "v3_selfsigned";
-    }
+            const certificateRequestFilename = certificate + ".csr";
 
-    const tasks = [
-        (callback: ErrorCallback) => {
-            displayTitle("Generate a certificate request", callback);
-        },
+            const configFile = generateStaticConfig(params.configFile!);
+            const configOption = " -config " + q(n(configFile));
 
-        // Once the private key is generated a Certificate Signing Request can be generated.
-        // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
-        // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
-        // The second option is to self-sign the CSR, which will be demonstrated in the next section
-        (callback: ErrorCallback) => {
-            execute_openssl(
-                "req -new" +
-                " -sha256 " +
-                " -text " +
-                " -extensions " +
-                extension +
-                " " +
-                configOption +
-                " -key " +
-                q(n(params.privateKey!)) +
-                " -out " +
-                q(n(certificateRequestFilename)) +
-                ' -subj "' +
-                subject +
-                '"',
-                {},
-                callback
-            );
-        },
+            let extension: string;
+            switch (params.purpose) {
+                case CertificatePurpose.ForApplication:
+                    extension = "v3_selfsigned";
+                    break;
+                case CertificatePurpose.ForCertificateAuthority:
+                    extension = "v3_ca";
+                    break;
+                case CertificatePurpose.ForUserAuthentication:
+                default:
+                    extension = "v3_selfsigned";
+            }
 
-        // Xx // Step 3: Remove Passphrase from Key
-        // Xx execute("cp private/cakey.pem private/cakey.pem.org");
-        // Xx execute(openssl_path + " rsa -in private/cakey.pem.org
-        // Xx -out private/cakey.pem -passin pass:"+paraphrase);
+            const tasks = [
+                (callback: ErrorCallback) => {
+                    displayTitle("Generate a certificate request", callback);
+                },
 
-        (callback: ErrorCallback) => {
-            displayTitle("Generate Certificate (self-signed)", callback);
-        },
-        (callback: ErrorCallback) => {
-            execute_openssl(
-                " x509 -req " +
-                " -days " +
-                params.validity +
-                " -extensions " +
-                extension +
-                " " +
-                " -extfile " +
-                q(n(configFile)) +
-                " -in " +
-                q(n(certificateRequestFilename)) +
-                " -signkey " +
-                q(n(params.privateKey!)) +
-                " -text " +
-                " -out " +
-                q(certificate) +
-                " -text ",
-                {},
-                callback
-            );
-        },
+                // Once the private key is generated a Certificate Signing Request can be generated.
+                // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
+                // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
+                // The second option is to self-sign the CSR, which will be demonstrated in the next section
+                (callback: ErrorCallback) => {
+                    execute_openssl(
+                        "req -new" +
+                        " -sha256 " +
+                        " -text " +
+                        " -extensions " +
+                        extension +
+                        " " +
+                        configOption +
+                        " -key " +
+                        q(n(params.privateKey!)) +
+                        " -out " +
+                        q(n(certificateRequestFilename)) +
+                        ' -subj "' +
+                        subject +
+                        '"',
+                        {},
+                        callback
+                    );
+                },
 
-        // remove unnecessary certificate request file
-        (callback: ErrorCallback) => {
-            fs.unlink(certificateRequestFilename, callback);
-        },
-    ];
-    async.series(tasks, callback);
+                // Xx // Step 3: Remove Passphrase from Key
+                // Xx execute("cp private/cakey.pem private/cakey.pem.org");
+                // Xx execute(openssl_path + " rsa -in private/cakey.pem.org
+                // Xx -out private/cakey.pem -passin pass:"+paraphrase);
+
+                (callback: ErrorCallback) => {
+                    displayTitle("Generate Certificate (self-signed)", callback);
+                },
+                (callback: ErrorCallback) => {
+                    execute_openssl(
+                        " x509 -req " +
+                        " -days " +
+                        params.validity +
+                        " -extensions " +
+                        extension +
+                        " " +
+                        " -extfile " +
+                        q(n(configFile)) +
+                        " -in " +
+                        q(n(certificateRequestFilename)) +
+                        " -signkey " +
+                        q(n(params.privateKey!)) +
+                        " -text " +
+                        " -out " +
+                        q(certificate) +
+                        " -text ",
+                        {},
+                        callback
+                    );
+                },
+
+                // remove unnecessary certificate request file
+                (callback: ErrorCallback) => {
+                    fs.unlink(certificateRequestFilename, callback);
+                },
+            ];
+            async.series(tasks, callback);
+        } catch (err) {
+            callback(err);
+        }
+    });
+
 }
 
 // tslint:disable-next-line:variable-name
