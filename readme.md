@@ -7,6 +7,7 @@
 [![devDependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/dev-status.svg)](https://david-dm.org/node-opcua/node-opcua-pki?type=dev)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
+
 ## Create a Certificate Authority
 
 ```
@@ -96,9 +97,31 @@ Options:
 -   https://en.wikipedia.org/wiki/Certification_path_validation_algorithm
 -   https://tools.ietf.org/html/rfc5280
 
+
+#### prerequisite:
+
+This modules requires OpenSSL or LibreSSL to be installed. 
+
+On Windows, a version of OpenSSL is automatically downloaded and installed at run time, if not present. You will need a internet connection open.
+
+You need to install it on Linux, (or in your docker image), or on MacOS
+
+* on ubuntu/debian:
+
+ ```
+ apt install openssl
+ ```
+ 
+or alpine:
+
+```
+apk add openssl
+```
+ 
 #### note:
 
 -   do not upgrade update-notifier above 4.x.x until nodejs 8 is required
+
 
 
 #### support:
