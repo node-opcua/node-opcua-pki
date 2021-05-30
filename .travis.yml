@@ -11,6 +11,8 @@ os:
   - osx
   # - windows
 
+osx_image: xcode12.5
+
 env:
   - SSL_LIB=openssl
   - SSL_LIB=libressl
