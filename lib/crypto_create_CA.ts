@@ -63,8 +63,9 @@ import {
 
 // see https://github.com/yargs/yargs/issues/781
 import * as commands from "yargs";
-import { Certificate } from "node-opcua-crypto";
-const command = require("yargs/yargs");
+const { hideBin } = require('yargs/helpers')
+const yargs = require("yargs/yargs")(hideBin(process.argv))
+
 
 const epilog = "Copyright (c) sterfive - node-opcua - 2017-2021";
 
@@ -603,8 +604,8 @@ function createDefaultCertificate(
                     return callback();
                 }
                 createCertificateIfNotExist(
-                    certificate_revoked, 
-                    private_key_file, 
+                    certificate_revoked,
+                    private_key_file,
                     applicationUri + "Revoked",  // make sure we used a uniq URI here
                     yesterday, 
                     365, (err?: Error | null, certificate?: string) => {
@@ -731,7 +732,7 @@ function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
 
 assert(typeof done === "function");
 
-commands
+yargs
     .strict()
     .wrap(132)
     .command(
@@ -1128,7 +1129,8 @@ commands
     })
     .epilog(epilog)
     .help("help")
-    .strict();
+    .strict()
+    .argv;
 
 export function main(argumentsList: string, _done?: ErrorCallback) {
     if (_done) {
