@@ -119,12 +119,17 @@ export function execute(cmd: string, options: ExecuteOptions, callback: (err: Er
     }
 
     const outputs: string[] = [];
+    const execOptions: any = {
+        cwd: options.cwd,
+    };
+
+    if (process.platform === "win32") {
+        execOptions.windowsHide = true;
+    }
 
     const child = child_process.exec(
         cmd,
-        {
-            cwd: options.cwd,
-        },
+        execOptions,
         (err: child_process.ExecException | null) => {
             // istanbul ignore next
             if (err) {

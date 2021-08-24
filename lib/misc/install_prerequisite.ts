@@ -95,6 +95,10 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
         options.cwd = cwd;
     }
 
+    if (process.platform === "win32") {
+        options.windowsHide = true;
+    }
+
     const child = child_process.exec(cmd, options, (
         err: child_process.ExecException | null /*, stdout: string, stderr: string*/
     ) => {
