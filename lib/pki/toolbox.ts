@@ -796,7 +796,7 @@ export function createSelfSignCertificate(
             ];
             async.series(tasks, callback);
         } catch (err) {
-            callback(err);
+            callback(err as Error);
         }
     });
 

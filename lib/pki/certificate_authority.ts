@@ -694,7 +694,7 @@ export class CertificateAuthority {
                     callback(null, certificate);
                 });
             } catch (err) {
-                callback!(err);
+                callback!(err as Error);
             }
         });
 
