@@ -124,6 +124,7 @@ export function execute(cmd: string, options: ExecuteOptions, callback: (err: Er
         cmd,
         {
             cwd: options.cwd,
+            windowsHide: true
         },
         (err: child_process.ExecException | null) => {
             // istanbul ignore next

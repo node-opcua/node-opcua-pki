@@ -90,10 +90,11 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
     let output = "";
 
     // xx cwd = cwd ? {cwd: cwd} : {};
-    const options: any = {};
-    if (cwd) {
-        options.cwd = cwd;
-    }
+    const options = {
+      cwd,
+      windowsHide: true
+    };
+
 
     const child = child_process.exec(cmd, options, (
         err: child_process.ExecException | null /*, stdout: string, stderr: string*/
