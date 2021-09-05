@@ -18,7 +18,7 @@ async function copyFiles(sourceFolder: string, destinationFolder: string) {
         const inputFilename = file;
         const baseName = path.basename(file);
         const outputFilename = path.join(destinationFolder, baseName);
-        await new Promise((resolve) => {
+        await new Promise<void>((resolve) => {
             fs.readFile(inputFilename, (err, data: Buffer) => {
                 if (err) {
                     // tslint:disable-next-line: no-console
