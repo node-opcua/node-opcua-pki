@@ -64,7 +64,6 @@
     "@types/node-dir": "0.0.34",
     "@types/progress": "^2.0.5",
     "@types/rimraf": "^3.0.2",
-    "@types/should": "^13.0.0",
     "@types/sinon": "^10.0.6",
     "@types/underscore": "^1.11.4",
     "@types/yargs": "^17.0.7",
