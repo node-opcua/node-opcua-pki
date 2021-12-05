@@ -3,7 +3,6 @@ import * as rimraf from "rimraf";
 
 import { ErrorCallback, g_config, mkdir } from "..";
 
-
 const tmpFolder = path.join(__dirname, "../tmp");
 
 g_config.silent = !(process.env as any).VERBOSE;
@@ -22,15 +21,13 @@ interface TestData {
 }
 
 export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData {
-
     self.timeout("5 minutes");
 
     const testData: TestData = {
-        tmpFolder
+        tmpFolder,
     };
 
     before(async () => {
-
         if (process.env.PKITEST === "NOCLEAN") {
             doneOnce = true;
         }
@@ -47,7 +44,7 @@ export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData
             doneOnce = true;
             // tslint:disable-next-line: no-console
             console.log("    .... cleaning temporary folders ...");
-            await new Promise((resolve, reject) => rimraf(tmpFolder, (err) => err ? reject(err) : resolve()));
+            await new Promise<void>((resolve, reject) => rimraf(tmpFolder, (err) => (err ? reject(err) : resolve())));
             await mkdir(tmpFolder);
         }
         await __done();

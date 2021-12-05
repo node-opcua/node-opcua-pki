@@ -49,11 +49,6 @@
         "untrust",
         "writerand"
     ],
-    "grammarly.userWords": [
-        "createCA",
-        "createPKI",
-        "opcua",
-        "toder",
-        "yauzl"
-    ]
+    "grammarly.userWords": ["createCA", "createPKI", "opcua", "toder", "yauzl"],
+    "cmake.configureOnOpen": false
 }

@@ -28,10 +28,9 @@
 import * as assert from "assert";
 import * as async from "async";
 import * as chalk from "chalk";
-import * as del from "del";
+import * as rimraf from "rimraf";
 import * as fs from "fs";
 import * as path from "path";
-import * as util from "util";
 import * as os from "os";
 
 import { callbackify } from "util";
@@ -64,7 +63,7 @@ import {
 // see https://github.com/yargs/yargs/issues/781
 import * as commands from "yargs";
 const { hideBin } = require('yargs/helpers')
-const yargs = require("yargs/yargs")(hideBin(process.argv))
+const argv = require("yargs/yargs")(hideBin(process.argv))
 
 
 const epilog = "Copyright (c) sterfive - node-opcua - 2017-2021";
@@ -606,12 +605,14 @@ function createDefaultCertificate(
                 createCertificateIfNotExist(
                     certificate_revoked,
                     private_key_file,
-                    applicationUri + "Revoked",  // make sure we used a uniq URI here
-                    yesterday, 
-                    365, (err?: Error | null, certificate?: string) => {
+                    applicationUri + "Revoked", // make sure we used a uniq URI here
+                    yesterday,
+                    365,
+                    (err?: Error | null, certificate?: string) => {
                         console.log(" certificate to revoke => ", certificate);
-                    revoke_certificate(certificate_revoked, callback);
-                });
+                        revoke_certificate(certificate_revoked, callback);
+                    }
+                );
             },
         ];
         tasks1 = tasks1.concat(tasks2);
@@ -732,7 +733,7 @@ function createDefaultCertificates(dev: boolean, callback: ErrorCallback) {
 
 assert(typeof done === "function");
 
-yargs
+argv
     .strict()
     .wrap(132)
     .command(
@@ -776,7 +777,7 @@ yargs
                 tasks.push((callback: ErrorCallback) => {
                     assert(gLocalConfig);
                     const certificateDir = gLocalConfig.certificateDir;
-                    del(certificateDir + "/*.pem*").then(() => {
+                    rimraf(certificateDir + "/*.pem*", () => {
                         return callback();
                     });
                 });
@@ -784,7 +785,7 @@ yargs
                 tasks.push((callback: ErrorCallback) => {
                     assert(gLocalConfig);
                     const certificateDir = gLocalConfig.certificateDir;
-                    del(certificateDir + "/*.pub").then(() => {
+                    rimraf(certificateDir + "/*.pub", () => {
                         return callback();
                     });
                 });
@@ -1037,18 +1038,11 @@ yargs
         "revoke <certificateFile>",
         "revoke a existing certificate",
         (yargs: commands.Argv) => {
-         
             const options = {};
             add_standard_option(options, "root");
             add_standard_option(options, "CAFolder");
 
-            yargs
-                .strict()
-                .wrap(132)
-                .help("help")
-                .usage("$0 revoke  my_certificate.pem")
-                .options(options)
-                .epilog(epilog);
+            yargs.strict().wrap(132).help("help").usage("$0 revoke  my_certificate.pem").options(options).epilog(epilog);
             return yargs;
         },
         (local_argv: any) => {
@@ -1129,8 +1123,7 @@ yargs
     })
     .epilog(epilog)
     .help("help")
-    .strict()
-    .argv;
+    .strict().argv;
 
 export function main(argumentsList: string, _done?: ErrorCallback) {
     if (_done) {
