@@ -66,7 +66,7 @@ export class Subject implements SubjectOptions {
 
     public static parse(str: string): SubjectOptions {
 
-        const elements = str.split("/");
+        const elements = str.split(/\/(?=[^\/]*?=)/);
         const options: any = {};
 
         elements.forEach((element: string) => {
