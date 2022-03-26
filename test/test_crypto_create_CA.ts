@@ -310,7 +310,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
         it("@2 should create a CA with a customer subject", (done: ErrorCallback) => {
             const cwd = path.join(__dirname, "../tmp/tmpCAcustomSubject");
             fs.mkdirSync(cwd);
-            call_crypto_create_CA("createCA --keySize 4096 --subject '/CN=Toto/C=FR/O=MyOrganization'", cwd, () => {
+            call_crypto_create_CA("createCA --keySize 4096 --subject /CN=Toto/C=FR/O=MyOrganization", cwd, () => {
                 const caPrivateKey = path.join(__dirname, "../tmp/tmpCAcustomSubject/certificates/CA/private/cakey.pem");
                 fs.existsSync(caPrivateKey).should.eql(true, "caPrivateKey shall exist : " + caPrivateKey);
                 done();
@@ -347,7 +347,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             const validity = 10; // days
 
             call_crypto_create_CA(
-                "certificate -v " + validity + " --subject='/C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello' -o mycert.pem",
+                "certificate -v " + validity + " --subject=/C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello -o mycert.pem",
                 cwd,
                 () => {
                     fs.existsSync(expectedCertificate).should.eql(true);

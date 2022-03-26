@@ -112,6 +112,15 @@ export interface CertificateManagerOptions {
     location: string;
 }
 
+export interface Callback11<C> {
+    (err: null, t: C): void;
+    (err: Error): void;
+}
+export interface Callback22 {
+    (err?: Error | null): void;
+    (err?: Error): void;
+}
+
 export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertificateParam {
     outputFile?: Filename; // default : own/cert/self_signed_certificate.pem
     subject: SubjectOptions | string;
@@ -538,12 +547,12 @@ export class CertificateManager {
             return callback();
         }
         this.state = CertificateManagerState.Initializing;
-        return this._initialize((err?: Error) => {
+        return this._initialize((err?: Error | null) => {
             this.state = CertificateManagerState.Initialized;
             return callback(err);
         });
     }
-    private _initialize(callback: (err?: Error) => void): void {
+    private _initialize(callback: ErrorCallback): void {
         assert((this.state = CertificateManagerState.Initializing));
         const pkiDir = this.location;
         mkdir(pkiDir);
@@ -597,7 +606,7 @@ export class CertificateManager {
                     this._readCertificates(() => callback());
                 }
             });
-        }, callback);
+        }, callback as ErrorCallback);
     }
 
     public async dispose(): Promise<void> {
@@ -626,9 +635,12 @@ export class CertificateManager {
         }
     }
 
-    private withLock<C extends (err?: Error | null, t?: unknown) => void>(action: (callback: C) => void, callback: C) {
+    private withLock<T extends void = void>(action: (callback: Callback22) => void, callback: Callback22): void;
+    private withLock<T>(action: (callback: Callback11<T>) => void, callback: Callback11<T>): void;
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    private withLock(action: Function, callback: Function): void {
         this.withLock2(promisify<any>(action as any))
-            .then((t: any) => callback(null, t))
+            .then((t: unknown) => callback(null, t))
             .catch((err) => callback(err));
     }
     private async withLock2<T>(action: () => Promise<T>): Promise<T> {
@@ -645,7 +657,7 @@ export class CertificateManager {
     public async createSelfSignedCertificate(params: CreateSelfSignCertificateParam1): Promise<void>;
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, callback: ErrorCallback): void;
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, ...args: any[]): any {
-        const callback = args[0];
+        const callback = args[0] as ErrorCallback;
         assert(typeof params.applicationUri === "string", "expecting applicationUri");
         if (!fs.existsSync(this.privateKey)) {
             return callback(new Error("Cannot find private key " + this.privateKey));
@@ -658,7 +670,7 @@ export class CertificateManager {
         _params.rootDir = this.rootDir;
         _params.configFile = this.configFile;
         _params.privateKey = this.privateKey;
-        this.withLock<ErrorCallback>((callback) => {
+        this.withLock((callback) => {
             createSelfSignCertificate(certificateFilename, _params, callback);
         }, callback);
     }
@@ -685,13 +697,16 @@ export class CertificateManager {
         _params.configFile = this.configFile;
         _params.privateKey = this.privateKey;
 
-        this.withLock((callback) => {
+        this.withLock<string>((callback) => {
             // compose a file name for the request
             const now = new Date();
             const today = now.toISOString().slice(0, 10) + "_" + now.getTime();
             const certificateSigningRequestFilename = path.join(this.rootDir, "own/certs", "certificate_" + today + ".csr");
             createCertificateSigningRequest(certificateSigningRequestFilename, _params, (err?: Error) => {
-                return callback!(err!, certificateSigningRequestFilename);
+                if (err) {
+                    return callback(err);
+                }
+                return callback(null, certificateSigningRequestFilename);
             });
         }, callback);
     }
@@ -857,8 +872,8 @@ export class CertificateManager {
                     newStatus === "rejected"
                         ? this.rejectedFolder
                         : newStatus === "trusted"
-                            ? this.trustedFolder
-                            : this.rejectedFolder;
+                        ? this.trustedFolder
+                        : this.rejectedFolder;
                 const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
                 debugLog("_moveCertificate1", fingerprint.substr(0, 10), "old name", certificateSrc);
