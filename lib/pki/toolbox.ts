@@ -31,7 +31,6 @@ import * as child_process from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import * as util from "util";
 
 import { get_openssl_exec_path } from "../misc/install_prerequisite";
 import { Subject, SubjectOptions } from "../misc/subject";
@@ -42,18 +41,18 @@ import _simple_config_template from "./templates/simple_config_template.cnf";
 const exportedEnvVars: any = {};
 
 export function quote(str: string): string {
-    return '"' + str + '"';
+    return "\"" + str + "\"";
 }
 
 // tslint:disable-next-line:variable-name
 export const g_config = {
     opensslVersion: "unset",
-    silent: process.env.VERBOSE ? (!process.env.VERBOSE) : true,
+    silent: process.env.VERBOSE ? !process.env.VERBOSE : true,
     force: false,
 };
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
-const displayError: boolean = true;
+const displayError = true;
 const displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
 // tslint:disable-next-line:no-empty
 export function debugLog(...args: [any?, ...any[]]) {
@@ -95,11 +94,10 @@ export function setEnv(varName: string, value: string): void {
     if (["RANDFILE"].indexOf(varName) >= 0) {
         process.env[varName] = value;
     }
-
 }
 
 export function hasEnv(varName: string): boolean {
-    return exportedEnvVars.hasOwnProperty(varName);
+    return Object.prototype.hasOwnProperty.call(exportedEnvVars, varName);
 }
 
 export interface ExecuteOptions {
@@ -124,7 +122,7 @@ export function execute(cmd: string, options: ExecuteOptions, callback: (err: Er
         cmd,
         {
             cwd: options.cwd,
-            windowsHide: true
+            windowsHide: true,
         },
         (err: child_process.ExecException | null) => {
             // istanbul ignore next
@@ -174,7 +172,6 @@ export function useRandFile() {
 }
 
 function openssl_require2DigitYearInDate() {
-
     // istanbul ignore next
     if (!g_config.opensslVersion) {
         throw new Error(
@@ -276,9 +273,7 @@ export function execute_openssl_no_failure(
     execute_openssl(cmd, options, (err: Error | null, output?: string) => {
         // istanbul ignore next
         if (err) {
-            if (false) {
-                console.log(" (ignored error =  ERROR : )", err!.message);
-            }
+            debugLog(" (ignored error =  ERROR : )", err!.message);
         }
         callback(null, output);
     });
@@ -496,7 +491,7 @@ export function createCertificateSigningRequest(
 
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     // process.env.OPENSSL_CONF  ="";
-    const subjectOptions = subject ? ' -subj "' + subject + '"' : "";
+    const subjectOptions = subject ? " -subj \"" + subject + "\"" : "";
     async.series(
         [
             (callback: (err?: Error) => void) => {
@@ -505,15 +500,15 @@ export function createCertificateSigningRequest(
             (callback: (err?: Error) => void) => {
                 execute_openssl(
                     "req -new" +
-                    "  -sha256 " +
-                    " -batch " +
-                    " -text " +
-                    configOption +
-                    " -key " +
-                    q(n(params.privateKey!)) +
-                    subjectOptions +
-                    " -out " +
-                    q(n(certificateSigningRequestFilename)),
+                        "  -sha256 " +
+                        " -batch " +
+                        " -text " +
+                        configOption +
+                        " -key " +
+                        q(n(params.privateKey!)) +
+                        subjectOptions +
+                        " -out " +
+                        q(n(certificateSigningRequestFilename)),
                     options,
                     (err: Error | null) => {
                         callback(err ? err : undefined);
@@ -678,13 +673,11 @@ export function createSelfSignCertificate(
     params: CreateSelfSignCertificateWithConfigParam,
     callback: (err?: Error | null) => void
 ) {
-
     ensure_openssl_installed((err) => {
         if (err) {
             return callback(err);
         }
         try {
-
             params.purpose = params.purpose || CertificatePurpose.ForApplication;
             assert(params.purpose, "Please provide a Certificate Purpose");
             /**
@@ -706,7 +699,7 @@ export function createSelfSignCertificate(
             processAltNames(params);
 
             adjustDate(params);
-            assert(params.hasOwnProperty("validity"));
+            assert(Object.prototype.hasOwnProperty.call(params, "validity"));
 
             let subject = new Subject(params.subject);
             subject = subject.toString();
@@ -718,15 +711,15 @@ export function createSelfSignCertificate(
 
             let extension: string;
             switch (params.purpose) {
-                case CertificatePurpose.ForApplication:
-                    extension = "v3_selfsigned";
-                    break;
-                case CertificatePurpose.ForCertificateAuthority:
-                    extension = "v3_ca";
-                    break;
-                case CertificatePurpose.ForUserAuthentication:
-                default:
-                    extension = "v3_selfsigned";
+            case CertificatePurpose.ForApplication:
+                extension = "v3_selfsigned";
+                break;
+            case CertificatePurpose.ForCertificateAuthority:
+                extension = "v3_ca";
+                break;
+            case CertificatePurpose.ForUserAuthentication:
+            default:
+                extension = "v3_selfsigned";
             }
 
             const tasks = [
@@ -741,19 +734,19 @@ export function createSelfSignCertificate(
                 (callback: ErrorCallback) => {
                     execute_openssl(
                         "req -new" +
-                        " -sha256 " +
-                        " -text " +
-                        " -extensions " +
-                        extension +
-                        " " +
-                        configOption +
-                        " -key " +
-                        q(n(params.privateKey!)) +
-                        " -out " +
-                        q(n(certificateRequestFilename)) +
-                        ' -subj "' +
-                        subject +
-                        '"',
+                            " -sha256 " +
+                            " -text " +
+                            " -extensions " +
+                            extension +
+                            " " +
+                            configOption +
+                            " -key " +
+                            q(n(params.privateKey!)) +
+                            " -out " +
+                            q(n(certificateRequestFilename)) +
+                            " -subj \"" +
+                            subject +
+                            "\"",
                         {},
                         callback
                     );
@@ -770,21 +763,21 @@ export function createSelfSignCertificate(
                 (callback: ErrorCallback) => {
                     execute_openssl(
                         " x509 -req " +
-                        " -days " +
-                        params.validity +
-                        " -extensions " +
-                        extension +
-                        " " +
-                        " -extfile " +
-                        q(n(configFile)) +
-                        " -in " +
-                        q(n(certificateRequestFilename)) +
-                        " -signkey " +
-                        q(n(params.privateKey!)) +
-                        " -text " +
-                        " -out " +
-                        q(certificate) +
-                        " -text ",
+                            " -days " +
+                            params.validity +
+                            " -extensions " +
+                            extension +
+                            " " +
+                            " -extfile " +
+                            q(n(configFile)) +
+                            " -in " +
+                            q(n(certificateRequestFilename)) +
+                            " -signkey " +
+                            q(n(params.privateKey!)) +
+                            " -text " +
+                            " -out " +
+                            q(certificate) +
+                            " -text ",
                         {},
                         callback
                     );
@@ -800,7 +793,6 @@ export function createSelfSignCertificate(
             callback(err as Error);
         }
     });
-
 }
 
 // tslint:disable-next-line:variable-name

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-var-requires */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -25,6 +26,7 @@
 const updateNotifier = require("update-notifier");
 const pkg = require("../package.json");
 
+// eslint-disable-next-line no-undef
 require("../dist/crypto_create_CA.js").main(process.argv.splice(2), () => {
     /* empty */
     updateNotifier({pkg}).notify();

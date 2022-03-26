@@ -41,7 +41,6 @@ const _keys = {
 };
 
 export class Subject implements SubjectOptions {
-
     public readonly commonName?: string;
     public readonly organization?: string;
     public readonly organizationalUnit?: string;
@@ -51,8 +50,7 @@ export class Subject implements SubjectOptions {
     public readonly domainComponent?: string;
 
     constructor(options: SubjectOptions | string) {
-
-        if (typeof(options) === "string") {
+        if (typeof options === "string") {
             options = Subject.parse(options);
         }
         this.commonName = options.commonName;
@@ -65,9 +63,8 @@ export class Subject implements SubjectOptions {
     }
 
     public static parse(str: string): SubjectOptions {
-
-        const elements = str.split(/\/(?=[^\/]*?=)/);
-        const options: any = {};
+        const elements = str.split(/\/(?=[^/]*?=)/);
+        const options: Record<string, unknown> = {};
 
         elements.forEach((element: string) => {
             if (element.length === 0) {
@@ -76,17 +73,16 @@ export class Subject implements SubjectOptions {
             const s: string[] = element.split("=");
 
             if (s.length !== 2) {
-                    throw new Error("invalid format for " + element);
+                throw new Error("invalid format for " + element);
             }
             const longName = (_keys as any)[s[0]];
             const value = s[1];
-            options[longName] = Buffer.from(value,"ascii").toString("utf8");
+            options[longName] = Buffer.from(value, "ascii").toString("utf8");
         });
         return options as SubjectOptions;
     }
 
     public toString() {
-
         let tmp = "";
         if (this.country) {
             tmp += "/C=" + this.country;
@@ -111,5 +107,4 @@ export class Subject implements SubjectOptions {
         }
         return tmp;
     }
-
 }

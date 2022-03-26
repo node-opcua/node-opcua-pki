@@ -41,7 +41,7 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
     }
     if (process.platform === "win32") {
         // http://serverfault.com/a/73643/251863
-        const env = process.env;http://serverfault.com/a/73643/251863
+        const env = process.env; 
         _fullyQualifiedDomainNameInCache =
             env.COMPUTERNAME + (env.USERDNSDOMAIN && env.USERDNSDOMAIN!.length > 0 ? "." + env.USERDNSDOMAIN! : "");
     } else {

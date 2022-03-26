@@ -57,6 +57,7 @@ declare interface WgetInterface {
 }
 
 // tslint:disable-next-line:no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const wget = require("wget-improved") as WgetInterface;
 
 type CallbackFunc<T> = (err: Error | null, result?: T) => void;
@@ -91,8 +92,8 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
 
     // xx cwd = cwd ? {cwd: cwd} : {};
     const options = {
-      cwd,
-      windowsHide: true
+        cwd,
+        windowsHide: true
     };
 
 
@@ -114,7 +115,7 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
 }
 
 function quote(str: string): string {
-    return '"' + str.replace(/\\/g, "/") + '"';
+    return "\"" + str.replace(/\\/g, "/") + "\"";
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {

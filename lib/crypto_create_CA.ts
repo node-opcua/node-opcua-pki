@@ -62,7 +62,9 @@ import {
 
 // see https://github.com/yargs/yargs/issues/781
 import * as commands from "yargs";
-const { hideBin } = require('yargs/helpers')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { hideBin } = require("yargs/helpers")
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const argv = require("yargs/yargs")(hideBin(process.argv))
 
 
@@ -353,60 +355,60 @@ interface OptionMap {
 
 function add_standard_option(options: OptionMap, optionName: string) {
     switch (optionName) {
-        case "root":
-            options.root = {
-                alias: "r",
-                type: "string",
-                default: "{CWD}/certificates",
-                describe: "the location of the Certificate folder",
-            };
-            break;
+    case "root":
+        options.root = {
+            alias: "r",
+            type: "string",
+            default: "{CWD}/certificates",
+            describe: "the location of the Certificate folder",
+        };
+        break;
 
-        case "CAFolder":
-            options.CAFolder = {
-                alias: "c",
-                type: "string",
-                default: "{root}/CA",
-                describe: "the location of the Certificate Authority folder",
-            };
-            break;
+    case "CAFolder":
+        options.CAFolder = {
+            alias: "c",
+            type: "string",
+            default: "{root}/CA",
+            describe: "the location of the Certificate Authority folder",
+        };
+        break;
 
-        case "PKIFolder":
-            options.PKIFolder = {
-                type: "string",
-                default: "{root}/PKI",
-                describe: "the location of the Public Key Infrastructure",
-            };
-            break;
+    case "PKIFolder":
+        options.PKIFolder = {
+            type: "string",
+            default: "{root}/PKI",
+            describe: "the location of the Public Key Infrastructure",
+        };
+        break;
 
-        case "silent":
-            options.silent = {
-                alias: "s",
-                type: "boolean",
-                default: false,
-                describe: "minimize output",
-            };
-            break;
+    case "silent":
+        options.silent = {
+            alias: "s",
+            type: "boolean",
+            default: false,
+            describe: "minimize output",
+        };
+        break;
 
-        case "privateKey":
-            options.privateKey = {
-                alias: "p",
-                type: "string",
-                default: "{PKIFolder}/own/private_key.pem",
-                describe: "the private key to use to generate certificate",
-            };
-            break;
+    case "privateKey":
+        options.privateKey = {
+            alias: "p",
+            type: "string",
+            default: "{PKIFolder}/own/private_key.pem",
+            describe: "the private key to use to generate certificate",
+        };
+        break;
 
-        case "keySize":
-            options.keySize = {
-                alias: ["k", "keyLength"],
-                type: "number",
-                default: 2048,
-                describe: "the private key size in bits (1024|2048|3072|4096)",
-            };
-            break;
-        default:
-            throw Error("Unknown option  " + optionName);
+    case "keySize":
+        options.keySize = {
+            alias: ["k", "keyLength"],
+            type: "number",
+            default: 2048,
+            describe: "the private key size in bits (1024|2048|3072|4096)",
+        };
+        break;
+    default:
+        throw Error("Unknown option  " + optionName);
     }
 }
 
@@ -622,7 +624,7 @@ function createDefaultCertificate(
 }
 
 // tslint:disable-next-line:no-empty
-let done: ErrorCallback = (err?: Error | null) => {};
+let done: ErrorCallback = (err?: Error | null) => {/** */};
 
 function create_default_certificates(dev: boolean, done: ErrorCallback) {
     function __create_default_certificates(
@@ -1079,7 +1081,7 @@ argv
     .command(
         "dump <certificateFile>",
         "display a certificate",
-        () => {},
+        () => { /** */},
         (yargs: any) => {
             dumpCertificate(yargs.certificateFile, (err: Error | null, data?: string) => {
                 if (!err) {
@@ -1093,7 +1095,7 @@ argv
     .command(
         "toder <pemCertificate>",
         "convert a certificate to a DER format with finger print",
-        () => {},
+        () => {/** */},
         (yargs: commands.Argv) => {
             function convertToDerFromCommandLine(argv: any, done: ErrorCallback) {
                 toDer(argv.pemCertificate, (err: Error | null) => done(err!));
@@ -1105,7 +1107,7 @@ argv
     .command(
         "fingerprint <certificateFile>",
         "print the certificate fingerprint",
-        () => {},
+        () => { /** */},
         (local_argv: any) => {
             const certificate = local_argv.certificateFile;
             fingerprint(certificate, (err: Error | null, data?: string) => {

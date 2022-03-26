@@ -140,7 +140,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
     }
 
     // tslint:disable:no-empty
-    displayTitle("Create Certificate Authority (CA)", (err?: Error | null) => { });
+    displayTitle("Create Certificate Authority (CA)", (err?: Error | null) => { /** */ });
 
     const indexFileAttr = path.join(caRootDir, "index.txt.attr");
     if (!fs.existsSync(indexFileAttr)) {
@@ -148,6 +148,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
     }
 
     const caConfigFile = certificateAuthority.configFile;
+    // eslint-disable-next-line no-constant-condition
     if (1 || !fs.existsSync(caConfigFile)) {
         let data = configurationFileTemplate; // inlineText(configurationFile);
         data = data.replace(/%%ROOT_FOLDER%%/, make_path(caRootDir));
@@ -156,7 +157,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
     }
 
     // http://www.akadia.com/services/ssh_test_certificate.html
-    const subjectOpt = ' -subj "' + subject.toString() + '" ';
+    const subjectOpt = " -subj \"" + subject.toString() + "\" ";
     const options = { cwd: caRootDir };
     processAltNames({} as Params);
 
@@ -268,8 +269,8 @@ export class CertificateAuthority {
     public readonly subject: Subject;
 
     constructor(options: CertificateAuthorityOptions) {
-        assert(options.hasOwnProperty("location"));
-        assert(options.hasOwnProperty("keySize"));
+        assert(Object.prototype.hasOwnProperty.call(options,"location"));
+        assert(Object.prototype.hasOwnProperty.call(options,"keySize"));
         this.location = options.location;
         this.keySize = options.keySize || 2048;
         this.subject = new Subject(options.subject || defaultSubject);
@@ -729,6 +730,7 @@ export class CertificateAuthority {
 }
 
 // tslint:disable:no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const thenify = require("thenify");
 const opts = { multiArgs: false };
 CertificateAuthority.prototype.initialize = thenify.withCallback(CertificateAuthority.prototype.initialize, opts);

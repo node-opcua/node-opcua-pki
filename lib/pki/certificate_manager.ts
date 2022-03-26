@@ -66,7 +66,11 @@ import {
     setEnv,
 } from "./toolbox";
 
-import { withLock } from "@ster5/global-mutex"
+import { withLock } from "@ster5/global-mutex";
+// tslint:disable:max-line-length
+// tslint:disable:no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const thenify = require("thenify");
 
 type C = ((err?: Error | null, ...args: [any, ...any]) => void) | ((err?: Error | null) => void);
 
@@ -197,14 +201,14 @@ export enum CertificateManagerState {
     Disposed = 4,
 }
 export class CertificateManager {
-    public untrustUnknownCertificate: boolean = true;
+    public untrustUnknownCertificate = true;
     public state: CertificateManagerState = CertificateManagerState.Uninitialized;
     public folderPoolingInterval = 5000;
 
     private readonly keySize: KeySize;
     private readonly location: string;
     private readonly _watchers: fs.FSWatcher[] = [];
-    private _readCertificatesCalled: boolean = false;
+    private _readCertificatesCalled = false;
     private readonly _filenameToHash: { [key: string]: string } = {};
 
     private readonly _thumbs: Thumbs = {
@@ -219,8 +223,8 @@ export class CertificateManager {
 
     constructor(options: CertificateManagerOptions) {
         options.keySize = options.keySize || 2048;
-        assert(options.hasOwnProperty("location"));
-        assert(options.hasOwnProperty("keySize"));
+        assert(Object.prototype.hasOwnProperty.call(options, "location"));
+        assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
         assert(this.state === CertificateManagerState.Uninitialized);
 
         this.location = make_path(options.location, "");
@@ -463,8 +467,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                "  not before date =" +
-                certificateInfo.notBefore
+                    "  not before date =" +
+                    certificateInfo.notBefore
             );
             isTimeInvalid = true;
         }
@@ -527,7 +531,6 @@ export class CertificateManager {
     public async initialize(): Promise<void>;
     public initialize(callback: (err?: Error) => void): void;
     public initialize(...args: any[]): any {
-
         const callback = args[0];
         assert(callback && callback instanceof Function);
 
@@ -541,7 +544,7 @@ export class CertificateManager {
         });
     }
     private _initialize(callback: (err?: Error) => void): void {
-        assert(this.state = CertificateManagerState.Initializing);
+        assert((this.state = CertificateManagerState.Initializing));
         const pkiDir = this.location;
         mkdir(pkiDir);
         mkdir(path.join(pkiDir, "own"));
@@ -555,7 +558,7 @@ export class CertificateManager {
         mkdir(path.join(pkiDir, "issuers"));
         mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
         mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
-        
+
         this.withLock((callback) => {
             assert(this.state !== CertificateManagerState.Disposing);
             if (this.state === CertificateManagerState.Disposed) {
@@ -623,12 +626,10 @@ export class CertificateManager {
         }
     }
 
-    private withLock<C extends Function>(action: (callback: C) => void, callback: C) {
-        this
-            .withLock2(promisify<any>(action as any))
+    private withLock<C extends (err?: Error | null, t?: unknown) => void>(action: (callback: C) => void, callback: C) {
+        this.withLock2(promisify<any>(action as any))
             .then((t: any) => callback(null, t))
             .catch((err) => callback(err));
-
     }
     private async withLock2<T>(action: () => Promise<T>): Promise<T> {
         const lockFileName = path.join(this.rootDir, "mutex.lock");
@@ -645,19 +646,18 @@ export class CertificateManager {
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, callback: ErrorCallback): void;
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, ...args: any[]): any {
         const callback = args[0];
-        const self = this;
         assert(typeof params.applicationUri === "string", "expecting applicationUri");
-        if (!fs.existsSync(self.privateKey)) {
-            return callback(new Error("Cannot find private key " + self.privateKey));
+        if (!fs.existsSync(this.privateKey)) {
+            return callback(new Error("Cannot find private key " + this.privateKey));
         }
 
-        let certificateFilename = path.join(self.rootDir, "own/certs/self_signed_certificate.pem");
+        let certificateFilename = path.join(this.rootDir, "own/certs/self_signed_certificate.pem");
         certificateFilename = params.outputFile || certificateFilename;
 
-        const _params = (params as any) as CreateSelfSignCertificateWithConfigParam;
-        _params.rootDir = self.rootDir;
-        _params.configFile = self.configFile;
-        _params.privateKey = self.privateKey;
+        const _params = params as unknown as CreateSelfSignCertificateWithConfigParam;
+        _params.rootDir = this.rootDir;
+        _params.configFile = this.configFile;
+        _params.privateKey = this.privateKey;
         this.withLock<ErrorCallback>((callback) => {
             createSelfSignCertificate(certificateFilename, _params, callback);
         }, callback);
@@ -674,7 +674,7 @@ export class CertificateManager {
     ): any {
         assert(params);
         const _params = params as CreateSelfSignCertificateWithConfigParam;
-        if (_params.hasOwnProperty("rootDir")) {
+        if (Object.prototype.hasOwnProperty.call(_params, "rootDir")) {
             throw new Error("rootDir should not be specified ");
         }
         assert(typeof callback === "function");
@@ -696,11 +696,7 @@ export class CertificateManager {
         }, callback);
     }
 
-    public async addIssuer(
-        certificate: DER,
-        validate: boolean = false,
-        addInTrustList: boolean = false
-    ): Promise<VerificationStatus> {
+    public async addIssuer(certificate: DER, validate = false, addInTrustList = false): Promise<VerificationStatus> {
         if (validate) {
             const status = await this.verifyCertificate(certificate);
             if (status !== VerificationStatus.Good && status !== VerificationStatus.BadCertificateUntrusted) {
@@ -826,10 +822,10 @@ export class CertificateManager {
             if (err) {
                 return callback(err);
             }
-            if (this._thumbs.rejected.hasOwnProperty(fingerprint)) {
+            if (Object.prototype.hasOwnProperty.call(this._thumbs.rejected, fingerprint)) {
                 return callback(null, "rejected");
             }
-            if (this._thumbs.trusted.hasOwnProperty(fingerprint)) {
+            if (Object.prototype.hasOwnProperty.call(this._thumbs.trusted, fingerprint)) {
                 return callback(null, "trusted");
             }
             return callback(null, "unknown");
@@ -911,8 +907,8 @@ export class CertificateManager {
         const serialNumber =
             certInfo.tbsCertificate.serialNumber || certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.serial || "";
 
-        const crl2 =
-            this._thumbs.crl[certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint!] || null;
+        const key = certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint || "<unknown>";
+        const crl2 = this._thumbs.crl[key] || null;
 
         if (crls.serialNumbers[serialNumber] || (crl2 && crl2.serialNumbers[serialNumber])) {
             return VerificationStatus.BadCertificateRevoked;
@@ -920,7 +916,7 @@ export class CertificateManager {
         return VerificationStatus.Good;
     }
 
-    private _pending_crl_to_process: number = 0;
+    private _pending_crl_to_process = 0;
     private _on_crl_process?: () => void;
     private queue: any[] = [];
     private _on_crl_file_added(index: { [key: string]: CRLData }, filename: string) {
@@ -1076,8 +1072,7 @@ export class CertificateManager {
     // make sure that all crls have been processed.
     private async waitAndCheckCRLProcessingStatus(): Promise<void> {
         return new Promise((resolve, reject) => {
-            const self = this;
-            if (self._pending_crl_to_process === 0) {
+            if (this._pending_crl_to_process === 0) {
                 setImmediate(resolve);
                 return;
             }
@@ -1090,9 +1085,6 @@ export class CertificateManager {
     }
 }
 
-// tslint:disable:no-var-requires
-// tslint:disable:max-line-length
-const thenify = require("thenify");
 const opts = { multiArgs: false };
 CertificateManager.prototype.rejectCertificate = thenify.withCallback(CertificateManager.prototype.rejectCertificate, opts);
 CertificateManager.prototype.trustCertificate = thenify.withCallback(CertificateManager.prototype.trustCertificate, opts);
