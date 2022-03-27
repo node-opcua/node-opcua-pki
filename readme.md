@@ -3,8 +3,6 @@
 [![Build Status](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml/badge.svg)](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/node-opcua/node-opcua-pki/badge.svg?branch=master)](https://coveralls.io/github/node-opcua/node-opcua-pki?branch=master)
 [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
-[![dependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/status.svg)](https://david-dm.org/node-opcua/node-opcua-pki)
-[![devDependencies Status](https://david-dm.org/node-opcua/node-opcua-pki/dev-status.svg)](https://david-dm.org/node-opcua/node-opcua-pki?type=dev)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
 ## Create a Certificate Authority
@@ -12,13 +10,13 @@
 ```
     PKI\CA                   Certificate Authority
 
-    PKI\rejected             The Certificate store which contains certificates which have been rejected.
+    PKI\rejected             The Certificate store contains certificates that have been rejected.
     PKI\rejected\certs       Contains the X.509 v3 Certificates which have been rejected.
-    PKI\trusted              The Certificate store which contains trusted Certificates.
-    PKI\trusted\certs        Contains the X.509 v3 Certificates which are trusted.
+    PKI\trusted              The Certificate store contains trusted Certificates.
+    PKI\trusted\certs        Contains the X.509 v3 Certificates that are trusted.
     PKI\trusted\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-    PKI\issuers              The Certificate store which contains the CA Certificates needed for validation.
-    PKI\issuers\certs        Contains the X.509 v3 Certificates which are needed for validation.
+    PKI\issuers              The Certificate store contains the CA Certificates needed for validation.
+    PKI\issuers\certs        Contains the X.509 v3 Certificates that are needed for validation.
     PKI\issuers\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
 
 ```
