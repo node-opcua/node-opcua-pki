@@ -22,20 +22,19 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import * as url from "url";
 import * as assert from "assert";
 import * as byline from "byline";
 import * as chalk from "chalk";
 import * as child_process from "child_process";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
 import * as ProgressBar from "progress";
-import * as util from "util";
 import * as yauzl from "yauzl";
 import { Readable } from "stream";
 
 import Table = require("cli-table");
-import { parse } from "url";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
@@ -71,13 +70,15 @@ function makeOptions(): WgetOptions {
     const proxy =
         process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
     if (proxy) {
-        const a = parse(proxy);
+        const a = new url.URL(proxy);
+        const auth = a.username ? a.username + ":" + a.password : undefined;
+
         const options: WgetOptions = {
             proxy: {
                 port: a.port ? parseInt(a.port, 10) : 80,
-                protocol: a.protocol!.replace(":", ""),
+                protocol: a.protocol.replace(":", ""),
                 host: a.hostname ?? "",
-                proxyAuth: a.auth || undefined,
+                proxyAuth: auth,
             },
         };
         console.log(chalk.green("- using proxy "), proxy);
@@ -93,16 +94,17 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
     // xx cwd = cwd ? {cwd: cwd} : {};
     const options = {
         cwd,
-        windowsHide: true
+        windowsHide: true,
     };
 
-
-    const child = child_process.exec(cmd, options, (
-        err: child_process.ExecException | null /*, stdout: string, stderr: string*/
-    ) => {
-        const exitCode = err === null ? 0 : err!.code!;
-        callback(err ? err : null, { exitCode, output });
-    });
+    const child = child_process.exec(
+        cmd,
+        options,
+        (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
+            const exitCode = err === null ? 0 : err!.code!;
+            callback(err ? err : null, { exitCode, output });
+        }
+    );
 
     const stream1 = byline(child.stdout!);
     stream1.on("data", (line: string) => {
@@ -115,7 +117,7 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
 }
 
 function quote(str: string): string {
-    return "\"" + str.replace(/\\/g, "/") + "\"";
+    return '"' + str.replace(/\\/g, "/") + "\"";
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
@@ -207,38 +209,37 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
     function check_openssl_win32(callback: (err: Error | null, opensslOk?: boolean, opensslPath?: string) => void) {
         const opensslExecPath = get_openssl_exec_path_win32();
 
-        fs.exists(opensslExecPath, (exists: boolean) => {
-            if (!exists) {
-                console.log("checking presence of ", opensslExecPath);
-                console.log(chalk.red(" cannot find file ") + opensslExecPath);
-                return callback(null, false, "cannot find file " + opensslExecPath);
-            } else {
-                // tslint:disable-next-line:variable-name
-                const q_openssl_exe_path = quote(opensslExecPath);
-                const cwd = ".";
+        const exists = fs.existsSync(opensslExecPath);
+        if (!exists) {
+            console.log("checking presence of ", opensslExecPath);
+            console.log(chalk.red(" cannot find file ") + opensslExecPath);
+            return callback(null, false, "cannot find file " + opensslExecPath);
+        } else {
+            // tslint:disable-next-line:variable-name
+            const q_openssl_exe_path = quote(opensslExecPath);
+            const cwd = ".";
 
-                execute(
-                    q_openssl_exe_path + " version",
-                    (err: Error | null, result?: ExecuteResult) => {
-                        if (err) {
-                            return callback(err);
-                        }
+            execute(
+                q_openssl_exe_path + " version",
+                (err: Error | null, result?: ExecuteResult) => {
+                    if (err) {
+                        return callback(err);
+                    }
 
-                        const exitCode = result!.exitCode;
-                        const output = result!.output;
+                    const exitCode = result!.exitCode;
+                    const output = result!.output;
 
-                        const version = output.trim();
-                        // istanbul ignore next
+                    const version = output.trim();
+                    // istanbul ignore next
 
-                        if (doDebug) {
-                            console.log(" Version = ", version);
-                        }
-                        callback(null, exitCode === 0 && is_expected_openssl_version(version), version);
-                    },
-                    cwd
-                );
-            }
-        });
+                    if (doDebug) {
+                        console.log(" Version = ", version);
+                    }
+                    callback(null, exitCode === 0 && is_expected_openssl_version(version), version);
+                },
+                cwd
+            );
+        }
     }
 
     /**
@@ -270,9 +271,8 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         //     ;
         const url =
             win32or64() === 64
-                ? "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-x64_86-win64.zip"
-                : "https://github.com/node-opcua/node-opcua-pki/releases/download/2.0.0/openssl-1.0.2u-i386-win32.zip";
-
+                ? "https://github.com/node-opcua/node-opcua-pki/releases/download/2.14.2/openssl-1.0.2u-x64_86-win64.zip"
+                : "https://github.com/node-opcua/node-opcua-pki/releases/download/2.14.2/openssl-1.0.2u-i386-win32.zip";
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
 
