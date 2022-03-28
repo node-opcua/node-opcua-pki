@@ -57,7 +57,7 @@ declare interface WgetInterface {
 
 // tslint:disable-next-line:no-var-requires
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const wget = require("wget-improved") as WgetInterface;
+const wget = require("wget-improved-2") as WgetInterface;
 
 type CallbackFunc<T> = (err: Error | null, result?: T) => void;
 
