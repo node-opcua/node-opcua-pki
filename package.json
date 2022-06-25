@@ -49,7 +49,7 @@
     "chokidar": "^3.5.3",
     "cli-table": "^0.3.11",
     "minimist": "^1.2.6",
-    "node-opcua-crypto": "^1.10.0",
+    "node-opcua-crypto": "^1.11.0",
     "progress": "^2.0.3",
     "thenify": "^3.3.1",
     "wget-improved-2": "^3.3.0",
