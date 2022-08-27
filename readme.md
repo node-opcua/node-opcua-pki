@@ -5,21 +5,22 @@
 [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
-## Create a Certificate Authority
 
+
+## Installation
+
+##### install globally
 ```
-    PKI\CA                   Certificate Authority
-
-    PKI\rejected             The Certificate store contains certificates that have been rejected.
-    PKI\rejected\certs       Contains the X.509 v3 Certificates which have been rejected.
-    PKI\trusted              The Certificate store contains trusted Certificates.
-    PKI\trusted\certs        Contains the X.509 v3 Certificates that are trusted.
-    PKI\trusted\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-    PKI\issuers              The Certificate store contains the CA Certificates needed for validation.
-    PKI\issuers\certs        Contains the X.509 v3 Certificates that are needed for validation.
-    PKI\issuers\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-
+$ npm install -g node-opcua-pki 
+$ crypto_create_CA --help
 ```
+
+#####  use with npx
+```
+npx node-opcua-pki --help
+npx node-opcua-pki certificate --help
+```
+
 
 Note: see https://reference.opcfoundation.org/GDS/docs/F.1/
 
@@ -47,6 +48,21 @@ Options:
 | `--root`, `-r`                   | the location of the Certificate folder           | "{CWD}/certificates"                                                            |
 | ` --CAFolder`, `-c`              | the location of the Certificate Authority folder | "{root}/CA"]                                                                    |
 | `--keySize`, `-k`, `--keyLength` | the private key size in bits (1024               | 2048 ,3072, 4096 ,2048                                                          |
+
+The result
+```
+    PKI\CA                   Certificate Authority
+
+    PKI\rejected             The Certificate store contains certificates that have been rejected.
+    PKI\rejected\certs       Contains the X.509 v3 Certificates which have been rejected.
+    PKI\trusted              The Certificate store contains trusted Certificates.
+    PKI\trusted\certs        Contains the X.509 v3 Certificates that are trusted.
+    PKI\trusted\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
+    PKI\issuers              The Certificate store contains the CA Certificates needed for validation.
+    PKI\issuers\certs        Contains the X.509 v3 Certificates that are needed for validation.
+    PKI\issuers\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
+
+```
 
 ## demo command
 
@@ -120,9 +136,6 @@ or alpine:
 apk add openssl
 ```
 
-#### note:
-
--   do not upgrade update-notifier above 4.x.x until nodejs 8 is required
 
 #### support:
 
