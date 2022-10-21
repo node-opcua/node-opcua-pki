@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua-pki
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2022 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -665,7 +666,7 @@ export function processAltNames(params: ProcessAltNamesParam) {
  * @param params.ip
  * @param params.validity certificate duration in days
  * @param params.purpose
- * @param [params.subject= "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=ZZNodeOPCUA"]
+ * @param [params.subject= "C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=ZZNodeOPCUA"]
  * @param callback
  */
 export function createSelfSignCertificate(

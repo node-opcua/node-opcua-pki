@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2022 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -905,7 +906,7 @@ argv
                 subject: {
                     default: "",
                     type: "string",
-                    describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )",
+                    describe: "the certificate subject ( for instance C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )",
                 },
             };
             add_standard_option(options, "silent");

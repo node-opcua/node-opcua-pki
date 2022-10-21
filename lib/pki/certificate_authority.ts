@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
-// Copyright (c) 2014-2021 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
+// Copyright (c) 2022 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -140,7 +141,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
     }
 
     // tslint:disable:no-empty
-    displayTitle("Create Certificate Authority (CA)", (err?: Error | null) => { /** */ });
+    displayTitle("Create Certificate Authority (CA)", (_err?: Error | null) => { /** */ });
 
     const indexFileAttr = path.join(caRootDir, "index.txt.attr");
     if (!fs.existsSync(indexFileAttr)) {
