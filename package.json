@@ -52,7 +52,6 @@
     "node-opcua-crypto": "^1.12.0",
     "progress": "^2.0.3",
     "thenify": "^3.3.1",
-    "update-notifier": "5",
     "wget-improved-2": "^3.3.0",
     "yargs": "17.5.1",
     "yauzl": "^2.10.0"
