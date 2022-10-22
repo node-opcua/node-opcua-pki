@@ -1,3 +1,4 @@
+/* eslint-disable indent */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua-pki
 // ---------------------------------------------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ import _simple_config_template from "./templates/simple_config_template.cnf";
 const exportedEnvVars: any = {};
 
 export function quote(str: string): string {
-    return "\"" + str + "\"";
+    return '"' + str + '"';
 }
 
 // tslint:disable-next-line:variable-name
@@ -492,7 +493,7 @@ export function createCertificateSigningRequest(
 
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     // process.env.OPENSSL_CONF  ="";
-    const subjectOptions = subject ? " -subj \"" + subject + "\"" : "";
+    const subjectOptions = subject ? ' -subj "' + subject + '"' : "";
     async.series(
         [
             (callback: (err?: Error) => void) => {
@@ -702,7 +703,7 @@ export function createSelfSignCertificate(
             adjustDate(params);
             assert(Object.prototype.hasOwnProperty.call(params, "validity"));
 
-            let subject = new Subject(params.subject);
+            let subject: Subject | string = new Subject(params.subject);
             subject = subject.toString();
 
             const certificateRequestFilename = certificate + ".csr";
@@ -712,15 +713,15 @@ export function createSelfSignCertificate(
 
             let extension: string;
             switch (params.purpose) {
-            case CertificatePurpose.ForApplication:
-                extension = "v3_selfsigned";
-                break;
-            case CertificatePurpose.ForCertificateAuthority:
-                extension = "v3_ca";
-                break;
-            case CertificatePurpose.ForUserAuthentication:
-            default:
-                extension = "v3_selfsigned";
+                case CertificatePurpose.ForApplication:
+                    extension = "v3_selfsigned";
+                    break;
+                case CertificatePurpose.ForCertificateAuthority:
+                    extension = "v3_ca";
+                    break;
+                case CertificatePurpose.ForUserAuthentication:
+                default:
+                    extension = "v3_selfsigned";
             }
 
             const tasks = [
@@ -745,9 +746,9 @@ export function createSelfSignCertificate(
                             q(n(params.privateKey!)) +
                             " -out " +
                             q(n(certificateRequestFilename)) +
-                            " -subj \"" +
+                            ' -subj "' +
                             subject +
-                            "\"",
+                            '"',
                         {},
                         callback
                     );
