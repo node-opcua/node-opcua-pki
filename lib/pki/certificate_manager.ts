@@ -477,8 +477,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                    "  not before date =" +
-                    certificateInfo.notBefore
+                "  not before date =" +
+                certificateInfo.notBefore
             );
             isTimeInvalid = true;
         }
@@ -575,38 +575,30 @@ export class CertificateManager {
                 return callback();
             }
             assert(this.state === CertificateManagerState.Initializing);
-            ensure_openssl_installed(() => {
-                // if (1 || !fs.existsSync(this.configFile)) {
-                //    var data = toolbox.configurationFileTemplate;
-                //    data = data.replace(/%%ROOT_FOLDER%%/, toolbox.make_path(pkiDir,"own"));
-                //    fs.writeFileSync(this.configFile, data);
-                // }
-                //
 
-                fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
+            fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
 
-                // note : openssl 1.1.1 has a bug that causes a failure if
-                // random file cannot be found. (should be fixed in 1.1.1.a)
-                // if this issue become important we may have to consider checking that rndFile exists and recreate
-                // it if not . this could be achieved with the command :
-                //      "openssl rand -writerand ${this.randomFile}"
-                //
-                // cf: https://github.com/node-opcua/node-opcua/issues/554
+            // note : openssl 1.1.1 has a bug that causes a failure if
+            // random file cannot be found. (should be fixed in 1.1.1.a)
+            // if this issue become important we may have to consider checking that rndFile exists and recreate
+            // it if not . this could be achieved with the command :
+            //      "openssl rand -writerand ${this.randomFile}"
+            //
+            // cf: https://github.com/node-opcua/node-opcua/issues/554
 
-                if (!fs.existsSync(this.privateKey)) {
-                    debugLog("generating private key ...");
-                    setEnv("RANDFILE", this.randomFile);
-                    createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
-                        if (err) {
-                            return callback(err);
-                        }
-                        this._readCertificates(() => callback());
-                    });
-                } else {
-                    // debugLog("   initialize :  private key already exists ... skipping");
+            if (!fs.existsSync(this.privateKey)) {
+                debugLog("generating private key ...");
+                setEnv("RANDFILE", this.randomFile);
+                createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
+                    if (err) {
+                        return callback(err);
+                    }
                     this._readCertificates(() => callback());
-                }
-            });
+                });
+            } else {
+                // debugLog("   initialize :  private key already exists ... skipping");
+                this._readCertificates(() => callback());
+            }
         }, callback as ErrorCallback);
     }
 
@@ -873,8 +865,8 @@ export class CertificateManager {
                     newStatus === "rejected"
                         ? this.rejectedFolder
                         : newStatus === "trusted"
-                        ? this.trustedFolder
-                        : this.rejectedFolder;
+                            ? this.trustedFolder
+                            : this.rejectedFolder;
                 const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
                 debugLog("_moveCertificate1", fingerprint.substr(0, 10), "old name", certificateSrc);

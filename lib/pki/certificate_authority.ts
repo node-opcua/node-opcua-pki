@@ -589,13 +589,13 @@ export class CertificateAuthority {
         certificateSigningRequestFilename: Filename,
         params: Params,
         callback?: (err: Error | null, certificate?: Filename) => void
-    ): any {
+    ): void | Promise<Filename> {
         // istanbul ignore next
         if (!callback) {
             throw new Error("Internal Error");
         }
 
-        ensure_openssl_installed((err) => {
+        ensure_openssl_installed(() => {
             try {
                 assert(fs.existsSync(certificateSigningRequestFilename));
                 assert(typeof callback === "function");
