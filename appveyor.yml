@@ -3,9 +3,10 @@ environment:
   matrix:
     # - nodejs_version: "8" drop support for 8 as end of life was end 2019
     # - nodejs_version: "10" drop support for 10 end of life
-    - nodejs_version: "12"
-    - nodejs_version: "14"
+    # - nodejs_version: "12"
+    # - nodejs_version: "14"
     - nodejs_version: "16"
+    - nodejs_version: "18"
 
 platform:
   - x64
