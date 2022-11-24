@@ -405,13 +405,18 @@ export function createPrivateKey(privateKeyFilename: string, keyLength: KeyLengt
     }
 
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
-    const randomFile = exportedEnvVars.RANDFILE ? q(n(exportedEnvVars.RANDFILE)) : "random.rnd";
+    const randomFile = exportedEnvVars.RANDFILE ? n(exportedEnvVars.RANDFILE) : "random.rnd";
     const tasks = [
         (callback: ErrorCallback) => createRandomFileIfNotExist(randomFile, {}, callback),
 
         (callback: ErrorCallback) => {
             execute_openssl(
-                "genrsa " + " -out " + q(n(privateKeyFilename)) + (useRandFile() ? " -rand " + randomFile : "") + " " + keyLength,
+                "genrsa " +
+                    " -out " +
+                    q(n(privateKeyFilename)) +
+                    (useRandFile() ? " -rand " + q(randomFile) : "") +
+                    " " +
+                    keyLength,
                 {},
                 (err: Error | null) => {
                     callback(err ? err : undefined);
@@ -428,27 +433,21 @@ export function createRandomFile(randomFile: string, options: ExecuteOptions, ca
     if (!useRandFile()) {
         return callback();
     }
-    execute_openssl("rand " + " -out " + randomFile + " -hex 256", options, (err: Error | null) => {
+    execute_openssl("rand " + " -out " + q(randomFile) + " -hex 256", options, (err: Error | null) => {
         callback(err ? err : undefined);
     });
 }
 
 export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback): void {
     const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
-    fs.exists(randomFilePath, (exists: boolean) => {
-        if (exists) {
-            if (doDebug) {
-                console.log(
-                    chalk.yellow("         randomFile"),
-                    chalk.cyan(randomFile),
-                    chalk.yellow(" already exists => skipping")
-                );
-            }
-            return callback();
-        } else {
-            createRandomFile(randomFile, options, callback);
+    if (fs.existsSync(randomFilePath)) {
+        if (doDebug) {
+            console.log(chalk.yellow("         randomFile"), chalk.cyan(randomFile), chalk.yellow(" already exists => skipping"));
         }
-    });
+        return callback();
+    } else {
+        createRandomFile(randomFile, options, callback);
+    }
 }
 
 // tslint:disable-next:no-empty-interface
