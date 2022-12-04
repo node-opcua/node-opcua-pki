@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import * as fs from "../lib/misc/fs";
 import * as path from "path";
 import "should";
 import {

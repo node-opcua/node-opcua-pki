@@ -1,6 +1,6 @@
 // tslint:disable:no-console
 import * as child_process from "child_process";
-import * as fs from "fs";
+import * as fs from "../lib//misc/fs";
 import * as path from "path";
 import "should";
 import { dumpCertificate, ErrorCallback, Filename, make_path } from "..";

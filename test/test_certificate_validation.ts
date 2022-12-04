@@ -2,7 +2,7 @@
 // tslint:disable:no-shadowed-variable
 
 Error.stackTraceLimit = Infinity;
-import * as fs from "fs";
+import * as fs from "../lib//misc/fs";
 import * as path from "path";
 import should = require("should");
 

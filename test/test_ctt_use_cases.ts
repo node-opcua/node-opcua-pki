@@ -1,6 +1,6 @@
 import * as path from "path";
-import * as fs from "fs";
-import { promisify, isRegExp } from "util";
+import * as fs from "../lib/misc/fs";
+import { promisify } from "util";
 import * as sinon from "sinon";
 import * as dir from "node-dir";
 import * as chalk from "chalk";

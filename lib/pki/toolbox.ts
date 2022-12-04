@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable indent */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua-pki
@@ -30,7 +31,7 @@ import * as async from "async";
 import * as byline from "byline";
 import * as chalk from "chalk";
 import * as child_process from "child_process";
-import * as fs from "fs";
+import * as fs from "../misc/fs";
 import * as os from "os";
 import * as path from "path";
 
@@ -43,7 +44,7 @@ import _simple_config_template from "./templates/simple_config_template.cnf";
 const exportedEnvVars: any = {};
 
 export function quote(str: string): string {
-    return '"' + str + '"';
+    return `"${str}"`;
 }
 
 // tslint:disable-next-line:variable-name
@@ -219,11 +220,36 @@ export interface ExecuteOpenSSLOptions extends ExecuteOptions {
     openssl_conf?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { OpenSSL } = require("openssl.js/dist/openssl.cjs");
+
 export function execute_openssl(
     cmd: string,
     options: ExecuteOpenSSLOptions,
     callback: (err: Error | null, output?: string) => void
 ): void {
+    const rootDir = path.resolve(__dirname, "./");
+    const openSSL = new OpenSSL({ fs, rootDir: "/" });
+
+    openSSL
+        .runCommand(cmd)
+        .then((output: child_process.ChildProcess) => {
+            let s = "";
+            output.stdout
+                ?.on("data", (t) => {
+                    s += t;
+                })
+                .on("close", () => {
+                    const toto = s; // output.stdout?.read();
+                    //  output.stdout?.read(toto);
+                    callback(null, toto);
+                });
+        })
+        .catch((err: Error) => {
+            callback(err);
+        });
+    return;
+
     // tslint:disable-next-line:variable-name
     const empty_config_file = n(getTempFolder(), "empty_config.cnf");
     if (!fs.existsSync(empty_config_file)) {
@@ -326,9 +352,9 @@ export function getEnvironmentVarNames(): any[] {
 export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
     const prePath = (options && options.cwd) || "";
     const staticConfigPath = configPath + ".tmp";
-    let staticConfig = fs.readFileSync(path.join(prePath, configPath), { encoding: "utf8" });
+    let staticConfig = fs.readFileSync(path.join(prePath, configPath), "utf8");
     for (const envVar of getEnvironmentVarNames()) {
-        staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), exportedEnvVars[envVar.key]);
+        staticConfig = (staticConfig as string).replace(new RegExp(envVar.pattern, "gi"), exportedEnvVars[envVar.key]);
     }
     fs.writeFileSync(path.join(prePath, staticConfigPath), staticConfig);
 
@@ -492,7 +518,7 @@ export function createCertificateSigningRequest(
 
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     // process.env.OPENSSL_CONF  ="";
-    const subjectOptions = subject ? ' -subj "' + subject + '"' : "";
+    const subjectOptions = subject ? ` -subj ${q(subject)}` : "";
     async.series(
         [
             (callback: (err?: Error) => void) => {
@@ -745,9 +771,7 @@ export function createSelfSignCertificate(
                             q(n(params.privateKey!)) +
                             " -out " +
                             q(n(certificateRequestFilename)) +
-                            ' -subj "' +
-                            subject +
-                            '"',
+                            ` -subj ${q(subject.toString())}`,
                         {},
                         callback
                     );

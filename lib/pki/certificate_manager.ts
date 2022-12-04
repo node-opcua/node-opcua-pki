@@ -1,3 +1,4 @@
+/* eslint-disable indent */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -27,22 +28,20 @@ import * as assert from "assert";
 import * as async from "async";
 import * as chalk from "chalk";
 import * as chokidar from "chokidar";
-import * as fs from "fs";
 import * as path from "path";
 import { callbackify, promisify } from "util";
+import * as fs_ from "../misc/fs";
 
 import {
     Certificate,
     CertificateInternals,
     CertificateRevocationList,
     CertificateRevocationListInfo,
-    convertPEMtoDER,
     DER,
     exploreCertificate,
     exploreCertificateInfo,
     exploreCertificateRevocationList,
     makeSHA1Thumbprint,
-    PEM,
     readCertificate,
     readCertificateRevocationList,
     split_der,
@@ -61,26 +60,17 @@ import {
     CreateSelfSignCertificateWithConfigParam,
     debugLog,
     dumpCertificate,
-    ensure_openssl_installed,
     make_path,
     mkdir,
     setEnv,
 } from "./toolbox";
 
 import { withLock } from "@ster5/global-mutex";
+import { getDefaultFileSystem } from "../misc/get_default_filesystem";
 // tslint:disable:max-line-length
 // tslint:disable:no-var-requires
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const thenify = require("thenify");
-
-type C = ((err?: Error | null, ...args: [any, ...any]) => void) | ((err?: Error | null) => void);
-
-type ReadFileFunc = (filename: string, encoding: string, callback: (err: Error | null, content?: Buffer) => void) => void;
-
-const fsFileExists = promisify(fs.exists);
-const fsWriteFile = promisify(fs.writeFile);
-const fsReadFile = promisify(fs.readFile as ReadFileFunc);
-const fsRemoveFile = promisify(fs.unlink);
 
 interface Entry {
     certificate: Certificate;
@@ -111,6 +101,7 @@ interface Thumbs {
 export interface CertificateManagerOptions {
     keySize?: KeySize;
     location: string;
+    fs?: fs_.FileSystem;
 }
 
 export interface Callback11<C> {
@@ -126,7 +117,7 @@ export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertifica
     outputFile?: Filename; // default : own/cert/self_signed_certificate.pem
     subject: SubjectOptions | string;
     applicationUri: string;
-    dns: any[];
+    dns: string[];
     startDate: Date;
     validity: number;
 }
@@ -217,10 +208,10 @@ export class CertificateManager {
 
     private readonly keySize: KeySize;
     private readonly location: string;
-    private readonly _watchers: fs.FSWatcher[] = [];
+    private readonly _watchers: fs_.FSWatcher[] = [];
     private _readCertificatesCalled = false;
     private readonly _filenameToHash: { [key: string]: string } = {};
-
+    private _fileSystem: fs_.FileSystem;
     private readonly _thumbs: Thumbs = {
         rejected: {},
         trusted: {},
@@ -232,6 +223,7 @@ export class CertificateManager {
     };
 
     constructor(options: CertificateManagerOptions) {
+        this._fileSystem = options.fs || getDefaultFileSystem();
         options.keySize = options.keySize || 2048;
         assert(Object.prototype.hasOwnProperty.call(options, "location"));
         assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
@@ -243,7 +235,7 @@ export class CertificateManager {
         mkdir(options.location);
 
         // istanbul ignore next
-        if (!fs.existsSync(this.location)) {
+        if (!this._fileSystem.existsSync(this.location)) {
             throw new Error("CertificateManager cannot access location " + this.location);
         }
     }
@@ -270,7 +262,7 @@ export class CertificateManager {
      */
     public async getCertificateStatus(certificate: Buffer): Promise<CertificateStatus>;
     public getCertificateStatus(certificate: Buffer, callback: (err: Error | null, status?: CertificateStatus) => void): void;
-    public getCertificateStatus(certificate: Buffer, ...args: any[]): any {
+    public getCertificateStatus(certificate: Buffer, ...args: any[]): void | Promise<CertificateStatus> {
         const callback = args[0] as (err: Error | null, status?: CertificateStatus) => void;
 
         this.initialize(() => {
@@ -284,7 +276,7 @@ export class CertificateManager {
                     const pem = toPem(certificate, "CERTIFICATE");
                     const fingerprint = makeFingerprint(certificate);
                     const filename = path.join(this.rejectedFolder, buildIdealCertificateName(certificate) + ".pem");
-                    fs.writeFile(filename, pem, (err?: Error | null) => {
+                    this._fileSystem.writeFile(filename, pem, (err?: Error | null) => {
                         this._thumbs.rejected[fingerprint] = {
                             certificate,
                             filename,
@@ -306,7 +298,7 @@ export class CertificateManager {
 
     public async rejectCertificate(certificate: Certificate): Promise<void>;
     public rejectCertificate(certificate: Certificate, callback: ErrorCallback): void;
-    public rejectCertificate(certificate: Certificate, ...args: any[]): any {
+    public rejectCertificate(certificate: Certificate, ...args: any[]): void | Promise<void> {
         const callback = args[0];
         assert(callback && callback instanceof Function, "expecting callback");
         this._moveCertificate(certificate, "rejected", callback);
@@ -314,7 +306,7 @@ export class CertificateManager {
 
     public async trustCertificate(certificate: Certificate): Promise<void>;
     public trustCertificate(certificate: Certificate, callback: ErrorCallback): void;
-    public trustCertificate(certificate: Certificate, ...args: any[]): any {
+    public trustCertificate(certificate: Certificate, ...args: any[]): void | Promise<void> {
         const callback = args[0];
         assert(callback && callback instanceof Function, "expecting callback");
         this._moveCertificate(certificate, "trusted", callback);
@@ -358,11 +350,12 @@ export class CertificateManager {
                 // let's first verify that certificate is valid ,as we don't want to write invalid data
                 try {
                     const certificateInfo = exploreCertificateInfo(certificate);
+                    certificateInfo;
                 } catch (err) {
                     return "BadCertificateInvalid";
                 }
                 debugLog("certificate has never been seen before and is now rejected (untrusted) ", certificateFilenameInRejected);
-                await fsWriteFile(certificateFilenameInRejected, toPem(certificate, "CERTIFICATE"));
+                await this._fileSystem.promises.writeFile(certificateFilenameInRejected, toPem(certificate, "CERTIFICATE"));
             }
             return "BadCertificateUntrusted";
         }
@@ -477,8 +470,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                "  not before date =" +
-                certificateInfo.notBefore
+                    "  not before date =" +
+                    certificateInfo.notBefore
             );
             isTimeInvalid = true;
         }
@@ -576,7 +569,7 @@ export class CertificateManager {
             }
             assert(this.state === CertificateManagerState.Initializing);
 
-            fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
+            this._fileSystem.writeFileSync(this.configFile, configurationFileSimpleTemplate);
 
             // note : openssl 1.1.1 has a bug that causes a failure if
             // random file cannot be found. (should be fixed in 1.1.1.a)
@@ -586,7 +579,7 @@ export class CertificateManager {
             //
             // cf: https://github.com/node-opcua/node-opcua/issues/554
 
-            if (!fs.existsSync(this.privateKey)) {
+            if (!this._fileSystem.existsSync(this.privateKey)) {
                 debugLog("generating private key ...");
                 setEnv("RANDFILE", this.randomFile);
                 createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
@@ -652,7 +645,7 @@ export class CertificateManager {
     public createSelfSignedCertificate(params: CreateSelfSignCertificateParam1, ...args: any[]): any {
         const callback = args[0] as ErrorCallback;
         assert(typeof params.applicationUri === "string", "expecting applicationUri");
-        if (!fs.existsSync(this.privateKey)) {
+        if (!this._fileSystem.existsSync(this.privateKey)) {
             return callback(new Error("Cannot find private key " + this.privateKey));
         }
 
@@ -719,7 +712,7 @@ export class CertificateManager {
         }
         // write certificate
         const filename = path.join(this.issuersCertFolder, "issuer_" + buildIdealCertificateName(certificate) + ".pem");
-        await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
+        await this._fileSystem.promises.writeFile(filename, pemCertificate, { encoding: "utf8" });
 
         // first time seen, let's save it.
         this._thumbs.issuers.certs[fingerprint] = { certificate, filename };
@@ -742,7 +735,7 @@ export class CertificateManager {
                 }
                 const pemCertificate = toPem(crl, "X509 CRL");
                 const filename = path.join(this.issuersCrlFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
-                await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
+                await this._fileSystem.promises.writeFile(filename, pemCertificate, { encoding: "utf8" });
 
                 await this._on_crl_file_added(this._thumbs.issuersCrl, filename);
 
@@ -865,13 +858,13 @@ export class CertificateManager {
                     newStatus === "rejected"
                         ? this.rejectedFolder
                         : newStatus === "trusted"
-                            ? this.trustedFolder
-                            : this.rejectedFolder;
+                        ? this.trustedFolder
+                        : this.rejectedFolder;
                 const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
                 debugLog("_moveCertificate1", fingerprint.substr(0, 10), "old name", certificateSrc);
                 debugLog("_moveCertificate1", fingerprint.substr(0, 10), "new name", certificateDest);
-                fs.rename(certificateSrc, certificateDest, (err?: Error | null) => {
+                this._fileSystem.rename(certificateSrc, certificateDest, (err?: Error | null) => {
                     delete (this._thumbs as any)[status!][fingerprint];
                     (this._thumbs as any)[newStatus][fingerprint] = {
                         certificate,
@@ -993,13 +986,13 @@ export class CertificateManager {
         ) {
             const w = chokidar.watch(folder, options);
 
-            w.on("unlink", (filename: string, stat?: fs.Stats) => {
+            w.on("unlink", (filename: string, stat?: fs_.Stats) => {
                 // CRL never removed
             });
-            w.on("add", (filename: string, stat?: fs.Stats) => {
+            w.on("add", (filename: string, stat?: fs_.Stats) => {
                 this._on_crl_file_added(index, filename);
             });
-            w.on("change", (path: string, stat?: fs.Stats) => {
+            w.on("change", (path: string, stat?: fs_.Stats) => {
                 debugLog("change in folder ", folder, path, stat);
             });
             this._watchers.push(w);
@@ -1015,14 +1008,14 @@ export class CertificateManager {
             _innerCallback: (err?: Error) => void
         ) {
             const w = chokidar.watch(folder, options);
-            w.on("unlink", (filename: string, stat?: fs.Stats) => {
+            w.on("unlink", (filename: string, stat?: fs_.Stats) => {
                 debugLog(chalk.cyan("unlink in folder " + folder), filename);
                 const h = this._filenameToHash[filename];
                 if (h && index[h]) {
                     delete index[h];
                 }
             });
-            w.on("add", (filename: string, stat?: fs.Stats) => {
+            w.on("add", (filename: string, stat?: fs_.Stats) => {
                 debugLog(chalk.cyan("add in folder " + folder), filename); // stat);
                 try {
                     const certificate = readCertificate(filename);
@@ -1046,7 +1039,7 @@ export class CertificateManager {
                     debugLog(err);
                 }
             });
-            w.on("change", (path: string, stat?: fs.Stats) => {
+            w.on("change", (path: string, stat?: fs_.Stats) => {
                 debugLog("change in folder ", folder, path);
             });
             this._watchers.push(w);

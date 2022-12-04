@@ -30,9 +30,10 @@ import * as assert from "assert";
 import * as async from "async";
 import * as chalk from "chalk";
 import * as rimraf from "rimraf";
-import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+
+import * as fs from "./misc/fs";
 
 import { callbackify } from "util";
 
@@ -179,7 +180,7 @@ function default_template_content(): string {
         // console.log("process.pkg.entrypoint", (process as any).pkg.entrypoint);
         const a = fs.readFileSync(path.join(__dirname, "../../bin/crypto_create_CA_config.example.js"), "utf8");
         console.log(a);
-        return a;
+        return a as string;
     }
     function find_default_config_template() {
         const rootFolder = find_module_root_folder();
@@ -196,7 +197,7 @@ function default_template_content(): string {
     }
     const default_config_template = find_default_config_template();
     assert(fs.existsSync(default_config_template));
-    const default_config_template_content = fs.readFileSync(default_config_template, "utf8");
+    const default_config_template_content = fs.readFileSync(default_config_template, "utf8") as string;
     return default_config_template_content;
 }
 

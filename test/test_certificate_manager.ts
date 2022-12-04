@@ -2,14 +2,13 @@ Error.stackTraceLimit = Infinity;
 // tslint:disable: no-console
 // tslint:disable:variable-name
 // tslint:disable:no-shadowed-variable
-import * as async from "async";
-import * as fs from "fs";
+import "should";
 import * as path from "path";
 import { promisify } from "util";
 
 import { beforeTest, grep } from "./helpers";
+import * as fs from "../lib//misc/fs";
 
-import should = require("should");
 import {
     CertificateStatus,
     dumpCertificate,

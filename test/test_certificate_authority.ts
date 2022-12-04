@@ -1,7 +1,6 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as fs from "fs";
 import * as path from "path";
 import { 
     readCertificate, 
@@ -12,7 +11,8 @@ import {
 } from "node-opcua-crypto";
 import {  } from "node-opcua-crypto";
 
-import should = require("should");
+import * as should from "should";
+import * as fs from "../lib//misc/fs";
 
 import {
     ErrorCallback,
@@ -84,7 +84,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
     async function createCertificateRequest(): Promise<string> {
         // let create a certificate request from the certificate manager
         const params = {
-            applicationUri: "MY:APPLICATION:URI",
+            applicationUri: "MY:A   PPLICATION:URI",
             dns: ["localhost", "my.domain.com"],
             ip: ["192.123.145.121"],
             subject: "/CN=MyCommonName",

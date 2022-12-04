@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -23,7 +24,6 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as url from "url";
@@ -33,6 +33,8 @@ import * as chalk from "chalk";
 import * as child_process from "child_process";
 import * as ProgressBar from "progress";
 import * as yauzl from "yauzl";
+
+import * as fs from "./fs";
 import { Readable } from "stream";
 
 import Table = require("cli-table");
@@ -118,7 +120,7 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
 }
 
 function quote(str: string): string {
-    return '"' + str.replace(/\\/g, "/") + "\"";
+    return `"${str.replace(/\\/g, "/")}`;
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
@@ -334,8 +336,8 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
             zipFile.on("entry", (entry: yauzl.Entry) => {
                 zipFile.openReadStream(entry, (err?: Error | null, readStream?: Readable) => {
-                    if (err) {
-                        return callback(err);
+                    if (err || !readStream) {
+                        return callback(err || new Error("internal error"));
                     }
 
                     const file = path.join(opensslFolder, entry.fileName);
@@ -347,7 +349,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
                     const writeStream = fs.createWriteStream(file, "binary");
                     // ensure parent directory exists
-                    readStream!.pipe(writeStream);
+                    readStream.pipe(writeStream);
 
                     writeStream.on("close", () => {
                         zipFile.readEntry();
@@ -438,7 +440,10 @@ export function get_openssl_exec_path(callback: (err: Error | null, execPath?: s
             if (err) {
                 return callback(err);
             }
-            if (!fs.existsSync(opensslExecPath!)) {
+            if (!opensslExecPath) {
+                return callback(new Error("Cannot find OpenSSL Path"));
+            }
+            if (!fs.existsSync(opensslExecPath)) {
                 throw new Error("internal error cannot find " + opensslExecPath);
             }
             callback(err, opensslExecPath);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -24,8 +25,8 @@
 import * as assert from "assert";
 import * as async from "async";
 import * as chalk from "chalk";
-import * as fs from "fs";
 import * as path from "path";
+import * as fs_ from "../misc/fs";
 
 import { ErrorCallback, Filename, KeySize } from "./common";
 
@@ -55,6 +56,7 @@ import {
 } from "./toolbox";
 import { Subject, SubjectOptions } from "../misc/subject";
 import { CertificateSigningRequestInfo, exploreCertificateSigningRequest, readCertificateSigningRequest } from "node-opcua-crypto";
+import { getDefaultFileSystem } from "../misc/get_default_filesystem";
 
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
@@ -80,7 +82,7 @@ function octetStringToIpAddress(a: string) {
     );
 }
 
-function construct_CertificateAuthority(certificateAuthority: CertificateAuthority, callback: ErrorCallback) {
+function construct_CertificateAuthority(fs: fs_.FileSystem, certificateAuthority: CertificateAuthority, callback: ErrorCallback) {
     // create the CA directory store
     // create the CA directory store
     //
@@ -141,7 +143,10 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
     }
 
     // tslint:disable:no-empty
-    displayTitle("Create Certificate Authority (CA)", (_err?: Error | null) => { /** */ });
+    displayTitle("Create Certificate Authority (CA)", (_err?: Error | null) => {
+        /** */
+        _err;
+    });
 
     const indexFileAttr = path.join(caRootDir, "index.txt.attr");
     if (!fs.existsSync(indexFileAttr)) {
@@ -195,13 +200,13 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
         (callback: ErrorCallback) =>
             execute_openssl(
                 "req -new" +
-                " -sha256 " +
-                " -text " +
-                " -extensions v3_ca" +
-                configOption +
-                " -key private/cakey.pem " +
-                " -out private/cakey.csr " +
-                subjectOpt,
+                    " -sha256 " +
+                    " -text " +
+                    " -extensions v3_ca" +
+                    configOption +
+                    " -key private/cakey.pem " +
+                    " -out private/cakey.csr " +
+                    subjectOpt,
                 options,
                 callback
             ),
@@ -215,13 +220,13 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
         (callback: ErrorCallback) =>
             execute_openssl(
                 " x509 -sha256 -req -days 3650 " +
-                " -text " +
-                " -extensions v3_ca" +
-                " -extfile " +
-                q(n(configFile)) +
-                " -in private/cakey.csr " +
-                " -signkey private/cakey.pem " +
-                " -out public/cacert.pem",
+                    " -text " +
+                    " -extensions v3_ca" +
+                    " -extfile " +
+                    q(n(configFile)) +
+                    " -in private/cakey.csr " +
+                    " -signkey private/cakey.pem " +
+                    " -out public/cacert.pem",
                 options,
                 callback
             ),
@@ -262,19 +267,21 @@ export interface CertificateAuthorityOptions {
     keySize: KeySize;
     location: string;
     subject?: string | SubjectOptions;
+    fs?: fs_.FileSystem;
 }
 
 export class CertificateAuthority {
     public readonly keySize: KeySize;
     public readonly location: string;
     public readonly subject: Subject;
-
+    private readonly _fileSystem: fs_.FileSystem;
     constructor(options: CertificateAuthorityOptions) {
-        assert(Object.prototype.hasOwnProperty.call(options,"location"));
-        assert(Object.prototype.hasOwnProperty.call(options,"keySize"));
+        assert(Object.prototype.hasOwnProperty.call(options, "location"));
+        assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
         this.location = options.location;
         this.keySize = options.keySize || 2048;
         this.subject = new Subject(options.subject || defaultSubject);
+        this._fileSystem = options.fs || getDefaultFileSystem();
     }
 
     public get rootDir() {
@@ -310,9 +317,9 @@ export class CertificateAuthority {
 
     public async initialize(): Promise<void>;
     public initialize(callback: ErrorCallback): void;
-    public initialize(callback?: ErrorCallback): any {
+    public initialize(callback?: ErrorCallback): void| Promise<void> {
         assert(typeof callback === "function");
-        construct_CertificateAuthority(this, callback!);
+        construct_CertificateAuthority(this._fileSystem,this, callback!);
     }
 
     public async constructCACertificateWithCRL(): Promise<void>;
@@ -328,22 +335,25 @@ export class CertificateAuthority {
         // 2. use some linked
         // ( from http://security.stackexchange.com/a/58305/59982)
 
+        const fs = this._fileSystem;
+
         if (fs.existsSync(this.revocationList)) {
             fs.writeFileSync(
                 cacertWithCRL,
-                fs.readFileSync(this.caCertificate, "utf8") + fs.readFileSync(this.revocationList, "utf8")
+                (fs.readFileSync(this.caCertificate, "utf8") as string) + (fs.readFileSync(this.revocationList, "utf8") as string)
             );
         } else {
             // there is no revocation list yet
             fs.writeFileSync(cacertWithCRL, fs.readFileSync(this.caCertificate));
         }
-        callback!();
+        callback();
     }
 
     public async constructCertificateChain(certificate: Filename): Promise<void>;
     public constructCertificateChain(certificate: Filename, callback: ErrorCallback): void;
-    public constructCertificateChain(certificate: Filename, callback?: ErrorCallback): any {
+    public constructCertificateChain(certificate: Filename, callback?: ErrorCallback): void|Promise<void> {
         assert(typeof callback === "function");
+        const fs = this._fileSystem;
         assert(fs.existsSync(certificate));
         assert(fs.existsSync(this.caCertificate));
 
@@ -351,10 +361,10 @@ export class CertificateAuthority {
         // append
         fs.writeFileSync(
             certificate,
-            fs.readFileSync(certificate, "utf8") + fs.readFileSync(this.caCertificate, "utf8")
+            (fs.readFileSync(certificate, "utf8") as string) + (fs.readFileSync(this.caCertificate, "utf8") as string)
             //   + fs.readFileSync(this.revocationList)
         );
-        callback!();
+        callback();
     }
 
     public async createSelfSignedCertificate(certificateFile: Filename, privateKey: Filename, params: Params): Promise<void>;
@@ -369,13 +379,14 @@ export class CertificateAuthority {
         privateKey: Filename,
         params: Params,
         callback?: ErrorCallback
-    ): any {
+    ): void|Promise<void> {
+        const fs = this._fileSystem;
         assert(typeof privateKey === "string");
         assert(fs.existsSync(privateKey));
         assert(typeof callback === "function");
 
         if (!certificateFileExist(certificateFile)) {
-            return callback!();
+            return callback();
         }
 
         adjustDate(params);
@@ -400,13 +411,13 @@ export class CertificateAuthority {
         tasks.push((callback: ErrorCallback) =>
             execute_openssl(
                 "req " +
-                " -new -sha256 -text " +
-                configOption +
-                subjectOptions +
-                " -batch -key " +
-                q(n(privateKey)) +
-                " -out " +
-                q(n(csrFile)),
+                    " -new -sha256 -text " +
+                    configOption +
+                    subjectOptions +
+                    " -batch -key " +
+                    q(n(privateKey)) +
+                    " -out " +
+                    q(n(csrFile)),
                 options,
                 callback
             )
@@ -416,17 +427,17 @@ export class CertificateAuthority {
         tasks.push((callback: ErrorCallback) =>
             execute_openssl(
                 "ca " +
-                " -selfsign " +
-                " -keyfile " +
-                q(n(privateKey)) +
-                " -startdate " +
-                x509Date(params.startDate!) +
-                " -enddate " +
-                x509Date(params.endDate!) +
-                " -batch -out " +
-                q(n(certificateFile)) +
-                " -in " +
-                q(n(csrFile)),
+                    " -selfsign " +
+                    " -keyfile " +
+                    q(n(privateKey)) +
+                    " -startdate " +
+                    x509Date(params.startDate!) +
+                    " -enddate " +
+                    x509Date(params.endDate!) +
+                    " -batch -out " +
+                    q(n(certificateFile)) +
+                    " -in " +
+                    q(n(csrFile)),
                 options,
                 callback
             )
@@ -449,7 +460,7 @@ export class CertificateAuthority {
         tasks.push((callback: ErrorCallback) => fs.unlink(csrFile, callback));
 
         async.series(tasks, (err?: Error | null) => {
-            callback!(err);
+            callback(err);
         });
     }
 
@@ -465,7 +476,7 @@ export class CertificateAuthority {
      */
     public revokeCertificate(certificate: Filename, params: Params, callback: ErrorCallback): void;
     public async revokeCertificate(certificate: Filename, params: Params): Promise<void>;
-    public revokeCertificate(certificate: Filename, params: Params, callback?: ErrorCallback): any {
+    public revokeCertificate(certificate: Filename, params: Params, callback?: ErrorCallback): void|Promise<void> {
         assert(typeof callback === "function");
 
         const crlReasons = [
@@ -523,13 +534,13 @@ export class CertificateAuthority {
             (callback: (err?: Error) => void) => {
                 execute_openssl_no_failure(
                     "verify -verbose" +
-                    // configOption +
-                    " -CRLfile " +
-                    q(n(this.revocationList)) +
-                    " -CAfile " +
-                    q(n(this.caCertificate)) +
-                    " -crl_check " +
-                    q(n(certificate)),
+                        // configOption +
+                        " -CRLfile " +
+                        q(n(this.revocationList)) +
+                        " -CAfile " +
+                        q(n(this.caCertificate)) +
+                        " -crl_check " +
+                        q(n(certificate)),
                     options,
                     (err: Error | null, output?: string) => {
                         callback();
@@ -549,18 +560,18 @@ export class CertificateAuthority {
             (callback: ErrorCallback) =>
                 execute_openssl(
                     "crl " +
-                    " -in " +
-                    q(n(this.revocationList)) +
-                    " -out " +
-                    "crl/revocation_list.pem " +
-                    " -outform pem" +
-                    " -text ",
+                        " -in " +
+                        q(n(this.revocationList)) +
+                        " -out " +
+                        "crl/revocation_list.pem " +
+                        " -outform pem" +
+                        " -text ",
                     options,
                     callback
                 ),
         ];
 
-        async.series(tasks, callback!);
+        async.series(tasks, callback);
     }
 
     /**
@@ -590,6 +601,8 @@ export class CertificateAuthority {
         params: Params,
         callback?: (err: Error | null, certificate?: Filename) => void
     ): void | Promise<Filename> {
+        const fs = this._fileSystem;
+
         // istanbul ignore next
         if (!callback) {
             throw new Error("Internal Error");
@@ -651,15 +664,15 @@ export class CertificateAuthority {
                     const configOption = " -config " + configFile;
                     execute_openssl(
                         "ca " +
-                        configOption +
-                        " -startdate " +
-                        x509Date(params.startDate!) +
-                        " -enddate " +
-                        x509Date(params.endDate!) +
-                        " -batch -out " +
-                        q(n(certificate)) +
-                        " -in " +
-                        q(n(certificateSigningRequestFilename)),
+                            configOption +
+                            " -startdate " +
+                            x509Date(params.startDate!) +
+                            " -enddate " +
+                            x509Date(params.endDate!) +
+                            " -batch -out " +
+                            q(n(certificate)) +
+                            " -in " +
+                            q(n(certificateSigningRequestFilename)),
                         options,
                         callback
                     );
@@ -699,12 +712,11 @@ export class CertificateAuthority {
                 callback!(err as Error);
             }
         });
-
     }
 
     public async verifyCertificate(certificate: Filename): Promise<void>;
     public verifyCertificate(certificate: Filename, callback: ErrorCallback): void;
-    public verifyCertificate(certificate: Filename, callback?: ErrorCallback): any {
+    public verifyCertificate(certificate: Filename, callback?: ErrorCallback): void|Promise<void> {
         // openssl verify crashes on windows! we cannot use it reliably
         // istanbul ignore next
         const isImplemented = false;

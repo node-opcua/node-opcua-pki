@@ -9,7 +9,7 @@ function trim(str: string, length?: number): string {
     if (!length) {
         return str;
     }
-    return str.substr(0, Math.min(str.length, length));
+    return str.substring(0, Math.min(str.length, length));
 }
 
 function fqdn(callback: (err: Error | null, fqdn?: string) => void) {
@@ -41,9 +41,9 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
     }
     if (process.platform === "win32") {
         // http://serverfault.com/a/73643/251863
-        const env = process.env; 
+        const env = process.env;
         _fullyQualifiedDomainNameInCache =
-            env.COMPUTERNAME + (env.USERDNSDOMAIN && env.USERDNSDOMAIN!.length > 0 ? "." + env.USERDNSDOMAIN! : "");
+            env.COMPUTERNAME + (env.USERDNSDOMAIN && env.USERDNSDOMAIN.length > 0 ? "." + env.USERDNSDOMAIN : "");
     } else {
         try {
             _fullyQualifiedDomainNameInCache = await promisify(fqdn)();
@@ -58,7 +58,10 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
             _fullyQualifiedDomainNameInCache = os.hostname();
         }
     }
-    return _fullyQualifiedDomainNameInCache!;
+    if (!_fullyQualifiedDomainNameInCache) {
+        throw new Error("Internal Error");
+    }
+    return _fullyQualifiedDomainNameInCache;
 }
 
 export async function prepareFQDN() {
