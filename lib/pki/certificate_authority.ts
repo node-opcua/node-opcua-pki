@@ -354,7 +354,7 @@ export class CertificateAuthority {
             fs.readFileSync(certificate, "utf8") + fs.readFileSync(this.caCertificate, "utf8")
             //   + fs.readFileSync(this.revocationList)
         );
-        callback!();
+        callback();
     }
 
     public async createSelfSignedCertificate(certificateFile: Filename, privateKey: Filename, params: Params): Promise<void>;
@@ -420,9 +420,9 @@ export class CertificateAuthority {
                 " -keyfile " +
                 q(n(privateKey)) +
                 " -startdate " +
-                x509Date(params.startDate!) +
+                x509Date(params.startDate) +
                 " -enddate " +
-                x509Date(params.endDate!) +
+                x509Date(params.endDate) +
                 " -batch -out " +
                 q(n(certificateFile)) +
                 " -in " +
@@ -653,9 +653,9 @@ export class CertificateAuthority {
                         "ca " +
                         configOption +
                         " -startdate " +
-                        x509Date(params.startDate!) +
+                        x509Date(params.startDate) +
                         " -enddate " +
-                        x509Date(params.endDate!) +
+                        x509Date(params.endDate) +
                         " -batch -out " +
                         q(n(certificate)) +
                         " -in " +
