@@ -26,7 +26,8 @@
 // note: we remove use of update-notifier as it is  ESM now and 
 //       old version have reported vulnerabilities
 //xx const updateNotifier = require("update-notifier");
-const pkg = require("../package.json");
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _pkg = require("../package.json");
 
 // eslint-disable-next-line no-undef
 require("../dist/crypto_create_CA.js").main(process.argv.splice(2), () => {
