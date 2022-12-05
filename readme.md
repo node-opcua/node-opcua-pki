@@ -5,22 +5,21 @@
 [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
-
-
 ## Installation
 
 ##### install globally
+
 ```
-$ npm install -g node-opcua-pki 
+$ npm install -g node-opcua-pki
 $ crypto_create_CA --help
 ```
 
-#####  use with npx
+##### use with npx
+
 ```
 npx node-opcua-pki --help
 npx node-opcua-pki certificate --help
 ```
-
 
 Note: see https://reference.opcfoundation.org/GDS/docs/F.1/
 
@@ -32,6 +31,8 @@ Note: see https://reference.opcfoundation.org/GDS/docs/F.1/
 | createCA    | create a Certificate Authority                  |
 | createPKI   | create a Public Key Infrastructure              |
 | certificate | create a new certificate                        |
+| csr         | create a new certificate signing request(CSR)   |
+| sign        | sign a CSR and generate a certificate           |
 | revoke      | revoke an existing certificate                  |
 | dump        | display a certificate                           |
 | toder       | convert a certificate to a DER format           |
@@ -39,6 +40,55 @@ Note: see https://reference.opcfoundation.org/GDS/docs/F.1/
 
 Options:
 --help display help
+
+## create a PKI
+
+```
+node-opcua-pki createPKI 
+```
+
+### Options:
+
+| option | description | type | default |
+|--------|-------------|------|---------|
+|-r, --root |the location of the Certificate folder                       | [string] |[default: "{CWD}/certificates"]|
+|--PKIFolder|the location of the Public Key Infrastructure                 |        [string]| [default: "{root}/PKI"]|
+|-k, --keySize, --keyLength|the private key size in bits (1024|2048|3072|4096)                         |   [number] |[default: 2048]|
+|-s, --silent   |             minimize output                                             |                [boolean]| [default: false]|
+
+The result
+
+```
+└─ 📂certificates
+    └─📂PKI
+       ├─📂issuers
+       │ ├─📂certs                 contains known Certificate Authorities' certificates
+       │ └─📂crl                   contains Certificate Revocation List associates with the CA Certificates
+       ├─📂own
+       │ ├─📂certs                 where to store generated public certificates generated for the private key.
+       │ └─📂private
+       │    └─🔐private_key.pem  the private key in PEM format
+       ├─📂rejected                  contains certificates that have been rejected.
+       └─📂trusted
+         ├─📂certs                 contains the X.509 v3 Certificates that are trusted.
+         └─📂crl                   contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
+```
+
+## create a Certificate signin Request (CSR)
+Options:
+| option | description | type | default |
+|--------|-------------|------|---------|
+| -a, --applicationUri |the application URI |[string] |[default: "urn:{hostname}:Node-OPCUA-Server"]|
+|-o, --output |        the name of the generated signing_request |          [string] |[default: "my_certificate_signing_request.csr"]|
+|--dns|            the list of valid domain name (comma separated) |                            [string]| [default: "{hostname}"]|
+|--ip |          the list of valid IPs (comma separated)     |                                         [string] [default: ""]
+      --subject         the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )
+                                                                                               [string] [default: "/CN=Certificate"]
+  -s, --silent          minimize output                                                                   [boolean] [default: false]
+  -r, --root            the location of the Certificate folder                              [string] [default: "{CWD}/certificates"]
+      --PKIFolder       the location of the Public Key Infrastructure                               [string] [default: "{root}/PKI"]
+  -p, --privateKey      the private key to use to generate certificate         [string] [default: "{PKIFolder}/own/private_key.pem"]
+      --help            Show help                                                                                          [boolean]
 
 ## Create a certificate authority
 
@@ -50,23 +100,25 @@ Options:
 | `--keySize`, `-k`, `--keyLength` | the private key size in bits (1024               | 2048 ,3072, 4096 ,2048                                                          |
 
 The result
-```
-    PKI\CA                   Certificate Authority
-
-    PKI\rejected             The Certificate store contains certificates that have been rejected.
-    PKI\rejected\certs       Contains the X.509 v3 Certificates which have been rejected.
-    PKI\trusted              The Certificate store contains trusted Certificates.
-    PKI\trusted\certs        Contains the X.509 v3 Certificates that are trusted.
-    PKI\trusted\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-    PKI\issuers              The Certificate store contains the CA Certificates needed for validation.
-    PKI\issuers\certs        Contains the X.509 v3 Certificates that are needed for validation.
-    PKI\issuers\crl          Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
 
 ```
+└─ 📂certificates
+    └─📂PKI
+       ├─📂CA           Certificate Authority
+       ├─📂rejected     The Certificate store contains certificates that have been rejected.
+       │ ├─📂certs      Contains the X.509 v3 Certificates which have been rejected.
+       ├─📂trusted      The Certificate store contains trusted Certificates.
+       │ ├─📂certs      Contains the X.509 v3 Certificates that are trusted.
+       │ └─📂crl        Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
+       ├─📂issuers      The Certificate store contains the CA Certificates needed for validation.
+       │ ├─📂certs      Contains the X.509 v3 Certificates that are needed for validation.
+       │ ├─📂crl        Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
+```
 
+### sign a signing request (requires a CA)
 ## demo command
 
-this command create a bunch of certificates with various characteristics for demo and testing purposes.
+this command creates a bunch of certificates with various characteristics for demo and testing purposes.
 
 ```
 crypto_create_CA  demo [--dev] [--silent] [--clean]
@@ -135,7 +187,6 @@ or alpine:
 ```
 apk add openssl
 ```
-
 
 #### support:
 
