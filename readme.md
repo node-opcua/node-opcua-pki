@@ -44,17 +44,17 @@ Options:
 ## create a PKI
 
 ```
-node-opcua-pki createPKI 
+node-opcua-pki createPKI
 ```
 
 ### Options:
 
-| option | description | type | default |
-|--------|-------------|------|---------|
-|-r, --root |the location of the Certificate folder                       | [string] |[default: "{CWD}/certificates"]|
-|--PKIFolder|the location of the Public Key Infrastructure                 |        [string]| [default: "{root}/PKI"]|
-|-k, --keySize, --keyLength|the private key size in bits (1024|2048|3072|4096)                         |   [number] |[default: 2048]|
-|-s, --silent   |             minimize output                                             |                [boolean]| [default: false]|
+| option                     | description                                   | type      | default                         |
+| -------------------------- | --------------------------------------------- | --------- | ------------------------------- | ----- | -------- | --------------- |
+| -r, --root                 | the location of the Certificate folder        | [string]  | [default: "{CWD}/certificates"] |
+| --PKIFolder                | the location of the Public Key Infrastructure | [string]  | [default: "{root}/PKI"]         |
+| -k, --keySize, --keyLength | the private key size in bits (1024            | 2048      | 3072                            | 4096) | [number] | [default: 2048] |
+| -s, --silent               | minimize output                               | [boolean] | [default: false]                |
 
 The result
 
@@ -74,21 +74,18 @@ The result
          └─📂crl                   contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
 ```
 
-## create a Certificate signin Request (CSR)
+## create a Certificate Signing Request (CSR)
+
 Options:
-| option | description | type | default |
-|--------|-------------|------|---------|
-| -a, --applicationUri |the application URI |[string] |[default: "urn:{hostname}:Node-OPCUA-Server"]|
-|-o, --output |        the name of the generated signing_request |          [string] |[default: "my_certificate_signing_request.csr"]|
-|--dns|            the list of valid domain name (comma separated) |                            [string]| [default: "{hostname}"]|
-|--ip |          the list of valid IPs (comma separated)     |                                         [string] [default: ""]
-      --subject         the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )
-                                                                                               [string] [default: "/CN=Certificate"]
-  -s, --silent          minimize output                                                                   [boolean] [default: false]
-  -r, --root            the location of the Certificate folder                              [string] [default: "{CWD}/certificates"]
-      --PKIFolder       the location of the Public Key Infrastructure                               [string] [default: "{root}/PKI"]
-  -p, --privateKey      the private key to use to generate certificate         [string] [default: "{PKIFolder}/own/private_key.pem"]
-      --help            Show help                                                                                          [boolean]
+| option              | description                                     | type   | default                                       |
+|---------------------|-------------------------------------------------|--------|----------------------------------- -----------|
+|-a, --applicationUri |the application URI                              |[string]|[default: "urn:{hostname}:Node-OPCUA-Server"]  |
+|-o, --output         | the name of the generated signing_request       |[string]|[default: "my_certificate_signing_request.csr"]|
+|--dns                | the list of valid domain name (comma separated) |[string]|[default: "{hostname}"]                        |
+|--ip                 | the list of valid IPs (comma separated)         |[string]|[default: ""]                                  |
+|--subject            | the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )|[string]| [default: "/CN=Certificate"]|
+|-r, --root           | the location of the Certificate folder          |[string]|[default: "{CWD}/certificates"]                |
+|--PKIFolder          | the location of the Public Key Infrastructure   |[string]|[default: "{root}/PKI"]                        |
 
 ## Create a certificate authority
 
@@ -115,7 +112,16 @@ The result
        │ ├─📂crl        Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
 ```
 
-### sign a signing request (requires a CA)
+## sign a signing request (requires a CA)
+
+| option         | description                                      | type                | default                                         |
+| -------------- | ------------------------------------------------ | ------------------- | ----------------------------------------------- |
+| -i, --csr      | the csr                                          | [string] [required] | [default: "my_certificate_signing_request.csr"] |
+| -o, --output   | the name of the generated certificate            | [string] [required] | [default: "my_certificate.pem"]                 |
+| -v, --validity | the certificate validity in days                 | [number]            | [default: 365]                                  |
+| -r, --root     | the location of the Certificate folder           | [string]            | [default: "{CWD}/certificates"]                 |
+| -c, --CAFolder | the location of the Certificate Authority folder | [string]            | [default: "{root}/CA"]                          |
+
 ## demo command
 
 this command creates a bunch of certificates with various characteristics for demo and testing purposes.
@@ -170,9 +176,9 @@ Options:
 
 #### prerequisite:
 
-This modules requires OpenSSL or LibreSSL to be installed.
+This module requires OpenSSL or LibreSSL to be installed.
 
-On Windows, a version of OpenSSL is automatically downloaded and installed at run time, if not present. You will need a internet connection open.
+On Windows, a version of OpenSSL is automatically downloaded and installed at run time, if not present. You will need an internet connection open.
 
 You need to install it on Linux, (or in your docker image), or on MacOS
 

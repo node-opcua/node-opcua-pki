@@ -800,6 +800,8 @@ argv
             add_standard_option(options, "PKIFolder");
             add_standard_option(options, "privateKey");
 
+            return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
+
         },
         (local_argv: IReadConfigurationOpts4) => {
             async function command_certificate(local_argv: IReadConfigurationOpts4) {
