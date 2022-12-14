@@ -1,63 +1,63 @@
 name: CI
 
 env:
-  COVERALLS_REPO_TOKEN: "${{ secrets.COVERALLS_REPO_TOKEN }}"
-  CODECLIMATE_REPO_TOKEN: ${{ secrets.CODECLIMATE_REPO_TOKEN }}"
+    COVERALLS_REPO_TOKEN: "${{ secrets.COVERALLS_REPO_TOKEN }}"
+    CODECLIMATE_REPO_TOKEN: ${{ secrets.CODECLIMATE_REPO_TOKEN }}"
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
+    push:
+        branches:
+            - master
+    pull_request:
 
 jobs:
-  test:
-    strategy:
-      fail-fast: false # prevent test to stop if one fails
-      matrix:
-        node-version: [ 16.x]
-        os: [ubuntu-latest,  macos-latest, windows-latest]
+    test:
+        strategy:
+            fail-fast: false # prevent test to stop if one fails
+            matrix:
+                node-version: [16.x, 18.x, 19.x]
+                os: [ubuntu-latest, macos-latest, windows-latest]
 
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+        runs-on: ${{ matrix.os }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v3
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2.1.5
-        with:
-          node-version: ${{ matrix.node-version }}
-      - uses: actions/cache@v2
-        with:
-          path: ~/.pkg-cache/
-          key: ${{  matrix.os }}-${{ matrix.node-version }}
-     
-      - name: Install new version npm
-        run: npm install -g npm 
-  
-      - name: Install deps
-        run: npm install
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+            - uses: actions/cache@v3
+              with:
+                  path: ~/.pkg-cache/
+                  key: ${{  matrix.os }}-${{ matrix.node-version }}
 
-      - name: Build
-        run: npm run build
+            - name: Install new version npm
+              run: npm install -g npm
 
-      - name: Test
-        run: npm run test
+            - name: Install deps
+              run: npm install
 
-  coverage:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [ 16.x]
-    steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm install -g npm 
-      - run: npm install -g nyc coveralls mocha typescript codeclimate
-      - run: tsc --version
-      - run: npm install
-      - run: npm run build 
-      - run: make test-cov     
+            - name: Build
+              run: npm run build
+
+            - name: Test
+              run: npm run test
+
+    coverage:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node-version: [16.x]
+        steps:
+            - uses: actions/checkout@v3
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+            - run: npm install -g npm
+            - run: npm install -g nyc coveralls mocha typescript codeclimate
+            - run: tsc --version
+            - run: npm install
+            - run: npm run build
+            - run: make test-cov
