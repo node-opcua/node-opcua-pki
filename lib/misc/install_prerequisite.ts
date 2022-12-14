@@ -122,7 +122,7 @@ function quote(str: string): string {
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
-    return !!strVersion.match(/OpenSSL 1.(0|1)./);
+    return !!strVersion.match(/OpenSSL 1|3/);
 }
 
 export function check_system_openssl_version(callback: (err: Error | null, output?: string) => void) {

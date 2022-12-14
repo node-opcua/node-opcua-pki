@@ -3,16 +3,19 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { 
-    readCertificate, 
-    split_der, 
-    readCertificateRevocationList, 
-    exploreCertificate,
-    exploreCertificateSigningRequest
-} from "node-opcua-crypto";
-import {  } from "node-opcua-crypto";
+import "should";
 
-import should = require("should");
+import {
+    readCertificate,
+    split_der,
+    readCertificateRevocationList,
+    exploreCertificate,
+    exploreCertificateSigningRequest,
+    certificateMatchesPrivateKey,
+    readPrivateKey,
+    Certificate,
+    rsaLengthPrivateKey
+} from "node-opcua-crypto";
 
 import {
     ErrorCallback,
@@ -54,31 +57,30 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
 
     it("should create a CertificateAuthority", async () => {
         const ca = new CertificateAuthority(options);
-        await ca.initialize();        
+        await ca.initialize();
     });
 });
 
 describe("Signing Certificate with Certificate Authority", function (this: Mocha.Suite) {
     const testData = beforeTest(this);
 
-    let ca: CertificateAuthority;
-    let cm: CertificateManager;
+    let theCertificateAuthority: CertificateAuthority;
+    let someCertificateManager: CertificateManager;
 
     before(async () => {
-        ca = new CertificateAuthority({
+        theCertificateAuthority = new CertificateAuthority({
             keySize: 2048,
             location: path.join(testData.tmpFolder, "CA"),
         });
 
-        cm = new CertificateManager({
+        someCertificateManager = new CertificateManager({
             location: path.join(testData.tmpFolder, "PI"),
         });
 
-        await cm.initialize();
-        await ca.initialize();
+        await someCertificateManager.initialize();
+        await theCertificateAuthority.initialize();
 
-        await cm.dispose();
-
+        await someCertificateManager.dispose();
     });
 
     async function createCertificateRequest(): Promise<string> {
@@ -91,21 +93,30 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
             // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
             validity: 365 * 7,
         };
-        const certificateSigningRequestFilename = await cm.createCertificateRequest(params);
+        const certificateSigningRequestFilename = await someCertificateManager.createCertificateRequest(params);
         return certificateSigningRequestFilename;
+    }
+    async function verifyCertificateAgainstPrivateKey(certificate: Certificate) {
+
+        console.log("someCertificateManager.privateKey=", someCertificateManager.privateKey);
+        const privateKey = readPrivateKey(someCertificateManager.privateKey);
+        const rsaLength = rsaLengthPrivateKey(privateKey);
+
+        if (!certificateMatchesPrivateKey(certificate, privateKey)) {
+            throw new Error("Certificate and private key do not match !!!");
+        }
     }
 
     it("T0 - should have a CA Certificate", async () => {
-        fs.existsSync(ca.caCertificate).should.eql(true);
+        fs.existsSync(theCertificateAuthority.caCertificate).should.eql(true);
     });
 
     it("T1 - should have a CA Certificate with a CRL", async () => {
-        await ca.constructCACertificateWithCRL();
-        fs.existsSync(ca.caCertificateWithCrl).should.eql(true);
+        await theCertificateAuthority.constructCACertificateWithCRL();
+        fs.existsSync(theCertificateAuthority.caCertificateWithCrl).should.eql(true);
     });
 
     it("T2 - should sign a Certificate Request", async () => {
-
         const self = {
             certificateRequest: "",
         };
@@ -123,7 +134,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
             validity: 10 * 365,
         };
 
-        await ca.signCertificateRequest(certificateFilename, self.certificateRequest, params);
+        await theCertificateAuthority.signCertificateRequest(certificateFilename, self.certificateRequest, params);
 
         fs.existsSync(certificateFilename!).should.eql(true, "certificate file " + certificateFilename + " must exist");
 
@@ -135,25 +146,27 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         // should have 2 x -----BEGIN CERTIFICATE----- in the chain
 
         // should verify that certificate is valid
-        // verify the subject Alternatibve Name 
-        const csr = readCertificate( self.certificateRequest);
+        // verify the subject Alternatibve Name
+        const csr = readCertificate(self.certificateRequest);
         const infoCSR = exploreCertificateSigningRequest(csr);
-        
+
         const info = exploreCertificate(certificateChain);
 
         if (doDebug) {
             console.log(infoCSR.extensionRequest.basicConstraints);
-            console.log(info.tbsCertificate.extensions.basicConstraints);
-    
+            console.log(info.tbsCertificate.extensions!.basicConstraints);
+
             console.log(infoCSR.extensionRequest.keyUsage);
-            console.log(info.tbsCertificate.extensions.keyUsage);
-    
+            console.log(info.tbsCertificate.extensions!.keyUsage);
+
             console.log(infoCSR.extensionRequest.subjectAltName);
-            console.log(info.tbsCertificate.extensions.subjectAltName);    
+            console.log(info.tbsCertificate.extensions!.subjectAltName);
         }
-        infoCSR.extensionRequest.subjectAltName.should.eql(info.tbsCertificate.extensions.subjectAltName);
+        infoCSR.extensionRequest.subjectAltName.should.eql(info.tbsCertificate.extensions!.subjectAltName);
 
         // todo
+
+        await verifyCertificateAgainstPrivateKey(elements[0]);
     });
 
     async function sign(certificateRequest: Filename, startDate: Date, validity: number): Promise<string> {
@@ -171,7 +184,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         if (fs.existsSync(certificateFilename!)) {
             fs.unlinkSync(certificateFilename!);
         }
-        const certificate = await ca.signCertificateRequest(certificateFilename, certificateRequest, params);
+        const certificate = await theCertificateAuthority.signCertificateRequest(certificateFilename, certificateRequest, params);
 
         fs.existsSync(certificate!).should.eql(true, "certificate: " + certificateFilename + " should exists");
         // Serial Number: 4096 (0x1000)
@@ -200,16 +213,18 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         //    - startDate can be easily specified in the past or the future
         //    - certificate can be revoked ??? to be checked.
 
-        const privateKey = cm.privateKey;
+        const privateKey = someCertificateManager.privateKey;
         const certificate = path.join(testData.tmpFolder, "sample_self_signed_certificate.pem");
 
         fs.existsSync(certificate).should.eql(false, certificate + " must not exist");
 
-        await ca.createSelfSignedCertificate(certificate, privateKey, {
+        await theCertificateAuthority.createSelfSignedCertificate(certificate, privateKey, {
             applicationUri: "SomeUri",
         });
 
         fs.existsSync(certificate).should.eql(true);
+
+        await verifyCertificateAgainstPrivateKey(readCertificate(certificate));
     });
 
     /**
@@ -226,20 +241,20 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
             startDate,
             validity,
         };
-        await ca.createSelfSignedCertificate(certificate, privateKey, params);
+        await theCertificateAuthority.createSelfSignedCertificate(certificate, privateKey, params);
 
         // console.log("signed_certificate = signed_certificate", certificate);
         return certificate;
     }
 
     it("T5 - should revoke a self-signed certificate", async () => {
-        const privateKey = cm.privateKey;
+        const privateKey = someCertificateManager.privateKey;
         const certificate = path.join(testData.tmpFolder, "certificate_to_be_revoked1.pem");
 
         await createSelfSignedCertificate(certificate, privateKey);
         fs.existsSync(certificate).should.eql(true);
 
-        await ca.revokeCertificate(certificate, {});
+        await theCertificateAuthority.revokeCertificate(certificate, {});
     });
 
     async function createCertificateFromCA(): Promise<string> {
@@ -253,8 +268,8 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
     it("T6 - should revoke a certificate emitted by the CA", async () => {
         // g_config.silent = false;
 
-        const caCertificateFilename = ca.caCertificate;
-        const caCRLFilename = ca.revocationList;
+        const caCertificateFilename = theCertificateAuthority.caCertificate;
+        const caCRLFilename = theCertificateAuthority.revocationList;
         const caCertificate = await readCertificate(caCertificateFilename);
         const caCRLBefore = await readCertificateRevocationList(caCRLFilename);
 
@@ -279,7 +294,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         validate1.should.eql(VerificationStatus.Good);
 
         // now revoke certificate
-        await ca.revokeCertificate(certificateFilename, {});
+        await theCertificateAuthority.revokeCertificate(certificateFilename, {});
 
         const caCRLAfter = await readCertificateRevocationList(caCRLFilename);
 
@@ -290,12 +305,11 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         validate2.should.eql(VerificationStatus.BadCertificateRevoked);
 
         await cm.dispose();
-
     });
 
     it("T7 - it should automatically accept Certificate issued by a trusted issuer that is not in the CRL", async () => {
-        const caCertificateFilename = ca.caCertificate;
-        const caCRLFilename = ca.revocationList;
+        const caCertificateFilename = theCertificateAuthority.caCertificate;
+        const caCRLFilename = theCertificateAuthority.revocationList;
         const caCertificate = await readCertificate(caCertificateFilename);
         const caCRLBefore = await readCertificateRevocationList(caCRLFilename);
 
@@ -320,6 +334,5 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         validate1.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         await cm.dispose();
-
     });
 });

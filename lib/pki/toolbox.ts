@@ -418,6 +418,22 @@ export function createPrivateKey(privateKeyFilename: string, keyLength: KeyLengt
     const tasks = [
         (callback: ErrorCallback) => createRandomFileIfNotExist(randomFile, {}, callback),
 
+        // Note   OpenSSL1 generates a -----BEGIN RSA PRIVATE KEY---- whereas
+        //        OpenSSL3 generates a -----BEGIN PRIVATE KEY----- unless the new -traditional option is used
+        //    
+        // a BEGIN PRIVATE KEY structure is 
+        // 
+        // SEQUENCE (3 elem)
+        //   INTEGER 0
+        //   SEQUENCE (2 elem)
+        //     OBJECT IDENTIFIER 1.2.840.113549.1.1.1 rsaEncryption (PKCS #1)
+        //     NULL
+        //   OCTET STRING (609 byte) 3082025D02010002818100C5B53231183906122A5E3778736B05C095C75F1BB80D48B
+        //      SEQUENCE (9 elem)
+        //
+        // a BEGIN RSA PRIVATE KEY structure is just
+        //   SEQUENCE (9 elem)
+        //
         (callback: ErrorCallback) => {
             execute_openssl(
                 "genrsa " +

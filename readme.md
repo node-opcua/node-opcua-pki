@@ -181,9 +181,9 @@ This module requires OpenSSL or LibreSSL to be installed.
 
 On Windows, a version of OpenSSL is automatically downloaded and installed at run time, if not present. You will need an internet connection open.
 
-You need to install it on Linux, (or in your docker image), or on MacOS
+You need to install it on Linux, (or in your docker image), or on macOS
 
--   on ubuntu/debian:
+-   on ubuntu/Debian:
 
 ```
 apt install openssl
