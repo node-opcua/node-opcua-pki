@@ -10,7 +10,7 @@
   "scripts": {
     "build": "npx tsc -b -f",
     "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
-    "test": "npx mocha -t 700000 test/**/*.ts",
+    "test": "mocha -r ./node_modules/source-map-support/register -t 700000 test/**/*.ts",
     "cover": "npx nyc -x  bin -x tmp -x lib/misc/install* mocha",
     "cost-of-modules": "npx cost-of-modules --no-install",
     "release-it": "npx release-it",
@@ -49,7 +49,7 @@
     "chokidar": "^3.5.3",
     "cli-table": "^0.3.11",
     "minimist": "^1.2.7",
-    "node-opcua-crypto": "^2.0.1",
+    "node-opcua-crypto": "^2.1.0",
     "progress": "^2.0.3",
     "rimraf": "^3.0.2",
     "thenify": "^3.3.1",
