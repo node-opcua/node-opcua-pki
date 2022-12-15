@@ -121,25 +121,6 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             otherCertificateAuthority
         );
 
-        /*
-    (callback: ErrorCallback) => {
-        certificate_valid_revoked = path.join(test.tmpFolder, "certificate_valid_revoked.pem");
-        createCertificate(certificate_valid_revoked,
-             {applicationUri: "SomeURI", startDate: yesterday, validity: 10 },callback)
-    },
-    (callback: ErrorCallback) => {
-        certificateAuthority.revokeCertificate(certificate_valid_revoked,{reason: "keyCompromise"},callback);
-    },
-    (callback: ErrorCallback) => {
-        const ca_with_crl_filename = certificateAuthority.caCertificateWithCrl;
-        fs.existsSync(ca_with_crl).should.eql(true);
-        const ca_with_crl = crypto_utils.readKeyPem(ca_with_crl_filename);
-        certificateManager.setCACertificate(ca_with_crl);
-        // simulate certificateManager receiving Certificate Revocation list
-        callback();
-    }
-    */
-
         await certificateManager.dispose();
     });
 
