@@ -32,6 +32,12 @@ jobs:
                   path: ~/.pkg-cache/
                   key: ${{  matrix.os }}-${{ matrix.node-version }}
 
+            - name: openssl
+              run: openssl version
+
+            - name: nodejs
+              run: node --version
+
             - name: Install new version npm
               run: npm install -g npm
 
@@ -61,3 +67,34 @@ jobs:
             - run: npm install
             - run: npm run build
             - run: make test-cov
+
+    build-legacy:
+        # The type of runner that the job will run on
+        strategy:
+            matrix:
+                node-version: [12.x, 14.x]
+                os: [ubuntu-18.04, ubuntu-20.04, ubuntu-latest, macos-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
+        # Steps represent a sequence of tasks that will be executed as part of the job
+        steps:
+            # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+            - name: checkout
+              uses: actions/checkout@v3
+
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+
+            - name: openssl
+              run: openssl version
+            - name: nodejs
+              run: node --version
+
+            # Runs a set of commands using the runners shell
+            - name: build
+              run: |
+                  npm install typescript mocha ts-node @types/node@${{ matrix.node-version }} npm@8 -g
+                  npm install 
+                  npm run build
+                  npm run test
