@@ -293,6 +293,9 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         const download = wget.download(url, outputFilename, options);
         download.on("error", (err: Error) => {
             console.log(err);
+            setImmediate(() => {
+                callback(err);
+            });
         });
         download.on("end", (output: string) => {
             // istanbul ignore next
