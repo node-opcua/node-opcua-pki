@@ -283,7 +283,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             }
         }
         if (flags.ca2 && flags.ca2.trusted === false) {
-            status.should.eql("BadSecurityChecksFailed"); // Issuer not known
+            status.should.eql("BadCertificateChainIncomplete"); // Issuer not known
         }
         if (!flags.certFlags.trusted && flags.certFlags.validity === TimeValidity.ok && !flags.ca1 && !flags.ca2) {
             status.should.eql("BadCertificateUntrusted");

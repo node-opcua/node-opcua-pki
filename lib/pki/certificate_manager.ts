@@ -397,7 +397,7 @@ export class CertificateManager {
                 if (!issuerCertificate) {
                     // if the certificate is not self-signed we ust have a issuer.
                     // but no Issuer is not found
-                    return VerificationStatus.BadSecurityChecksFailed;
+                    return VerificationStatus.BadCertificateChainIncomplete;
                 }
                 const issuerStatus = await this._innerVerifyCertificateAsync(issuerCertificate, true, level + 1);
                 if (issuerStatus === VerificationStatus.BadCertificateRevocationUnknown) {

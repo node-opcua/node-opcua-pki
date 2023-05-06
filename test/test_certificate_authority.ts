@@ -325,7 +325,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         await cm.initialize();
 
         const validate0 = await cm.verifyCertificate(certificate);
-        validate0.should.eql(VerificationStatus.BadSecurityChecksFailed);
+        validate0.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
         const status1 = await cm.addIssuer(caCertificate);
         const status2 = await cm.addRevocationList(caCRLBefore);
