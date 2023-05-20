@@ -3,7 +3,7 @@
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
-// Copyright (c) 2022 - Sterfive.com
+// Copyright (c) 2022-2023 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -33,42 +33,45 @@ import * as rimraf from "rimraf";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-
 import { callbackify, promisify } from "util";
+import { CertificatePurpose, Subject, SubjectOptions } from "node-opcua-crypto";
+// see https://github.com/yargs/yargs/issues/781
+import * as commands from "yargs";
 
-import { makeApplicationUrn } from "./misc/applicationurn";
-import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "./misc/hostname";
-import { Subject, SubjectOptions } from "./misc/subject";
-import { CertificateAuthority, defaultSubject } from "./pki/certificate_authority";
-import { CertificateManager, CreateSelfSignCertificateParam1 } from "./pki/certificate_manager";
-import { ErrorCallback, Filename, KeySize } from "./pki/common";
+import { makeApplicationUrn } from "../misc/applicationurn";
+import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "../misc/hostname";
+import { CertificateAuthority, defaultSubject } from "./certificate_authority";
+import { CertificateManager, CreateSelfSignCertificateParam1 } from "../pki/certificate_manager";
 import {
-    createCertificateSigningRequest,
+    ErrorCallback,
+    Filename,
+    KeySize,
     CreateCertificateSigningRequestWithConfigOptions,
-    createPrivateKey,
     displayChapter,
     displaySubtitle,
     displayTitle,
+    g_config,
+    make_path,
+    mkdir,
+    debugLog,
+} from "../toolbox";
+import {
+    getPublicKeyFromPrivateKey,
+    setEnv,
+    toDer,
     dumpCertificate,
     ensure_openssl_installed,
     fingerprint,
-    g_config,
-    getPublicKeyFromPrivateKey,
-    make_path,
-    mkdir,
-    setEnv,
-    toDer,
-    debugLog,
-} from "./pki/toolbox";
+} from "../toolbox/with_openssl";
+import { createPrivateKey } from "../toolbox/without_openssl";
+import { createCertificateSigningRequestAsync } from "../toolbox/with_openssl";
 
-// see https://github.com/yargs/yargs/issues/781
-import * as commands from "yargs";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { hideBin } = require("yargs/helpers");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const argv = require("yargs/yargs")(hideBin(process.argv));
 
-const epilog = "Copyright (c) sterfive - node-opcua - 2017-2022";
+const epilog = "Copyright (c) sterfive - node-opcua - 2017-2023";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nbDays: number): Date {
@@ -505,10 +508,11 @@ async function createDefaultCertificate(
             configFile,
             dns,
             ip,
+            purpose: CertificatePurpose.ForApplication
         };
 
         // create CSR
-        await promisify(createCertificateSigningRequest)(certificateSigningRequestFile, params);
+        await createCertificateSigningRequestAsync(certificateSigningRequestFile, params);
 
         return await g_certificateAuthority.signCertificateRequest(certificate, certificateSigningRequestFile, {
             applicationUri,
@@ -601,7 +605,6 @@ async function wrap(func: () => Promise<void>) {
 }
 
 async function create_default_certificates(dev: boolean) {
-
     assert(gLocalConfig);
     const base_name = gLocalConfig.certificateDir || "";
     assert(fs.existsSync(base_name));
@@ -700,7 +703,7 @@ argv
     .command(
         "createCA",
         "create a Certificate Authority",
-        /* builder*/(yargs: commands.Argv) => {
+        /* builder*/ (yargs: commands.Argv) => {
             const options: OptionMap = {
                 subject: {
                     default: defaultSubject,
@@ -717,7 +720,7 @@ argv
             const local_argv = yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
             return local_argv;
         },
-        /*handler*/(local_argv: IReadConfigurationOpts3) => {
+        /*handler*/ (local_argv: IReadConfigurationOpts3) => {
             wrap(async () => {
                 await promisify(ensure_openssl_installed)();
                 await readConfiguration(local_argv);
@@ -801,7 +804,6 @@ argv
             add_standard_option(options, "privateKey");
 
             return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-
         },
         (local_argv: IReadConfigurationOpts4) => {
             async function command_certificate(local_argv: IReadConfigurationOpts4) {
@@ -992,8 +994,6 @@ argv
                 console.log("ip             = ", gLocalConfig.ip);
 
                 console.log("CSR file = ", gLocalConfig.outputFile);
-
-
             });
         }
     )
@@ -1007,7 +1007,7 @@ argv
                     default: "my_certificate_signing_request.csr",
                     type: "string",
                     demandOption: true,
-                    description: "the csr"
+                    description: "the csr",
                 },
                 output: {
                     default: "my_certificate.pem",
@@ -1027,8 +1027,8 @@ argv
             add_standard_option(options, "root");
             add_standard_option(options, "CAFolder");
             return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-
-        }, (local_argv: IReadConfigurationOpts) => {
+        },
+        (local_argv: IReadConfigurationOpts) => {
             wrap(async () => {
                 /** */
                 await readConfiguration(local_argv);
@@ -1055,7 +1055,8 @@ argv
                 assert(typeof gLocalConfig.outputFile === "string");
                 fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
             });
-        })
+        }
+    )
     .command(
         "dump <certificateFile>",
         "display a certificate",

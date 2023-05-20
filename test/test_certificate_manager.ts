@@ -2,31 +2,17 @@ Error.stackTraceLimit = Infinity;
 // tslint:disable: no-console
 // tslint:disable:variable-name
 // tslint:disable:no-shadowed-variable
-import * as async from "async";
 import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
+import "should";
+import { readCertificate } from "node-opcua-crypto";
 
 import { beforeTest, grep } from "./helpers";
 
-import should = require("should");
-import {
-    CertificateStatus,
-    dumpCertificate,
-    ErrorCallback,
-    execute_openssl,
-    Filename,
-    g_config,
-    generateStaticConfig,
-    make_path,
-    processAltNames,
-    quote,
-    executeOpensslAsync,
-    CertificateManager,
-} from "..";
-import { readCertificate, readCertificatePEM } from "node-opcua-crypto";
+import { CertificateStatus, Filename, g_config, make_path, quote, CertificateManager } from "../lib";
 
-const _should = should;
+import { dumpCertificate, generateStaticConfig, processAltNames, executeOpensslAsync } from "../lib/toolbox/with_openssl";
 
 const q = quote;
 const n = make_path;
@@ -87,7 +73,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
 
             dns: ["some.other.domain.com", "my.domain.com"],
             ip: ["192.123.145.121"],
-            subject: "/CN=MyCommonName",
+            subject: "CN=MyCommonName",
             // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
             validity: duration,
 
@@ -97,11 +83,11 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         await cm.createSelfSignedCertificate(params);
 
         const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
-        fs.existsSync(expectedCertificate).should.eql(true);
+        fs.existsSync(expectedCertificate).should.eql(true, "self-signed certificate must exist");
 
         const data = (await promisify(dumpCertificate)(expectedCertificate))!;
 
-        fs.writeFileSync(path.join(testData.tmpFolder, "dump_cert1.txt"), data!);
+        await fs.promises.writeFile(path.join(testData.tmpFolder, "dump_cert1.txt"), data!);
 
         grep(data, /URI/).should.match(/URI:MY:APPLICATION:URI/);
         grep(data, /DNS/).should.match(/DNS:some.other.domain.com/);
@@ -119,7 +105,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         grep(data, /Key Encipherment/).should.match(/Key Encipherment/);
         grep(data, /Data Encipherment/).should.match(/Data Encipherment/);
 
-        // the self-signed certificate should not contain CRL Sing
+        // the self-signed certificate should not contain CRL Sign
         grep(data, /CRL Sign/).should.eql("");
 
         const y = new Date().getFullYear();
@@ -279,38 +265,35 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         console.log("status ", verificationStatus.toString());
     });
 
-    it("Q8A - Disposing while initializing ", async()=>{
-
+    it("Q8A - Disposing while initializing ", async () => {
         const options = {
             location: path.join(testData.tmpFolder, "PKI_aa"),
         };
         const cm = new CertificateManager(options);
 
-        await new Promise<void>((resolve)=>{
-            cm.initialize((err)=>{
+        await new Promise<void>((resolve) => {
+            cm.initialize((err) => {
                 console.log("initialized done", err);
                 resolve();
             });
             cm.dispose();
         });
-
     });
-    it("Q8B - Disposing while initializing ", async()=>{
-
+    it("Q8B - Disposing while initializing ", async () => {
         const options = {
             location: path.join(testData.tmpFolder, "PKI_aa"),
         };
         const cm = new CertificateManager(options);
 
-        await new Promise<void>((resolve)=>{
-            cm.initialize((err)=>{
+        await new Promise<void>((resolve) => {
+            cm.initialize((err) => {
                 console.log("initialized done", err);
                 resolve();
             });
-            setImmediate(()=> {
+            setImmediate(() => {
                 cm.dispose();
-                console.log("disposed");    
+                console.log("disposed");
             });
         });
-    })
+    });
 });

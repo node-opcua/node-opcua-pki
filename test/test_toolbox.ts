@@ -1,38 +1,27 @@
 import * as fs from "fs";
 import * as path from "path";
 import "should";
-import {
-    createPrivateKey,
-    ensure_openssl_installed,
-    ErrorCallback,
-    getPublicKeyFromCertificate,
-    getPublicKeyFromPrivateKey,
-    mkdir
-} from "..";
 
+import { ErrorCallback, createPrivateKey, mkdir } from "../lib";
+import { getPublicKeyFromCertificate, getPublicKeyFromPrivateKey } from "../lib/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
 
 describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
-
     this.timeout(400000);
 
     const testData = beforeTest(this);
 
     let privateKey: string;
     before((done: ErrorCallback) => {
-
         privateKey = path.join(testData.tmpFolder, "some_private_key");
         mkdir(testData.tmpFolder);
-        ensure_openssl_installed(() => {
-            createPrivateKey(privateKey, 2048, () => {
-                fs.existsSync(privateKey).should.eql(true);
-                done();
-            });
+        createPrivateKey(privateKey, 2048, () => {
+            fs.existsSync(privateKey).should.eql(true);
+            done();
         });
     });
 
     it("should getPublicKeyFromPrivateKey", (done: ErrorCallback) => {
-
         const publicKey = path.join(testData.tmpFolder, "some_public_key");
         getPublicKeyFromPrivateKey(privateKey, publicKey, (err: Error | null) => {
             fs.existsSync(publicKey).should.eql(true);
@@ -44,11 +33,9 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
 
             done(err!);
         });
-
     });
 
     it("should getPublicKeyFromCertificate", (done: ErrorCallback) => {
-
         const sampleCertificate = path.join(__dirname, "fixtures/sample_self_signed_certificate.pem");
         const publicKey = path.join(testData.tmpFolder, "some_public_key2");
 
@@ -64,6 +51,5 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
 
             done(err!);
         });
-
     });
 });
