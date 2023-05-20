@@ -1,15 +1,14 @@
 import * as path from "path";
 import * as fs from "fs";
-import { promisify, isRegExp } from "util";
+import { promisify } from "util";
 import * as sinon from "sinon";
 import * as dir from "node-dir";
 import * as chalk from "chalk";
-import * as should from "should";
+import "should";
 
-import { readCertificate, Certificate, split_der, makeSHA1Thumbprint } from "node-opcua-crypto";
+import { readCertificate, split_der, makeSHA1Thumbprint } from "node-opcua-crypto";
 import { beforeTest } from "./helpers";
-import { CertificateManager, CertificateManagerOptions, VerificationStatus } from "..";
-import { iteratee } from "underscore";
+import { CertificateManager, VerificationStatus } from "../lib";
 
 async function copyFiles(sourceFolder: string, destinationFolder: string) {
     const files: string[] = await (promisify(dir.files)(sourceFolder) as Promise<string[]>);

@@ -3,7 +3,8 @@ import * as child_process from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import "should";
-import { dumpCertificate, ErrorCallback, Filename, make_path } from "..";
+import { ErrorCallback, Filename, make_path } from "../lib";
+import { dumpCertificate} from "../lib/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 
 const n = make_path;
@@ -284,7 +285,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                         grep(
                             data!,
                             /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
-                        ).should.match(/SomeOrganization/);
+                        ).should.match(/SomeOrganization/, "should have SomeOrganization " + data);
                         done();
                     });
                 }

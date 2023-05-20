@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------------------------------------------------
-// node-opcua-pki
+// node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // Copyright (c) 2022-2023 - Sterfive.com
@@ -20,11 +20,41 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-export * from "./toolbox/index";
-export * from "./toolbox/without_openssl/create_private_key";
-export * from "./pki/certificate_manager";
-export * from "./misc/subject";
+import * as path from "path";
+import * as fs from "fs";
+import { ErrorCallback } from "async";
+import { g_config } from "../config";
+import { ExecuteOptions, execute_openssl } from "./execute_openssl";
+import { quote } from "../common";
 
-// export * from "./ca/certificate_authority";
-// export * from "./misc/install_prerequisite";
-// export * from "./toolbox/with_openssl/toolbox";
+const q = quote;
+
+export function createRandomFile(randomFile: string, options: ExecuteOptions, callback: (err?: Error) => void) {
+    // istanbul ignore next
+    if (!useRandFile()) {
+        return callback();
+    }
+    execute_openssl("rand " + " -out " + q(randomFile) + " -hex 256", options, (err: Error | null) => {
+        callback(err ? err : undefined);
+    });
+}
+
+export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback): void {
+    const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
+    if (fs.existsSync(randomFilePath)) {
+        // if (doDebug) {
+        //     console.log(chalk.yellow("         randomFile"), chalk.cyan(randomFile), chalk.yellow(" already exists => skipping"));
+        // }
+        return callback();
+    } else {
+        createRandomFile(randomFile, options, callback);
+    }
+}
+
+export function useRandFile() {
+    // istanbul ignore next
+    if (g_config.opensslVersion && g_config.opensslVersion.toLowerCase().indexOf("libressl") > -1) {
+        return false;
+    }
+    return true;
+}

@@ -1,27 +1,24 @@
-import { CertificateAuthority, CertificateAuthorityOptions, CertificateManager, Filename, KeySize, Params, Subject } from "..";
-import should = require("should");
-import { beforeTest, grep } from "./helpers";
 import * as path from "path";
+import "should";
+import { CertificateManager } from "../lib";
+import { beforeTest } from "./helpers";
 
 describe("Concurrency", function (this: Mocha.Suite) {
-
     const testData = beforeTest(this);
 
-    it("should not crash if multiple CertificateManager instances share the same folder",  async ()=>{
+    it("should not crash if multiple CertificateManager instances share the same folder", async () => {
+        const location = path.join(testData.tmpFolder, "concurrency");
 
-
-        const location = path.join(testData.tmpFolder, "concurrency")
-       
-        const workWithCertificateManager = async (n: number)=>{
-            const cm1 =new CertificateManager({ 
-                location
+        const workWithCertificateManager = async (n: number) => {
+            const cm1 = new CertificateManager({
+                location,
             });
             console.log("starting ", n);
             await cm1.initialize();
             const now = new Date();
             const endDate = new Date(now.getFullYear() + 7, 10, 10);
             const duration = 10000;
-    
+
             const params = {
                 applicationUri: "MY:APPLICATION:URI",
                 dns: ["some.other.domain.com", "my.domain.com"],
@@ -33,11 +30,9 @@ describe("Concurrency", function (this: Mocha.Suite) {
             };
             await cm1.createSelfSignedCertificate(params);
 
+            console.log("ah!", n);
+        };
 
-            console.log("ah!", n)
-        }; 
-
-        
         const promises = [
             workWithCertificateManager(1),
             workWithCertificateManager(2),
@@ -45,7 +40,5 @@ describe("Concurrency", function (this: Mocha.Suite) {
             workWithCertificateManager(4),
         ];
         await Promise.all(promises);
-
-
-    })
-})
+    });
+});

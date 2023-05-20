@@ -2,7 +2,7 @@
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
-// Copyright (c) 2022 - Sterfive.com
+// Copyright (c) 2022-2023 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -36,13 +36,11 @@ import {
     CertificateInternals,
     CertificateRevocationList,
     CertificateRevocationListInfo,
-    convertPEMtoDER,
     DER,
     exploreCertificate,
     exploreCertificateInfo,
     exploreCertificateRevocationList,
     makeSHA1Thumbprint,
-    PEM,
     readCertificate,
     readCertificateRevocationList,
     split_der,
@@ -51,36 +49,33 @@ import {
 } from "node-opcua-crypto";
 
 import { SubjectOptions } from "../misc/subject";
-import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "./common";
-import {
-    configurationFileSimpleTemplate,
-    createCertificateSigningRequest,
-    createPrivateKey,
-    createSelfSignCertificate,
-    CreateSelfSignCertificateParam,
-    CreateSelfSignCertificateWithConfigParam,
-    debugLog,
-    dumpCertificate,
-    ensure_openssl_installed,
-    make_path,
-    mkdir,
-    setEnv,
-} from "./toolbox";
+import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "../toolbox/common";
+
+import { debugLog } from "../toolbox/debug";
+import { make_path, mkdir } from "../toolbox/common2";
+
+import { CreateSelfSignCertificateParam, CreateSelfSignCertificateWithConfigParam } from "../toolbox/common";
+import { createCertificateSigningRequest, dumpCertificate } from "../toolbox/with_openssl";
+import { createPrivateKey, createSelfSignedCertificate } from "../toolbox/without_openssl";
 
 import { withLock } from "@ster5/global-mutex";
+
+import _simple_config_template from "./templates/simple_config_template.cnf";
+/**
+ *
+ * a minimalist config file for openssl that allows
+ * self-signed certificate to be generated.
+ *
+ */
+// tslint:disable-next-line:variable-name
+const configurationFileSimpleTemplate: string = _simple_config_template;
+
 // tslint:disable:max-line-length
 // tslint:disable:no-var-requires
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const thenify = require("thenify");
 
-type C = ((err?: Error | null, ...args: [any, ...any]) => void) | ((err?: Error | null) => void);
-
-type ReadFileFunc = (filename: string, encoding: string, callback: (err: Error | null, content?: Buffer) => void) => void;
-
-const fsFileExists = promisify(fs.exists);
-const fsWriteFile = promisify(fs.writeFile);
-const fsReadFile = promisify(fs.readFile as ReadFileFunc);
-const fsRemoveFile = promisify(fs.unlink);
+const fsWriteFile = fs.promises.writeFile;
 
 interface Entry {
     certificate: Certificate;
@@ -575,12 +570,13 @@ export class CertificateManager {
     public async verifyCertificate(certificate: Certificate): Promise<VerificationStatus>;
     public verifyCertificate(certificate: Certificate, callback: (err: Error | null, status?: VerificationStatus) => void): void;
     public verifyCertificate(certificate: Certificate, callback?: (err: Error | null, status?: VerificationStatus) => void): any {
+        if (!callback) throw new Error("internal error");
         // Is the  signature on the SoftwareCertificate valid .?
         if (!certificate) {
             // missing certificate
-            return callback!(null, VerificationStatus.BadSecurityChecksFailed);
+            return callback(null, VerificationStatus.BadSecurityChecksFailed);
         }
-        callbackify(this.verifyCertificateAsync).call(this, certificate, callback!);
+        callbackify(this.verifyCertificateAsync).call(this, certificate, callback);
     }
 
     /*
@@ -643,7 +639,7 @@ export class CertificateManager {
 
             if (!fs.existsSync(this.privateKey)) {
                 debugLog("generating private key ...");
-                setEnv("RANDFILE", this.randomFile);
+                //   setEnv("RANDFILE", this.randomFile);
                 createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
                     if (err) {
                         return callback(err);
@@ -718,8 +714,10 @@ export class CertificateManager {
         _params.rootDir = this.rootDir;
         _params.configFile = this.configFile;
         _params.privateKey = this.privateKey;
+
+        _params.subject = params.subject || "CN=FIXME";
         this.withLock((callback) => {
-            createSelfSignCertificate(certificateFilename, _params, callback);
+            createSelfSignedCertificate(certificateFilename, _params, callback);
         }, callback);
     }
 
@@ -774,7 +772,7 @@ export class CertificateManager {
         }
         // write certificate
         const filename = path.join(this.issuersCertFolder, "issuer_" + buildIdealCertificateName(certificate) + ".pem");
-        await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
+        await fs.promises.writeFile(filename, pemCertificate, "ascii");
 
         // first time seen, let's save it.
         this._thumbs.issuers.certs[fingerprint] = { certificate, filename };
@@ -797,7 +795,7 @@ export class CertificateManager {
                 }
                 const pemCertificate = toPem(crl, "X509 CRL");
                 const filename = path.join(this.issuersCrlFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
-                await promisify(fs.writeFile)(filename, pemCertificate, "ascii");
+                await fs.promises.writeFile(filename, pemCertificate, "ascii");
 
                 await this._on_crl_file_added(this._thumbs.issuersCrl, filename);
 

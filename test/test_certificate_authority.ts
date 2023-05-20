@@ -3,7 +3,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import "should";
+import * as should from "should";
 
 import {
     readCertificate,
@@ -14,24 +14,27 @@ import {
     certificateMatchesPrivateKey,
     readPrivateKey,
     Certificate,
-    rsaLengthPrivateKey
+    rsaLengthPrivateKey,
 } from "node-opcua-crypto";
 
 import {
     ErrorCallback,
-    execute_openssl,
     Filename,
     g_config,
     Params,
-    x509Date,
-    CertificateAuthority,
     CertificateManager,
     VerificationStatus,
-} from "..";
+} from "../lib/index";
+import {
+    execute_openssl,
+    x509Date,
+} from "../lib/toolbox/with_openssl";
+import {
+       CertificateAuthority,
+} from "../lib/ca/certificate_authority";
 
 import { beforeTest } from "./helpers";
 
-const _should = should;
 const doDebug = !!process.env.DEBUG;
 
 describe("Certificate Authority", function (this: Mocha.Suite) {
@@ -97,7 +100,6 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         return certificateSigningRequestFilename;
     }
     async function verifyCertificateAgainstPrivateKey(certificate: Certificate) {
-
         console.log("someCertificateManager.privateKey=", someCertificateManager.privateKey);
         const privateKey = readPrivateKey(someCertificateManager.privateKey);
         const rsaLength = rsaLengthPrivateKey(privateKey);
@@ -146,7 +148,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         // should have 2 x -----BEGIN CERTIFICATE----- in the chain
 
         // should verify that certificate is valid
-        // verify the subject Alternatibve Name
+        // verify the subject Alternative Name
         const csr = readCertificate(self.certificateRequest);
         const infoCSR = exploreCertificateSigningRequest(csr);
 

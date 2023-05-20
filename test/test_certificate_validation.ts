@@ -4,10 +4,13 @@
 Error.stackTraceLimit = Infinity;
 import * as fs from "fs";
 import * as path from "path";
-import should = require("should");
+import "should";
 
 import { Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
-import { CertificateAuthority, CertificateAuthorityOptions, CertificateManager, Filename, KeySize, Params, Subject } from "..";
+
+import { CertificateManager, Filename, KeySize, Params } from "../lib/";
+import { CertificateAuthority, CertificateAuthorityOptions } from "../lib/ca";
+
 import { beforeTest } from "./helpers";
 
 // ------------------------------------------------- some useful dates
@@ -78,7 +81,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
 
         await certificateManager.initialize();
 
-        const subject: Subject = {
+        const subject = {
             commonName: "MyCompany",
             country: "FR",
             locality: "Paris",
