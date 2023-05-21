@@ -26,7 +26,6 @@ Makefile
 .release-it.json
 .travis.yml
 *.pem
-debug*
 tslint.json
 .vs_code/
 .nyc_output/
