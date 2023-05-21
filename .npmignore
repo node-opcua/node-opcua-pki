@@ -34,4 +34,10 @@ random.*
 *.tgz
 makeLink.bat
 .vscode/
-    
+.eslintrc.yml
+.ignore
+.prettierrc
+dist/test
+tsconfig*.json
+lib/
+*.map
