@@ -1,6 +1,6 @@
 {
   "name": "node-opcua-pki",
-  "version": "4.0.0-beta.6",
+  "version": "4.0.0-beta.7",
   "description": "PKI management for node-opcua",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
