@@ -3,7 +3,7 @@ import * as fs from "fs";
 import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "../lib/toolbox/without_openssl";
 import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithOpenSSL } from "../lib/toolbox/with_openssl";
 import { CertificateManager } from "../lib/pki/certificate_manager";
-import { mkdir } from "fs/promises";
+import { mkdirSync } from "fs";
 import { CertificatePurpose } from "node-opcua-crypto";
 import { beforeTest } from "./helpers";
 import { CertificateAuthority } from "../lib/ca";
@@ -16,7 +16,8 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
         const options = {
             location: rootDir,
         };
-        await mkdir(rootDir, { recursive: true });
+        
+        mkdirSync(rootDir, { recursive: true });
 
         const cm = new CertificateManager(options);
 

@@ -26,24 +26,15 @@
 
 import * as assert from "assert";
 
-import * as async from "async";
 import * as fs from "fs";
 import * as path from "path";
 
-import { Subject } from "../../misc/subject";
 import { Filename } from "../common";
-import {
-    CreateCertificateSigningRequestWithConfigOptions,
-    ProcessAltNamesParam,
-    quote,
-} from "../common";
+import { quote } from "../common";
 import { make_path } from "../common2";
 import { g_config } from "../config";
-import { displaySubtitle } from "../display";
 import { ExecuteOptions, execute_openssl } from "./execute_openssl";
-import { getEnvironmentVarNames, getEnv, setEnv} from "./_env";
-
-
+import { getEnvironmentVarNames, getEnv } from "./_env";
 
 function openssl_require2DigitYearInDate() {
     // istanbul ignore next
@@ -56,8 +47,6 @@ function openssl_require2DigitYearInDate() {
 }
 
 g_config.opensslVersion = "";
-
-
 
 export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
     const prePath = (options && options.cwd) || "";
@@ -73,7 +62,6 @@ export function generateStaticConfig(configPath: string, options?: ExecuteOption
 
 const q = quote;
 const n = make_path;
-
 
 /**
  *   calculate the public key from private key
@@ -131,7 +119,6 @@ export function x509Date(date?: Date): string {
         return w(Y, 4) + w(M, 2) + w(D, 2) + w(h, 2) + w(m, 2) + w(s, 2) + "Z";
     }
 }
-
 
 /**
  * @param certificate - the certificate file in PEM format, file must exist

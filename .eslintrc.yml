@@ -12,6 +12,6 @@ plugins:
   - '@typescript-eslint'
 rules:
   quotes:
-    - warn
+    - error
     - double
-  
+    - avoidEscape: true

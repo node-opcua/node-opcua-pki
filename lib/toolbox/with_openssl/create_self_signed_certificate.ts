@@ -31,36 +31,20 @@ import * as fs from "fs";
 
 import { Subject } from "../../misc/subject";
 import { ErrorCallback, quote } from "../common";
-import {
-    CreateSelfSignCertificateWithConfigParam,
-    adjustDate,
-} from "../common";
+import { CreateSelfSignCertificateWithConfigParam, adjustDate } from "../common";
 import { displayTitle } from "../display";
 import { ensure_openssl_installed, execute_openssl } from "./execute_openssl";
-import { generateStaticConfig,  } from "./toolbox";
+import { generateStaticConfig } from "./toolbox";
 import { processAltNames } from "./_env";
 
 import { make_path } from "../common2";
 import { CertificatePurpose } from "node-opcua-crypto";
 
-
 const q = quote;
 const n = make_path;
 
 /**
- *
- * @param certificate
- * @param params
- * @param params.configFile
- * @param params.rootDir
- * @param params.privateKey
- * @param params.applicationUri
- * @param params.dns
- * @param params.ip
- * @param params.validity certificate duration in days
- * @param params.purpose
- * @param [params.subject= "C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=ZZNodeOPCUA"]
- * @param callback
+ * @param certificate: the filename of the certificate to create  
  */
 export function createSelfSignedCertificate(
     certificate: string,

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------------------------------------------------
-// node-opcua
+// node-opcua-pki
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // Copyright (c) 2022-2023 - Sterfive.com
@@ -20,7 +20,7 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import * as assert  from "assert";
+import * as assert from "assert";
 import * as async from "async";
 import { hasEnv, getEnv } from "./_env";
 import { ErrorCallback, KeyLength, quote } from "../common";
@@ -111,9 +111,7 @@ export function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLe
                     " " +
                     keyLength,
                 {},
-                (err: Error | null) => {
-                    callback(err ? err : undefined);
-                }
+                callback
             );
         },
     ];
