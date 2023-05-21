@@ -25,6 +25,6 @@ export * from "./toolbox/without_openssl/create_private_key";
 export * from "./pki/certificate_manager";
 export * from "./misc/subject";
 
-// export * from "./ca/certificate_authority";
+export { CertificateAuthority } from "./ca/certificate_authority";
 // export * from "./misc/install_prerequisite";
 // export * from "./toolbox/with_openssl/toolbox";
