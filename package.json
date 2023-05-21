@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "npx tsc -b -f",
-    "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
+    "clean": "npx riqraf node_modules .nyc_output tmp private_key.pem certificates",
     "test": "mocha -r ./node_modules/source-map-support/register -t 700000 test/**/*.ts",
     "cover": "npx nyc -x  bin -x tmp -x lib/misc/install* mocha",
     "cost-of-modules": "npx cost-of-modules --no-install",
