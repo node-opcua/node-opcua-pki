@@ -7,6 +7,8 @@
   [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
   [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
+<iframe src="https://github.com/sponsors/node-opcua/button" title="Sponsor node-opcua" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
+
 ## Installation
 
 ##### install globally
@@ -170,6 +172,16 @@ Options:
 | --PKIFolder, -p      | the location of the Public Key Infrastructure                                                  | {root}/PKI                       |
 | --privateKey, -p     | optional:the private key to use to generate certificate                                        |                                  |
 | --subject            | the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello ) |                                  |
+
+
+
+###### examples
+
+* create a self-signed certificate
+
+``` 
+npx node-opcua-pki certificate --dns=machine1.com,machine2.com --ip="192.1.2.3;192.3.4.5" -a 'urn:{hostname}:My-OPCUA-Server' --selfSigned -o  my_self_signed_certificate.pem
+``` 
 
 #### References
 
