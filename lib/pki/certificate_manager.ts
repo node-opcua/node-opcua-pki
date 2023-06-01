@@ -620,37 +620,42 @@ export class CertificateManager {
         mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
         mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
-        this.withLock((callback) => {
-            assert(this.state !== CertificateManagerState.Disposing);
-            if (this.state === CertificateManagerState.Disposed) {
-                return callback();
-            }
-            assert(this.state === CertificateManagerState.Initializing);
+        if (!fs.existsSync(this.configFile) || !fs.existsSync(this.privateKey)) {
+            this.withLock((callback) => {
+                assert(this.state !== CertificateManagerState.Disposing);
+                if (this.state === CertificateManagerState.Disposed) {
+                    return callback();
+                }
+                assert(this.state === CertificateManagerState.Initializing);
 
-            fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
+                if (!fs.existsSync(this.configFile)) {
+                    fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
+                }
+                // note : openssl 1.1.1 has a bug that causes a failure if
+                // random file cannot be found. (should be fixed in 1.1.1.a)
+                // if this issue become important we may have to consider checking that rndFile exists and recreate
+                // it if not . this could be achieved with the command :
+                //      "openssl rand -writerand ${this.randomFile}"
+                //
+                // cf: https://github.com/node-opcua/node-opcua/issues/554
 
-            // note : openssl 1.1.1 has a bug that causes a failure if
-            // random file cannot be found. (should be fixed in 1.1.1.a)
-            // if this issue become important we may have to consider checking that rndFile exists and recreate
-            // it if not . this could be achieved with the command :
-            //      "openssl rand -writerand ${this.randomFile}"
-            //
-            // cf: https://github.com/node-opcua/node-opcua/issues/554
-
-            if (!fs.existsSync(this.privateKey)) {
-                debugLog("generating private key ...");
-                //   setEnv("RANDFILE", this.randomFile);
-                createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
-                    if (err) {
-                        return callback(err);
-                    }
+                if (!fs.existsSync(this.privateKey)) {
+                    debugLog("generating private key ...");
+                    //   setEnv("RANDFILE", this.randomFile);
+                    createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
+                        if (err) {
+                            return callback(err);
+                        }
+                        this._readCertificates(() => callback());
+                    });
+                } else {
+                    // debugLog("   initialize :  private key already exists ... skipping");
                     this._readCertificates(() => callback());
-                });
-            } else {
-                // debugLog("   initialize :  private key already exists ... skipping");
-                this._readCertificates(() => callback());
-            }
-        }, callback as ErrorCallback);
+                }
+            }, callback as ErrorCallback);
+        } else {
+            this._readCertificates(() => callback());
+        }
     }
 
     public async dispose(): Promise<void> {
@@ -689,7 +694,7 @@ export class CertificateManager {
     }
     private async withLock2<T>(action: () => Promise<T>): Promise<T> {
         const lockFileName = path.join(this.rootDir, "mutex.lock");
-        return withLock<T>({ lockfile: lockFileName }, async () => {
+        return withLock<T>({ fileToLock: lockFileName }, async () => {
             return await action();
         });
     }
