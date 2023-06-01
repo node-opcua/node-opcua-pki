@@ -692,7 +692,7 @@ export class CertificateManager {
             .then((t: unknown) => callback(null, t))
             .catch((err) => callback(err));
     }
-    private async withLock2<T>(action: () => Promise<T>): Promise<T> {
+    protected async withLock2<T>(action: () => Promise<T>): Promise<T> {
         const lockFileName = path.join(this.rootDir, "mutex.lock");
         return withLock<T>({ fileToLock: lockFileName }, async () => {
             return await action();
