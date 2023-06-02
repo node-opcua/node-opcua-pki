@@ -2,9 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 import "should";
 
-import { ErrorCallback, createPrivateKey, mkdir } from "../lib";
+import { ErrorCallback, mkdir } from "../lib";
 import { getPublicKeyFromCertificate, getPublicKeyFromPrivateKey } from "../lib/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
+import { generatePrivateKeyFile } from "node-opcua-crypto";
 
 describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
     this.timeout(400000);
@@ -12,13 +13,11 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
     const testData = beforeTest(this);
 
     let privateKey: string;
-    before((done: ErrorCallback) => {
+    before(async () => {
         privateKey = path.join(testData.tmpFolder, "some_private_key");
         mkdir(testData.tmpFolder);
-        createPrivateKey(privateKey, 2048, () => {
-            fs.existsSync(privateKey).should.eql(true);
-            done();
-        });
+        await generatePrivateKeyFile(privateKey, 2048);
+        fs.existsSync(privateKey).should.eql(true);
     });
 
     it("should getPublicKeyFromPrivateKey", (done: ErrorCallback) => {

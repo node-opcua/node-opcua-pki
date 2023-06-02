@@ -31,6 +31,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { callbackify, promisify } from "util";
 
+import { withLock } from "@ster5/global-mutex";
 import {
     Certificate,
     CertificateInternals,
@@ -48,6 +49,7 @@ import {
     verifyCertificateSignature,
 } from "node-opcua-crypto";
 
+
 import { SubjectOptions } from "../misc/subject";
 import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "../toolbox/common";
 
@@ -56,9 +58,7 @@ import { make_path, mkdir } from "../toolbox/common2";
 
 import { CreateSelfSignCertificateParam, CreateSelfSignCertificateWithConfigParam } from "../toolbox/common";
 import { createCertificateSigningRequest, dumpCertificate } from "../toolbox/with_openssl";
-import { createPrivateKey, createSelfSignedCertificate } from "../toolbox/without_openssl";
-
-import { withLock } from "@ster5/global-mutex";
+import { generatePrivateKeyFileCallback, createSelfSignedCertificate } from "../toolbox/without_openssl";
 
 import _simple_config_template from "./templates/simple_config_template.cnf";
 /**
@@ -642,7 +642,7 @@ export class CertificateManager {
                 if (!fs.existsSync(this.privateKey)) {
                     debugLog("generating private key ...");
                     //   setEnv("RANDFILE", this.randomFile);
-                    createPrivateKey(this.privateKey, this.keySize, (err?: Error | null) => {
+                    generatePrivateKeyFileCallback(this.privateKey, this.keySize, (err?: Error | null) => {
                         if (err) {
                             return callback(err);
                         }

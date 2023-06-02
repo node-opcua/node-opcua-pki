@@ -62,7 +62,7 @@ import {
     ExecuteOptions,
     execute_openssl,
 } from "../toolbox/with_openssl";
-import { createPrivateKey } from "../toolbox/without_openssl/create_private_key";
+import { generatePrivateKeyFileCallback } from "../toolbox/without_openssl/create_private_key";
 
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
@@ -190,7 +190,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
         // The first step is to create your RSA Private Key.
         // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
         // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
-        (callback: ErrorCallback) => createPrivateKey(privateKeyFilename, keySize, callback),
+        (callback: ErrorCallback) => generatePrivateKeyFileCallback(privateKeyFilename, keySize, callback),
 
         (callback: ErrorCallback) => displayTitle("Generate a certificate request for the CA key", callback),
 

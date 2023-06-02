@@ -22,7 +22,7 @@
 import { generatePrivateKeyFile as generatePrivateKeyFileAsync } from "node-opcua-crypto";
 import { KeyLength } from "../common";
 
-export function createPrivateKey(filename: string, length: KeyLength, callback: (err?: Error) => void) {
+export function generatePrivateKeyFileCallback(filename: string, length: KeyLength, callback: (err?: Error) => void) {
     generatePrivateKeyFileAsync(filename, length)
         .then(() => callback())
         .catch((err) => callback(err));

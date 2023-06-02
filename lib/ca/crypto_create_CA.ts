@@ -34,7 +34,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { callbackify, promisify } from "util";
-import { CertificatePurpose, Subject, SubjectOptions } from "node-opcua-crypto";
+import { CertificatePurpose, Subject, SubjectOptions, generatePrivateKeyFile } from "node-opcua-crypto";
 // see https://github.com/yargs/yargs/issues/781
 import * as commands from "yargs";
 
@@ -63,7 +63,6 @@ import {
     ensure_openssl_installed,
     fingerprint,
 } from "../toolbox/with_openssl";
-import { createPrivateKey } from "../toolbox/without_openssl";
 import { createCertificateSigningRequestAsync } from "../toolbox/with_openssl";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -548,7 +547,7 @@ async function createDefaultCertificate(
             console.log(chalk.yellow("         privateKey"), chalk.cyan(privateKey), chalk.yellow(" already exists => skipping"));
             return;
         } else {
-            await promisify(createPrivateKey)(privateKey, keyLength);
+            await generatePrivateKeyFile(privateKey, keyLength);
         }
     }
 
