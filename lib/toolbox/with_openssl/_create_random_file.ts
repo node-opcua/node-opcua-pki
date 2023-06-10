@@ -42,9 +42,6 @@ export function createRandomFile(randomFile: string, options: ExecuteOptions, ca
 export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback): void {
     const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
     if (fs.existsSync(randomFilePath)) {
-        // if (doDebug) {
-        //     console.log(chalk.yellow("         randomFile"), chalk.cyan(randomFile), chalk.yellow(" already exists => skipping"));
-        // }
         return callback();
     } else {
         createRandomFile(randomFile, options, callback);

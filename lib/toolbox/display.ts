@@ -22,14 +22,15 @@
 // ---------------------------------------------------------------------------------------------------------------------
 import * as chalk from "chalk";
 import { g_config } from "./config";
+import { warningLog } from "./debug";
 
 // istanbul ignore next
 export function displayChapter(str: string, callback?: (err?: Error) => void) {
     const l = "                                                                                               ";
-    console.log(chalk.bgWhite(l) + " ");
+    warningLog(chalk.bgWhite(l) + " ");
     str = ("        " + str + l).substring(0, l.length);
-    console.log(chalk.bgWhite.cyan(str));
-    console.log(chalk.bgWhite(l) + " ");
+    warningLog(chalk.bgWhite.cyan(str));
+    warningLog(chalk.bgWhite(l) + " ");
     if (callback) {
         callback();
     }
@@ -38,9 +39,9 @@ export function displayChapter(str: string, callback?: (err?: Error) => void) {
 export function displayTitle(str: string, callback?: (err?: Error) => void) {
     // istanbul ignore next
     if (!g_config.silent) {
-        console.log("");
-        console.log(chalk.yellowBright(str));
-        console.log(chalk.yellow(new Array(str.length + 1).join("=")), "\n");
+        warningLog("");
+        warningLog(chalk.yellowBright(str));
+        warningLog(chalk.yellow(new Array(str.length + 1).join("=")), "\n");
     }
     if (callback) {
         callback();
@@ -50,9 +51,9 @@ export function displayTitle(str: string, callback?: (err?: Error) => void) {
 export function displaySubtitle(str: string, callback?: (err?: Error) => void) {
     // istanbul ignore next
     if (!g_config.silent) {
-        console.log("");
-        console.log("    " + chalk.yellowBright(str));
-        console.log("    " + chalk.white(new Array(str.length + 1).join("-")), "\n");
+        warningLog("");
+        warningLog("    " + chalk.yellowBright(str));
+        warningLog("    " + chalk.white(new Array(str.length + 1).join("-")), "\n");
     }
     if (callback) {
         callback();
@@ -61,7 +62,7 @@ export function displaySubtitle(str: string, callback?: (err?: Error) => void) {
 export function display(str: string, callback?: (err?: Error) => void) {
     // istanbul ignore next
     if (!g_config.silent) {
-        console.log("       " + str);
+        warningLog("       " + str);
     }
     if (callback) {
         callback();

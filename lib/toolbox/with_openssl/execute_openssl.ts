@@ -37,7 +37,7 @@ import {
     quote,
 } from "../common";
 import { g_config } from "../config";
-import { debugLog, displayError, doDebug } from "../debug";
+import { debugLog, displayError, doDebug, warningLog } from "../debug";
 import { setEnv } from "./_env";
 import { make_path } from "../common2";
 
@@ -62,7 +62,7 @@ export function execute(cmd: string, options: ExecuteOptions, callback: Callback
 
     // istanbul ignore next
     if (!g_config.silent) {
-        console.log(chalk.cyan("                  CWD         "), options.cwd);
+        warningLog(chalk.cyan("                  CWD         "), options.cwd);
     }
 
     const outputs: string[] = [];
@@ -85,7 +85,6 @@ export function execute(cmd: string, options: ExecuteOptions, callback: Callback
 
                     console.error(from.stack);
                 }
-                // console.log("        ERR = ".bgWhite.red, err);
                 callback(new Error(err.message));
                 return;
             }
@@ -145,7 +144,7 @@ export function ensure_openssl_installed(callback: (err?: Error) => void) {
                 }
                 g_config.opensslVersion = outputs.trim();
                 if (doDebug) {
-                    console.log("OpenSSL version : ", g_config.opensslVersion);
+                    warningLog("OpenSSL version : ", g_config.opensslVersion);
                 }
                 callback(err ? err : undefined);
             });
@@ -205,9 +204,9 @@ export function execute_openssl(cmd: string, options: ExecuteOpenSSLOptions, cal
 
     // istanbul ignore next
     if (!g_config.silent) {
-        console.log(chalk.cyan("                  OPENSSL_CONF"), process.env.OPENSSL_CONF);
-        console.log(chalk.cyan("                  RANDFILE    "), process.env.RANDFILE);
-        console.log(chalk.cyan("                  CMD         openssl "), chalk.cyanBright(cmd));
+        warningLog(chalk.cyan("                  OPENSSL_CONF"), process.env.OPENSSL_CONF);
+        warningLog(chalk.cyan("                  RANDFILE    "), process.env.RANDFILE);
+        warningLog(chalk.cyan("                  CMD         openssl "), chalk.cyanBright(cmd));
     }
 
     ensure_openssl_installed((err?: Error) => {

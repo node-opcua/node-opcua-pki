@@ -22,13 +22,14 @@
 // ---------------------------------------------------------------------------------------------------------------------
 import { ProcessAltNamesParam } from "../common";
 import { g_config } from "../config";
+import { warningLog } from "../debug";
 
 export const exportedEnvVars: any = {};
 
 export function setEnv(varName: string, value: string): void {
     // istanbul ignore next
     if (!g_config.silent) {
-        console.log("          set " + varName + "=" + value);
+        warningLog("          set " + varName + "=" + value);
     }
     exportedEnvVars[varName] = value;
 

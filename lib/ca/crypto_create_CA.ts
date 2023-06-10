@@ -54,6 +54,7 @@ import {
     make_path,
     mkdir,
     debugLog,
+    warningLog,
 } from "../toolbox";
 import {
     getPublicKeyFromPrivateKey,
@@ -157,10 +158,10 @@ function displayConfig(config: { [key: string]: { toString: () => string } }) {
         return (str + "                            ").substring(0, l);
     }
 
-    console.log(chalk.yellow(" configuration = "));
+    warningLog(chalk.yellow(" configuration = "));
 
     for (const [key, value] of Object.entries(config)) {
-        console.log("   " + chalk.yellow(w(key, 30)) + " : " + chalk.cyan(value.toString()));
+        warningLog("   " + chalk.yellow(w(key, 30)) + " : " + chalk.cyan(value.toString()));
     }
 }
 
@@ -169,11 +170,10 @@ function default_template_content(): string {
     if ((process as any).pkg && (process as any).pkg.entrypoint) {
         // we are using PKG compiled package !
 
-        // console.log("___filename", __filename);
-        // console.log("__dirname", __dirname);
-        // console.log("process.pkg.entrypoint", (process as any).pkg.entrypoint);
+        // warningLog("___filename", __filename);
+        // warningLog("__dirname", __dirname);
+        // warningLog("process.pkg.entrypoint", (process as any).pkg.entrypoint);
         const a = fs.readFileSync(path.join(__dirname, "../../bin/crypto_create_CA_config.example.js"), "utf8");
-        console.log(a);
         return a;
     }
     function find_default_config_template() {
@@ -292,7 +292,7 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
         debugLog(chalk.yellow(" using  g_config file "), chalk.cyan(default_config));
     }
     if (!fs.existsSync(default_config)) {
-        console.log(chalk.redBright(" cannot find config file ", default_config));
+        debugLog(chalk.redBright(" cannot find config file ", default_config));
     }
 
     // see http://stackoverflow.com/questions/94445/using-openssl-what-does-unable-to-write-random-state-mean
@@ -434,7 +434,7 @@ function on_completion(err: Error | null | undefined, done: ErrorCallback) {
     assert(typeof done === "function", "expecting function");
     // istanbul ignore next
     if (err) {
-        console.log(chalk.redBright("ERROR : ") + err.message);
+        warningLog(chalk.redBright("ERROR : ") + err.message);
     }
     done();
 }
@@ -479,7 +479,7 @@ async function createDefaultCertificate(
     ): Promise<string> {
         // istanbul ignore next
         if (fs.existsSync(certificate)) {
-            console.log(chalk.yellow("         certificate"), chalk.cyan(certificate), chalk.yellow(" already exists => skipping"));
+            warningLog(chalk.yellow("         certificate"), chalk.cyan(certificate), chalk.yellow(" already exists => skipping"));
             return "";
         } else {
             return await createCertificate(certificate, private_key, applicationUri, startDate, validity);
@@ -544,7 +544,7 @@ async function createDefaultCertificate(
 
     async function createPrivateKeyIfNotExist(privateKey: Filename, keyLength: KeySize) {
         if (fs.existsSync(privateKey)) {
-            console.log(chalk.yellow("         privateKey"), chalk.cyan(privateKey), chalk.yellow(" already exists => skipping"));
+            warningLog(chalk.yellow("         privateKey"), chalk.cyan(privateKey), chalk.yellow(" already exists => skipping"));
             return;
         } else {
             await generatePrivateKeyFile(privateKey, keyLength);
@@ -582,7 +582,7 @@ async function createDefaultCertificate(
                 yesterday,
                 365
             );
-            console.log(" certificate to revoke => ", certificate);
+            warningLog(" certificate to revoke => ", certificate);
             revoke_certificate(certificate_revoked);
         }
     }
@@ -615,8 +615,8 @@ async function create_default_certificates(dev: boolean) {
         await extractFullyQualifiedDomainName();
         const hostname = os.hostname();
         const fqdn = getFullyQualifiedDomainName();
-        console.log(chalk.yellow("     hostname = "), chalk.cyan(hostname));
-        console.log(chalk.yellow("     fqdn     = "), chalk.cyan(fqdn));
+        warningLog(chalk.yellow("     hostname = "), chalk.cyan(hostname));
+        warningLog(chalk.yellow("     fqdn     = "), chalk.cyan(fqdn));
         clientURN = makeApplicationUrn(hostname, "NodeOPCUA-Client");
         serverURN = makeApplicationUrn(hostname, "NodeOPCUA-Server");
         discoveryServerURN = makeApplicationUrn(hostname, "NodeOPCUA-DiscoveryServer");
@@ -859,7 +859,7 @@ argv
                 if (!csr_file) {
                     return;
                 }
-                console.log(" csr_file = ", csr_file);
+                warningLog(" csr_file = ", csr_file);
                 const certificate = csr_file.replace(".csr", ".pem");
 
                 if (fs.existsSync(certificate)) {
@@ -900,16 +900,16 @@ argv
             wrap(async () => {
                 // example : node bin\crypto_create_CA.js revoke my_certificate.pem
                 const certificate = path.resolve(local_argv.certificateFile);
-                console.log(chalk.yellow(" Certificate to revoke : "), chalk.cyan(certificate));
+                warningLog(chalk.yellow(" Certificate to revoke : "), chalk.cyan(certificate));
                 if (!fs.existsSync(certificate)) {
                     throw new Error("cannot find certificate to revoke " + certificate);
                 }
                 await readConfiguration(local_argv);
                 await construct_CertificateAuthority("");
                 await promisify(revoke_certificate)(certificate);
-                console.log("done ... ");
-                console.log("  crl = ", g_certificateAuthority.revocationList);
-                console.log("\nyou should now publish the new Certificate Revocation List");
+                warningLog("done ... ");
+                warningLog("  crl = ", g_certificateAuthority.revocationList);
+                warningLog("\nyou should now publish the new Certificate Revocation List");
             });
         }
     )
@@ -960,7 +960,7 @@ argv
             wrap(async () => {
                 await readConfiguration(local_argv);
                 if (!fs.existsSync(gLocalConfig.PKIFolder || "")) {
-                    console.log("PKI folder must exist");
+                    warningLog("PKI folder must exist");
                 }
                 await construct_CertificateManager();
                 if (!gLocalConfig.outputFile || fs.existsSync(gLocalConfig.outputFile)) {
@@ -980,19 +980,19 @@ argv
                     return;
                 }
                 if (!gLocalConfig.outputFile) {
-                    console.log("please specify a output file");
+                    warningLog("please specify a output file");
                     return;
                 }
                 const csr = await fs.promises.readFile(internal_csr_file, "utf-8");
                 fs.writeFileSync(gLocalConfig.outputFile || "", csr, "utf-8");
 
-                console.log("Subject        = ", gLocalConfig.subject);
-                console.log("applicationUri = ", gLocalConfig.applicationUri);
-                console.log("altNames       = ", gLocalConfig.altNames);
-                console.log("dns            = ", gLocalConfig.dns);
-                console.log("ip             = ", gLocalConfig.ip);
+                warningLog("Subject        = ", gLocalConfig.subject);
+                warningLog("applicationUri = ", gLocalConfig.applicationUri);
+                warningLog("altNames       = ", gLocalConfig.altNames);
+                warningLog("dns            = ", gLocalConfig.dns);
+                warningLog("ip             = ", gLocalConfig.ip);
 
-                console.log("CSR file = ", gLocalConfig.outputFile);
+                warningLog("CSR file = ", gLocalConfig.outputFile);
             });
         }
     )
@@ -1065,7 +1065,7 @@ argv
         (yargs: { certificateFile: string }) => {
             wrap(async () => {
                 const data = await promisify(dumpCertificate)(yargs.certificateFile);
-                console.log(data);
+                warningLog(data);
             });
         }
     )
@@ -1095,12 +1095,12 @@ argv
                 const data = await promisify(fingerprint)(certificate);
                 if (!data) return;
                 const s = data.split("=")[1].split(":").join("").trim();
-                console.log(s);
+                warningLog(s);
             });
         }
     )
     .command("$0", "help", (yargs: commands.Argv) => {
-        console.log("--help for help");
+        warningLog("--help for help");
         return yargs;
     })
     .epilog(epilog)
@@ -1115,8 +1115,8 @@ export function main(argumentsList: string, _done?: ErrorCallback) {
     commands.parse(argumentsList, (err: Error | null, g_argv: { help: boolean }) => {
         // istanbul ignore next
         if (err) {
-            console.log(" err = ", err);
-            console.log(" use --help for more info");
+            warningLog(" err = ", err);
+            warningLog(" use --help for more info");
             setImmediate(() => {
                 commands.showHelp();
                 done(err);

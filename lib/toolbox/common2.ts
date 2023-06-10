@@ -25,12 +25,12 @@ import * as path from "path";
 import * as chalk from "chalk";
 import { g_config } from "./config";
 import assert = require("assert");
-import { debugLog } from "./debug";
+import { debugLog, warningLog } from "./debug";
 
 export function certificateFileExist(certificateFile: string): boolean {
     // istanbul ignore next
     if (fs.existsSync(certificateFile) && !g_config.force) {
-        console.log(
+        warningLog(
             chalk.yellow("        certificate ") + chalk.cyan(certificateFile) + chalk.yellow(" already exists => do not overwrite")
         );
         return false;

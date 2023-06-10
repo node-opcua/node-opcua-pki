@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as rimraf from "rimraf";
 
-import { ErrorCallback, g_config, mkdir } from "../lib/index";
+import { ErrorCallback, g_config, mkdir, warningLog } from "../lib/index";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 
@@ -43,7 +43,7 @@ export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData
         if (!doneOnce) {
             doneOnce = true;
             // tslint:disable-next-line: no-console
-            console.log("    .... cleaning temporary folders ...", tmpFolder);
+            warningLog("    .... cleaning temporary folders ...", tmpFolder);
             await new Promise<void>((resolve, reject) => rimraf(tmpFolder, (err) => (err ? reject(err) : resolve())));
             await mkdir(tmpFolder);
         }

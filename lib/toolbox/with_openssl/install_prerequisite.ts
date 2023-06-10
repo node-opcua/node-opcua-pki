@@ -36,6 +36,7 @@ import * as yauzl from "yauzl";
 import { Readable } from "stream";
 
 import Table = require("cli-table");
+import { warningLog } from "../debug";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
@@ -82,8 +83,8 @@ function makeOptions(): WgetOptions {
                 proxyAuth: auth,
             },
         };
-        console.log(chalk.green("- using proxy "), proxy);
-        console.log(options);
+        warningLog(chalk.green("- using proxy "), proxy);
+        warningLog(options);
         return options;
     }
     return {};
@@ -129,7 +130,7 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
     execute("which openssl", (err: Error | null, result?: ExecuteResult) => {
         // istanbul ignore next
         if (err) {
-            console.log("warning: ", err.message);
+            warningLog("warning: ", err.message);
             return callback(new Error("Cannot find openssl"));
         }
 
@@ -137,10 +138,10 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
         const output = result!.output;
 
         if (exitCode !== 0) {
-            console.log(
+            warningLog(
                 chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer ")
             );
-            console.log(chalk.yellow("Please install it before running this programs"));
+            warningLog(chalk.yellow("Please install it before running this programs"));
 
             return callback(new Error("Cannot find openssl"));
         }
@@ -151,7 +152,7 @@ export function check_system_openssl_version(callback: (err: Error | null, outpu
 
         // istanbul ignore next
         if (doDebug) {
-            console.log("              OpenSSL found in : " + chalk.yellow(opensslExecPath));
+            warningLog("              OpenSSL found in : " + chalk.yellow(opensslExecPath));
         }
         // ------------------------ now verify that openssl version is the correct one
         execute(q_opensslExecPath + " version", (err: Error | null, result?: ExecuteResult) => {
@@ -212,8 +213,8 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
         const exists = fs.existsSync(opensslExecPath);
         if (!exists) {
-            console.log("checking presence of ", opensslExecPath);
-            console.log(chalk.red(" cannot find file ") + opensslExecPath);
+            warningLog("checking presence of ", opensslExecPath);
+            warningLog(chalk.red(" cannot find file ") + opensslExecPath);
             return callback(null, false, "cannot find file " + opensslExecPath);
         } else {
             // tslint:disable-next-line:variable-name
@@ -234,7 +235,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
                     // istanbul ignore next
 
                     if (doDebug) {
-                        console.log(" Version = ", version);
+                        warningLog(" Version = ", version);
                     }
                     callback(null, exitCode === 0 && is_expected_openssl_version(version), version);
                 },
@@ -277,7 +278,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
 
-        console.log("downloading " + chalk.yellow(url) + " to " + outputFilename);
+        warningLog("downloading " + chalk.yellow(url) + " to " + outputFilename);
 
         if (fs.existsSync(outputFilename)) {
             return callback(null, outputFilename);
@@ -292,7 +293,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
         const download = wget.download(url, outputFilename, options);
         download.on("error", (err: Error) => {
-            console.log(err);
+            warningLog(err);
             setImmediate(() => {
                 callback(err);
             });
@@ -300,9 +301,9 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         download.on("end", (output: string) => {
             // istanbul ignore next
             if (doDebug) {
-                console.log(output);
+                warningLog(output);
             }
-            // console.log("done ...");
+            // warningLog("done ...");
             setImmediate(() => {
                 callback(null, outputFilename);
             });
@@ -329,7 +330,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
                 setImmediate(() => {
                     // istanbul ignore next
                     if (doDebug) {
-                        console.log("unzip done");
+                        warningLog("unzip done");
                     }
                     callback(err);
                 });
@@ -345,7 +346,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
                     // istanbul ignore next
                     if (doDebug) {
-                        console.log(" unzipping :", file);
+                        warningLog(" unzipping :", file);
                     }
 
                     const writeStream = fs.createWriteStream(file, "binary");
@@ -366,7 +367,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
     if (!fs.existsSync(opensslFolder)) {
         // istanbul ignore next
         if (doDebug) {
-            console.log("creating openssl_folder", opensslFolder);
+            warningLog("creating openssl_folder", opensslFolder);
         }
         fs.mkdirSync(opensslFolder);
     }
@@ -376,7 +377,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
             return callback(err);
         }
         if (!opensslOK) {
-            console.log(chalk.yellow("openssl seems to be missing and need to be installed"));
+            warningLog(chalk.yellow("openssl seems to be missing and need to be installed"));
             download_openssl((err: Error | null, filename?: string) => {
                 if (err) {
                     return callback(err);
@@ -384,7 +385,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
                 // istanbul ignore next
                 if (doDebug) {
-                    console.log("deflating ", chalk.yellow(filename!));
+                    warningLog("deflating ", chalk.yellow(filename!));
                 }
                 unzip_openssl(filename!, (err?: Error) => {
                     if (err) {
@@ -394,13 +395,13 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
 
                     // istanbul ignore next
                     if (doDebug) {
-                        console.log(
+                        warningLog(
                             "verifying ",
                             opensslExists,
                             opensslExists ? chalk.green("OK ") : chalk.red(" Error"),
                             opensslExecPath
                         );
-                        console.log("done ", err ? err : "");
+                        warningLog("done ", err ? err : "");
                     }
 
                     check_openssl_win32((err: Error | null) => {
@@ -411,7 +412,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         } else {
             // istanbul ignore next
             if (doDebug) {
-                console.log(chalk.green("openssl is already installed and have the expected version."));
+                warningLog(chalk.green("openssl is already installed and have the expected version."));
             }
             return callback(null, opensslExecPath);
         }

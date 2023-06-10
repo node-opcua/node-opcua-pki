@@ -103,8 +103,8 @@ export function adjustDate(params: StartDateEndDateParam) {
 
     // // istanbul ignore next
     // if (!g_config.silent) {
-    //     console.log(" start Date ", params.startDate.toUTCString(), x509Date(params.startDate));
-    //     console.log(" end   Date ", params.endDate.toUTCString(), x509Date(params.endDate));
+    //     warningLog(" start Date ", params.startDate.toUTCString(), x509Date(params.startDate));
+    //     warningLog(" end   Date ", params.endDate.toUTCString(), x509Date(params.endDate));
     // }
 }
 

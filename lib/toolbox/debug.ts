@@ -30,3 +30,6 @@ export function debugLog(...args: [any?, ...any[]]) {
         console.log.apply(null, args);
     }
 }
+export function warningLog(...args: [any?, ...any[]]) {
+    console.log.apply(null, args);
+}

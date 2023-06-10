@@ -53,7 +53,7 @@ import {
 import { SubjectOptions } from "../misc/subject";
 import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "../toolbox/common";
 
-import { debugLog } from "../toolbox/debug";
+import { debugLog, warningLog } from "../toolbox/debug";
 import { make_path, mkdir } from "../toolbox/common2";
 
 import { CreateSelfSignCertificateParam, CreateSelfSignCertificateWithConfigParam } from "../toolbox/common";
@@ -415,8 +415,7 @@ export class CertificateManager {
         // check if certificate is attached to a issuer
         const hasIssuerKey = info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
         debugLog("Certificate as an Issuer Key", hasIssuerKey);
-        // console.log(inspect(info, { depth: 100 }));
-
+        
         if (hasIssuerKey) {
             const isSelfSigned = isSelfSigned2(info);
 
@@ -853,7 +852,7 @@ export class CertificateManager {
         if (selectedIssuerCertificates.length > 0) {
             if (selectedIssuerCertificates.length > 1) {
                 // tslint:disable-next-line: no-console
-                console.log("Warning more than one issuer certificate exists with subjectKeyIdentifier ", wantedIssuerKey);
+                warningLog("Warning more than one issuer certificate exists with subjectKeyIdentifier ", wantedIssuerKey);
             }
             return selectedIssuerCertificates[0].certificate || null;
         }
@@ -864,7 +863,7 @@ export class CertificateManager {
         // istanbul ignore next
         if (selectedTrustedCertificates.length > 1) {
             // tslint:disable-next-line: no-console
-            console.log(
+            warningLog(
                 "Warning more than one certificate exists with subjectKeyIdentifier in trusted certificate list ",
                 wantedIssuerKey,
                 selectedTrustedCertificates.length
