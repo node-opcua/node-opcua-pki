@@ -66,6 +66,7 @@ jobs:
             - run: tsc --version
             - run: npm install
             - run: npm run build
+            - run: npm install nyc @istanbuljs/nyc-config-typescript
             - run: make test-cov
 
     build-legacy:
