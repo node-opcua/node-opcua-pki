@@ -261,7 +261,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         const status = await cm.getCertificateStatus(certificate);
         console.log("status ", status.toString());
 
-        const verificationStatus = await cm.verifyCertificateAsync(certificate);
+        const verificationStatus = await cm.verifyCertificate(certificate);
         console.log("status ", verificationStatus.toString());
     });
 

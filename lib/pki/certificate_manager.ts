@@ -49,7 +49,6 @@ import {
     verifyCertificateSignature,
 } from "node-opcua-crypto";
 
-
 import { SubjectOptions } from "../misc/subject";
 import { CertificateStatus, ErrorCallback, Filename, KeySize, Thumbprint } from "../toolbox/common";
 
@@ -124,6 +123,14 @@ export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertifica
     dns: any[];
     startDate: Date;
     validity: number;
+}
+
+export interface VerifyCertificateOptions {
+    acceptOutdatedCertificate?: boolean;
+    acceptOutDatedIssuerCertificate?: boolean;
+    ignoreMissingRevocationList?: boolean;
+    acceptPendingCertificate?: boolean;
+    // rejectSelfSignedCertificate: boolean;
 }
 
 export enum VerificationStatus {
@@ -400,7 +407,8 @@ export class CertificateManager {
     public async _innerVerifyCertificateAsync(
         certificate: Certificate,
         isIssuer: boolean,
-        level: number
+        level: number,
+        options: VerifyCertificateOptions
     ): Promise<VerificationStatus> {
         if (level >= 5) {
             // maximum level of certificate in chain reached !
@@ -415,7 +423,7 @@ export class CertificateManager {
         // check if certificate is attached to a issuer
         const hasIssuerKey = info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
         debugLog("Certificate as an Issuer Key", hasIssuerKey);
-        
+
         if (hasIssuerKey) {
             const isSelfSigned = isSelfSigned2(info);
 
@@ -443,7 +451,7 @@ export class CertificateManager {
                 } else {
                     debugLog(" the issuer certificate has been found in the issuer.cert folder !");
                 }
-                const issuerStatus = await this._innerVerifyCertificateAsync(issuerCertificate, true, level + 1);
+                const issuerStatus = await this._innerVerifyCertificateAsync(issuerCertificate, true, level + 1, options);
                 if (issuerStatus === VerificationStatus.BadCertificateRevocationUnknown) {
                     // the issuer must have a CRL available .... !
                     return VerificationStatus.BadCertificateIssuerRevocationUnknown;
@@ -453,8 +461,10 @@ export class CertificateManager {
                     return VerificationStatus.BadCertificateIssuerRevocationUnknown;
                 }
                 if (issuerStatus === VerificationStatus.BadCertificateTimeInvalid) {
-                    // the issuer must have valid dates ....
-                    return VerificationStatus.BadCertificateIssuerTimeInvalid;
+                    if (!options || !options.acceptOutDatedIssuerCertificate) {
+                        // the issuer must have valid dates ....
+                        return VerificationStatus.BadCertificateIssuerTimeInvalid;
+                    }
                 }
                 if (issuerStatus == VerificationStatus.BadCertificateUntrusted) {
                     debugLog("warning issuerStatus = ", issuerStatus.toString(), "the issuer certificate is not trusted");
@@ -474,9 +484,13 @@ export class CertificateManager {
                 hasValidIssuer = true;
 
                 // let detected if our certificate is in the revocation list
-                const revokedStatus = await this.isCertificateRevoked(certificate);
+                let revokedStatus = await this.isCertificateRevoked(certificate);
                 if (revokedStatus === VerificationStatus.BadCertificateRevocationUnknown) {
-                    return VerificationStatus.BadCertificateRevocationUnknown;
+                    if (!options || !options.ignoreMissingRevocationList) {
+                        return VerificationStatus.BadCertificateRevocationUnknown;
+                    } else {
+                        revokedStatus = VerificationStatus.Good;
+                    }
                 }
                 if (revokedStatus !== VerificationStatus.Good) {
                     // certificate is revoked !!!
@@ -529,7 +543,9 @@ export class CertificateManager {
                     "  not before date =" +
                     certificateInfo.notBefore
             );
-            isTimeInvalid = true;
+            if (!options.acceptPendingCertificate) {
+                isTimeInvalid = true;
+            }
         }
 
         //  check that certificate has not expired
@@ -538,7 +554,9 @@ export class CertificateManager {
             debugLog(
                 chalk.red("certificate is invalid : certificate has expired !") + " not after date =" + certificateInfo.notAfter
             );
-            isTimeInvalid = true;
+            if (!options.acceptOutdatedCertificate) {
+                isTimeInvalid = true;
+            }
         }
         if (status === "trusted") {
             return isTimeInvalid ? VerificationStatus.BadCertificateTimeInvalid : VerificationStatus.Good;
@@ -556,8 +574,12 @@ export class CertificateManager {
             return VerificationStatus.BadCertificateUntrusted;
         }
     }
-    public async verifyCertificateAsync(certificate: Certificate): Promise<VerificationStatus> {
-        const status1 = await this._innerVerifyCertificateAsync(certificate, false, 0);
+
+    protected async verifyCertificateAsync(
+        certificate: Certificate,
+        options: VerifyCertificateOptions
+    ): Promise<VerificationStatus> {
+        const status1 = await this._innerVerifyCertificateAsync(certificate, false, 0, options);
         return status1;
     }
 
@@ -566,16 +588,29 @@ export class CertificateManager {
      * @method verifyCertificate
      * @param certificate
      */
-    public async verifyCertificate(certificate: Certificate): Promise<VerificationStatus>;
+    public async verifyCertificate(certificate: Certificate, options?: VerifyCertificateOptions): Promise<VerificationStatus>;
     public verifyCertificate(certificate: Certificate, callback: (err: Error | null, status?: VerificationStatus) => void): void;
-    public verifyCertificate(certificate: Certificate, callback?: (err: Error | null, status?: VerificationStatus) => void): any {
-        if (!callback) throw new Error("internal error");
+    public verifyCertificate(certificate: Certificate, ...args: unknown[]): void | Promise<VerificationStatus> {
+
+        type F = (err: Error | null, status?: VerificationStatus) => void;
+        let options: VerifyCertificateOptions | undefined;
+        let callback = undefined;
+        if (args.length === 1) {
+            callback = args[0] as F;
+        } else if (args.length === 2) {
+            options = args[0] as VerifyCertificateOptions;
+            callback = args[1] as F;
+        }
+
+        // istanbul ignore next
+        if (!callback || typeof callback !== "function") throw new Error("internal error");
+
         // Is the  signature on the SoftwareCertificate valid .?
         if (!certificate) {
             // missing certificate
             return callback(null, VerificationStatus.BadSecurityChecksFailed);
         }
-        callbackify(this.verifyCertificateAsync).call(this, certificate, callback);
+        callbackify(this.verifyCertificateAsync).call(this, certificate, options || {}, callback);
     }
 
     /*

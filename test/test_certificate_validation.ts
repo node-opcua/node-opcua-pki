@@ -173,10 +173,18 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             const status = await localCertificateManager.verifyCertificate(cert1);
             status.toString().should.eql("BadCertificateTimeInvalid");
         });
+        it("should detect out of date certificate; but still accept it if option acceptOutdatedCertificate is set", async () => {
+            const status = await localCertificateManager.verifyCertificate(cert1, { acceptOutdatedCertificate: true });
+            status.toString().should.eql("Good");
+        });
 
         it("should detect 'not active yet' certificate", async () => {
             const status = await localCertificateManager.verifyCertificate(cert2);
             status.toString().should.eql("BadCertificateTimeInvalid");
+        });
+        it("should detect  'not active yet'  certificate; but still accept it if option acceptPendingCertificate is set", async () => {
+            const status = await localCertificateManager.verifyCertificate(cert2, { acceptPendingCertificate: true });
+            status.toString().should.eql("Good");
         });
 
         it("should detect a valid certificate", async () => {
