@@ -40,7 +40,7 @@ jobs:
 
             - name: Install new version npm
               run: npm install -g npm
-
+              
             - name: Install deps
               run: npm install
 
