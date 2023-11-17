@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -120,7 +121,7 @@ export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertifica
     outputFile?: Filename; // default : own/cert/self_signed_certificate.pem
     subject: SubjectOptions | string;
     applicationUri: string;
-    dns: any[];
+    dns: string[];
     startDate: Date;
     validity: number;
 }
@@ -486,11 +487,10 @@ export class CertificateManager {
                 // let detected if our certificate is in the revocation list
                 let revokedStatus = await this.isCertificateRevoked(certificate);
                 if (revokedStatus === VerificationStatus.BadCertificateRevocationUnknown) {
-                    if (!options || !options.ignoreMissingRevocationList) {
-                        return VerificationStatus.BadCertificateRevocationUnknown;
-                    } else {
+                    if (options && options.ignoreMissingRevocationList) {
+                        // continue as if the certificate was not revoked
                         revokedStatus = VerificationStatus.Good;
-                    }
+                    } 
                 }
                 if (revokedStatus !== VerificationStatus.Good) {
                     // certificate is revoked !!!
@@ -974,9 +974,9 @@ export class CertificateManager {
                         : this.rejectedFolder;
                 const certificateDest = path.join(destFolder, path.basename(certificateSrc));
 
-                debugLog("_moveCertificate1", fingerprint.substr(0, 10), "old name", certificateSrc);
-                debugLog("_moveCertificate1", fingerprint.substr(0, 10), "new name", certificateDest);
-                fs.rename(certificateSrc, certificateDest, (err?: Error | null) => {
+                debugLog("_moveCertificate1", fingerprint.substring(0, 10), "old name", certificateSrc);
+                debugLog("_moveCertificate1", fingerprint.substring(0, 10), "new name", certificateDest);
+                fs.rename(certificateSrc, certificateDest, () => {
                     delete (this._thumbs as any)[status!][fingerprint];
                     (this._thumbs as any)[newStatus][fingerprint] = {
                         certificate,
