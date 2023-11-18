@@ -23,16 +23,16 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import * as url from "url";
-import * as assert from "assert";
-import * as byline from "byline";
-import * as chalk from "chalk";
-import * as child_process from "child_process";
-import * as ProgressBar from "progress";
-import * as yauzl from "yauzl";
+import  fs from "fs";
+import os from "os";
+import path from "path";
+import url from "url";
+import assert from "assert";
+import byline from "byline";
+import chalk from "chalk";
+import child_process from "child_process";
+import ProgressBar from "progress";
+import yauzl from "yauzl";
 import { Readable } from "stream";
 
 import Table = require("cli-table");

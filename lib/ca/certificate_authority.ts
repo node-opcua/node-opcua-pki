@@ -21,11 +21,11 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 // tslint:disable:no-shadowed-variable
-import * as assert from "assert";
-import * as async from "async";
-import * as chalk from "chalk";
-import * as fs from "fs";
-import * as path from "path";
+import assert from "assert";
+import async from "async";
+import chalk from "chalk";
+import fs from "fs";
+import path from "path";
 
 import {
     Subject,

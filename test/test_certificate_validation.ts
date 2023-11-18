@@ -2,8 +2,8 @@
 // tslint:disable:no-shadowed-variable
 
 Error.stackTraceLimit = Infinity;
-import * as fs from "fs";
-import * as path from "path";
+import fs from "fs";
+import path from "path";
 import "should";
 
 import { Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";

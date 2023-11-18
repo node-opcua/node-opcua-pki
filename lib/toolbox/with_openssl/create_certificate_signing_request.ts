@@ -24,10 +24,10 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as assert from "assert";
+import assert from "assert";
 
-import * as async from "async";
-import * as fs from "fs";
+import async from "async";
+import fs from "fs";
 
 import { Subject } from "../../misc/subject";
 import { CreateCertificateSigningRequestWithConfigOptions, quote } from "../common";

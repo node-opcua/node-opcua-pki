@@ -20,8 +20,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import * as assert from "assert";
-import * as async from "async";
+import assert from "assert";
+import async from "async";
 import { hasEnv, getEnv } from "./_env";
 import { ErrorCallback, KeyLength, quote } from "../common";
 import { useRandFile, createRandomFileIfNotExist } from "./_create_random_file";

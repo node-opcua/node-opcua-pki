@@ -1,5 +1,5 @@
-import * as path from "path";
-import * as rimraf from "rimraf";
+import path from "path";
+import rimraf from "rimraf";
 
 import { ErrorCallback, g_config, mkdir, warningLog } from "../lib/index";
 

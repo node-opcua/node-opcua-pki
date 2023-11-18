@@ -1,9 +1,9 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as fs from "fs";
-import * as path from "path";
-import * as should from "should";
+import fs from "fs";
+import path from "path";
+import should from "should";
 
 import {
     readCertificate,

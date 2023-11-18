@@ -24,13 +24,13 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as assert from "assert";
+import assert from "assert";
 
-import * as byline from "byline";
-import * as chalk from "chalk";
-import * as child_process from "child_process";
-import * as fs from "fs";
-import * as os from "os";
+import byline from "byline";
+import chalk from "chalk";
+import child_process from "child_process";
+import fs from "fs";
+import os from "os";
 
 import { get_openssl_exec_path } from "./install_prerequisite";
 import {

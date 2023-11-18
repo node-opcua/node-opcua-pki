@@ -1,5 +1,5 @@
-import * as path from "path";
-import * as fs from "fs";
+import path from "path";
+import fs from "fs";
 import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "../lib/toolbox/without_openssl";
 import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithOpenSSL } from "../lib/toolbox/with_openssl";
 import { CertificateManager } from "../lib/pki/certificate_manager";

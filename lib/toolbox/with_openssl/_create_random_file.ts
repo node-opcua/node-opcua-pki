@@ -20,8 +20,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import * as path from "path";
-import * as fs from "fs";
+import path from "path";
+import fs from "fs";
 import { ErrorCallback } from "async";
 import { g_config } from "../config";
 import { ExecuteOptions, execute_openssl } from "./execute_openssl";

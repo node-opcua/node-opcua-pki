@@ -1,9 +1,9 @@
-import * as path from "path";
-import * as fs from "fs";
+import path from "path";
+import fs from "fs";
 import { promisify } from "util";
-import * as sinon from "sinon";
-import * as dir from "node-dir";
-import * as chalk from "chalk";
+import sinon from "sinon";
+import dir from "node-dir";
+import chalk from "chalk";
 import "should";
 
 import { readCertificate, split_der, makeSHA1Thumbprint } from "node-opcua-crypto";

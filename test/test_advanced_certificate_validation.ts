@@ -1,6 +1,6 @@
-import * as path from "path";
-import * as fs from "fs";
-import * as sinon from "sinon";
+import path from "path";
+import fs from "fs";
+import sinon from "sinon";
 import "should";
 
 import { CertificateManager, CertificateManagerOptions } from "../lib";

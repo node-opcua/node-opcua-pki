@@ -2,8 +2,8 @@ Error.stackTraceLimit = Infinity;
 // tslint:disable: no-console
 // tslint:disable:variable-name
 // tslint:disable:no-shadowed-variable
-import * as fs from "fs";
-import * as path from "path";
+import fs from "fs";
+import path from "path";
 import { promisify } from "util";
 import "should";
 import { readCertificate } from "node-opcua-crypto";

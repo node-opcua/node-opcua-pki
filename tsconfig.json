@@ -11,6 +11,7 @@
         "incremental": true,
         "listFiles": false,
         "traceResolution": false,
+        "esModuleInterop": true,
         "lib": [],
         "types": ["node", "mocha", "should"]
     },

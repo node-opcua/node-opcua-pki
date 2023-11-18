@@ -24,12 +24,12 @@
 // tslint:disable:no-shadowed-variable
 // tslint:disable:member-ordering
 
-import * as assert from "assert";
-import * as async from "async";
-import * as chalk from "chalk";
-import * as chokidar from "chokidar";
-import * as fs from "fs";
-import * as path from "path";
+import assert from "assert";
+import async from "async";
+import chalk from "chalk";
+import chokidar from "chokidar";
+import fs from "fs";
+import path from "path";
 import { callbackify, promisify } from "util";
 
 import { withLock } from "@ster5/global-mutex";

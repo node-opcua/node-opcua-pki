@@ -24,10 +24,10 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import * as assert from "assert";
+import assert from "assert";
 
-import * as fs from "fs";
-import * as path from "path";
+import fs from "fs";
+import path from "path";
 
 import { Filename } from "../common";
 import { quote } from "../common";

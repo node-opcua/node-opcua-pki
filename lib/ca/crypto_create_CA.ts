@@ -27,16 +27,16 @@
 // tslint:disable:object-literal-sort-keys
 // tslint:disable:no-shadowed-variable
 
-import * as assert from "assert";
-import * as chalk from "chalk";
-import * as rimraf from "rimraf";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
+import assert from "assert";
+import chalk from "chalk";
+import rimraf from "rimraf";
+import fs from "fs";
+import path from "path";
+import os from "os";
 import { callbackify, promisify } from "util";
 import { CertificatePurpose, Subject, SubjectOptions, generatePrivateKeyFile } from "node-opcua-crypto";
 // see https://github.com/yargs/yargs/issues/781
-import * as commands from "yargs";
+import commands from "yargs";
 
 import { makeApplicationUrn } from "../misc/applicationurn";
 import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "../misc/hostname";

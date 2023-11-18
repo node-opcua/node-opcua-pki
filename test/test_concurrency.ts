@@ -1,4 +1,4 @@
-import * as path from "path";
+import path from "path";
 import "should";
 import { CertificateManager } from "../lib";
 import { beforeTest } from "./helpers";
