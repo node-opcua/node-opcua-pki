@@ -396,6 +396,7 @@ export class CertificateManager {
                 // let's first verify that certificate is valid ,as we don't want to write invalid data
                 try {
                     const certificateInfo = exploreCertificateInfo(certificate);
+                    certificateInfo;
                 } catch (err) {
                     return "BadCertificateInvalid";
                 }
@@ -528,6 +529,7 @@ export class CertificateManager {
         }
 
         const c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
+        c2;
 
         // Has SoftwareCertificate passed its issue date and has it not expired ?
         // check dates
@@ -718,11 +720,11 @@ export class CertificateManager {
         }
     }
 
-    private withLock<T extends void = void>(action: (callback: Callback22) => void, callback: Callback22): void;
+    private withLock(action: (callback: Callback22) => void, callback: Callback22): void;
     private withLock<T>(action: (callback: Callback11<T>) => void, callback: Callback11<T>): void;
     // eslint-disable-next-line @typescript-eslint/ban-types
-    private withLock(action: Function, callback: Function): void {
-        this.withLock2(promisify<any>(action as any))
+    private withLock<T>(action: Function, callback: Function): void {
+        this.withLock2(promisify<T>(action as any))
             .then((t: unknown) => callback(null, t))
             .catch((err) => callback(err));
     }
@@ -1099,9 +1101,11 @@ export class CertificateManager {
             const w = chokidar.watch(folder, options);
 
             w.on("unlink", (filename: string, stat?: fs.Stats) => {
+                filename;stat;
                 // CRL never removed
             });
             w.on("add", (filename: string, stat?: fs.Stats) => {
+                stat;
                 this._on_crl_file_added(index, filename);
             });
             w.on("change", (path: string, stat?: fs.Stats) => {
@@ -1121,6 +1125,7 @@ export class CertificateManager {
         ) {
             const w = chokidar.watch(folder, options);
             w.on("unlink", (filename: string, stat?: fs.Stats) => {
+                stat;
                 debugLog(chalk.cyan("unlink in folder " + folder), filename);
                 const h = this._filenameToHash[filename];
                 if (h && index[h]) {
@@ -1128,6 +1133,7 @@ export class CertificateManager {
                 }
             });
             w.on("add", (filename: string, stat?: fs.Stats) => {
+                stat;
                 debugLog(chalk.cyan("add in folder " + folder), filename); // stat);
                 try {
                     const certificate = readCertificate(filename);
@@ -1152,6 +1158,7 @@ export class CertificateManager {
                 }
             });
             w.on("change", (path: string, stat?: fs.Stats) => {
+                stat;
                 debugLog("change in folder ", folder, path);
             });
             this._watchers.push(w);

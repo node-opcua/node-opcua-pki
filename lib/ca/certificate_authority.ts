@@ -22,7 +22,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // tslint:disable:no-shadowed-variable
 import assert from "assert";
-import async from "async";
+import async, { AsyncFunction } from "async";
 import chalk from "chalk";
 import fs from "fs";
 import path from "path";
@@ -61,6 +61,7 @@ import {
     execute_openssl_no_failure,
     ExecuteOptions,
     execute_openssl,
+    ExecuteOpenSSLOptions,
 } from "../toolbox/with_openssl";
 import { generatePrivateKeyFileCallback } from "../toolbox/without_openssl/create_private_key";
 
@@ -156,6 +157,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
     // tslint:disable:no-empty
     displayTitle("Create Certificate Authority (CA)", (_err?: Error | null) => {
         /** */
+        _err;
     });
 
     const indexFileAttr = path.join(caRootDir, "index.txt.attr");
@@ -245,7 +247,8 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
 
     async.series(tasks, callback);
 }
-function regenerateCrl(revocationList: string, configOption: any, options: any, callback: ErrorCallback) {
+
+function regenerateCrl(revocationList: string, configOption: string, options: ExecuteOpenSSLOptions, callback: ErrorCallback) {
     const tasks = [
         (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
 
@@ -320,14 +323,14 @@ export class CertificateAuthority {
 
     public async initialize(): Promise<void>;
     public initialize(callback: ErrorCallback): void;
-    public initialize(callback?: ErrorCallback): any {
+    public initialize(callback?: ErrorCallback): void | Promise<void> {
         assert(typeof callback === "function");
         construct_CertificateAuthority(this, callback!);
     }
 
     public async constructCACertificateWithCRL(): Promise<void>;
     public constructCACertificateWithCRL(callback: ErrorCallback): void;
-    public constructCACertificateWithCRL(callback?: ErrorCallback): any {
+    public constructCACertificateWithCRL(callback?: ErrorCallback): void | Promise<void> {
         assert(typeof callback === "function");
         const cacertWithCRL = this.caCertificateWithCrl;
 
@@ -352,7 +355,7 @@ export class CertificateAuthority {
 
     public async constructCertificateChain(certificate: Filename): Promise<void>;
     public constructCertificateChain(certificate: Filename, callback: ErrorCallback): void;
-    public constructCertificateChain(certificate: Filename, callback?: ErrorCallback): any {
+    public constructCertificateChain(certificate: Filename, callback?: ErrorCallback): void | Promise<void> {
         assert(typeof callback === "function");
         assert(fs.existsSync(certificate));
         assert(fs.existsSync(this.caCertificate));
@@ -379,7 +382,7 @@ export class CertificateAuthority {
         privateKey: Filename,
         params: Params,
         callback?: ErrorCallback
-    ): any {
+    ): void | Promise<void> {
         assert(typeof privateKey === "string");
         assert(fs.existsSync(privateKey));
         assert(typeof callback === "function");
@@ -475,7 +478,7 @@ export class CertificateAuthority {
      */
     public revokeCertificate(certificate: Filename, params: Params, callback: ErrorCallback): void;
     public async revokeCertificate(certificate: Filename, params: Params): Promise<void>;
-    public revokeCertificate(certificate: Filename, params: Params, callback?: ErrorCallback): any {
+    public revokeCertificate(certificate: Filename, params: Params, callback?: ErrorCallback): void | Promise<void> {
         assert(typeof callback === "function");
 
         const crlReasons = [
@@ -539,6 +542,8 @@ export class CertificateAuthority {
                         q(n(certificate)),
                     options,
                     (err: Error | null, output?: string) => {
+                        err;
+                        output;
                         callback();
                     }
                 );
@@ -695,7 +700,7 @@ export class CertificateAuthority {
                     this.verifyCertificate(certificate, callback);
                 });
 
-                async.series(tasks as any, (err?: Error) => {
+                async.series(tasks as AsyncFunction<unknown, Error>[], (err?: Error | null) => {
                     // istanbul ignore next
                     if (err) {
                         return callback(err);
@@ -710,7 +715,7 @@ export class CertificateAuthority {
 
     public async verifyCertificate(certificate: Filename): Promise<void>;
     public verifyCertificate(certificate: Filename, callback: ErrorCallback): void;
-    public verifyCertificate(certificate: Filename, callback?: ErrorCallback): any {
+    public verifyCertificate(certificate: Filename, callback?: ErrorCallback): void | Promise<void> {
         // openssl verify crashes on windows! we cannot use it reliably
         // istanbul ignore next
         const isImplemented = false;
@@ -722,7 +727,7 @@ export class CertificateAuthority {
 
             setEnv("OPENSSL_CONF", make_path(configFile));
             const configOption = " -config " + configFile;
-
+            configOption;
             execute_openssl_no_failure(
                 "verify -verbose " + " -CAfile " + q(n(this.caCertificateWithCrl)) + " " + q(n(certificate)),
                 options,
