@@ -688,9 +688,9 @@ argv
                     displayTitle("Cleaning old certificates");
                     assert(gLocalConfig);
                     const certificateDir = gLocalConfig.certificateDir || "";
-                    await promisify(rimraf)(certificateDir + "/*.pem*");
-                    await promisify(rimraf)(certificateDir + "/*.pub*");
-                    await promisify(mkdir)(certificateDir);
+                    await rimraf(certificateDir + "/*.pem*");
+                    await rimraf(certificateDir + "/*.pub*");
+                    await mkdir(certificateDir);
                 }
                 displayTitle("create certificates");
                 await createDefaultCertificates(local_argv.dev);
