@@ -2,7 +2,7 @@
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
-// Copyright (c) 2022-2023 - Sterfive.com
+// Copyright (c) 2022-2024 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.

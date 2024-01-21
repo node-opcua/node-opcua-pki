@@ -3,7 +3,7 @@
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
-// Copyright (c) 2022-2023 - Sterfive.com
+// Copyright (c) 2022-2024 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -71,7 +71,7 @@ const { hideBin } = require("yargs/helpers");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const argv = require("yargs/yargs")(hideBin(process.argv));
 
-const epilog = "Copyright (c) sterfive - node-opcua - 2017-2023";
+const epilog = "Copyright (c) sterfive - node-opcua - 2017-2024";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nbDays: number): Date {
