@@ -54,7 +54,7 @@
     "thenify": "^3.3.1",
     "wget-improved-2": "^3.3.0",
     "yargs": "17.7.2",
-    "yauzl": "^3.1.0"
+    "yauzl": "^3.1.1"
   },
   "devDependencies": {
     "@types/async": "^3.2.24",
