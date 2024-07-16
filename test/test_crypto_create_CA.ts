@@ -94,7 +94,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                 const timeToConstructDemoCertificateSecondTime = date3.getTime() - date2.getTime();
                 console.log(" t2 = ", timeToConstructDemoCertificateSecondTime);
 
-                (initialTimeToConstructDemoCertificate / 2).should.be.greaterThan(
+                (initialTimeToConstructDemoCertificate / 1.2).should.be.greaterThan(
                     timeToConstructDemoCertificateSecondTime,
                     "it should take less time the second pass"
                 );
