@@ -2,11 +2,9 @@
   "name": "node-opcua-pki",
   "version": "4.12.0",
   "description": "PKI management for node-opcua",
+  "type": "commonjs",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
-  "directories": {
-    "test": "test"
-  },
   "scripts": {
     "build": "npx tsc -b -f",
     "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
@@ -20,10 +18,6 @@
     "tslint": "npx tslint -c tslint.json lib/**/*.ts",
     "postinstall2": "opencollective-postinstall",
     "postinstall3": "github-sponsors"
-  },
-  "pkg": {
-    "scripts": "build/**/*.js",
-    "assets": "./bin/crypto_create_CA_config.example.js"
   },
   "repository": {
     "type": "git",
