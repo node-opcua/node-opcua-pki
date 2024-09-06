@@ -42,7 +42,7 @@
     "chalk": "4.1.2",
     "chokidar": "^3.6.0",
     "cli-table": "^0.3.11",
-    "node-opcua-crypto": "4.9.3",
+    "node-opcua-crypto": "4.9.4",
     "progress": "^2.0.3",
     "rimraf": "4.4.1",
     "thenify": "^3.3.1",
