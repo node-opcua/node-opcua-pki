@@ -215,7 +215,12 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
 
     let clock: sinon.SinonFakeTimers;
     beforeEach(() => {
-        clock = sinon.useFakeTimers(new Date(2020, 4, 11));
+        clock = sinon.useFakeTimers({
+            now: new Date(2020, 4, 11),
+            shouldAdvanceTime: true,
+            advanceTimeDelta: 20,
+           
+        });
     });
     afterEach(() => {
         clock.restore();

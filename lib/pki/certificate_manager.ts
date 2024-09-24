@@ -1111,7 +1111,7 @@ export class CertificateManager {
             w.on("change", (path: string, stat?: fs.Stats) => {
                 debugLog("change in folder ", folder, path, stat);
             });
-            this._watchers.push(w);
+            this._watchers.push(w as any);
             w.on("ready", () => {
                 _innerCallback();
             });
@@ -1161,7 +1161,7 @@ export class CertificateManager {
                 stat;
                 debugLog("change in folder ", folder, path);
             });
-            this._watchers.push(w);
+            this._watchers.push(w as any);
             w.on("ready", () => {
                 _innerCallback();
                 debugLog("ready");
