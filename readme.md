@@ -207,7 +207,11 @@ or alpine:
 apk add openssl
 ```
 
-#### support:
+# Support
+Sterfive provides this module free of charge, “as is,” with the hope that it will be useful to you. However, any support requests, bug fixes, or enhancements are handled exclusively through our paid services. We believe strongly that independent open-source companies should be fairly compensated for their contributions to the community.
+
+We highly recommend subscribing to our [support program](https://support.sterfive.com) to ensure your requests are addressed and resolved. Please note that we only consider requests from members of our support program or sponsors.
+
 
 ## Getting professional support
 
