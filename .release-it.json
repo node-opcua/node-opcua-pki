@@ -11,6 +11,7 @@
   },
   "hooks": {
     "before:init": [
+      "git fetch --prune --prune-tags origin",
       "npm run build"
     ],
     "after:bump": "npx auto-changelog -p"
