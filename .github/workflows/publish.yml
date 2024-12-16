@@ -34,7 +34,7 @@ jobs:
         run: | # Custom action
           npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
       - name: Run release-it
-        run: npx release-it  --ci
+        run: npx release-it  --ci --increment=minor
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
