@@ -180,7 +180,11 @@ function buildIdealCertificateName(certificate: Certificate): string {
     const fingerprint = makeFingerprint(certificate);
     try {
         const commonName = exploreCertificate(certificate).tbsCertificate.subject.commonName || "";
-        return commonName + "[" + fingerprint + "]";
+        // commonName may contain invalid characters for a filename such as / or \ or
+        // that we need to replace with a valid character.
+        // replace / or \ with _
+        const sanitizedCommonName = commonName.replace(/[\/\\]/g, "_");
+        return sanitizedCommonName + "[" + fingerprint + "]";
     } catch (err) {
         // make be certificate is incorrect !
         return "invalid_certificate_[" + fingerprint + "]";
