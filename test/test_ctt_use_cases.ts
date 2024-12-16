@@ -277,7 +277,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             flagsToString(flags),
             status.toString().padEnd(37),
             nbInChain,
-            makeSHA1Thumbprint(certificate).toString("hex").substr(0, 10)
+            makeSHA1Thumbprint(certificate).toString("hex").substring(0, 10)
         );
         if (flags.certFlags.validity === TimeValidity.expired || flags.certFlags.validity === TimeValidity.not_yet_valid) {
             if (flags.certFlags.trusted) {

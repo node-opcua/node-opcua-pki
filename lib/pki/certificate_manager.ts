@@ -174,7 +174,7 @@ function makeFingerprint(certificate: Certificate | CertificateRevocationList): 
     return makeSHA1Thumbprint(certificate).toString("hex");
 }
 function short(stringToShorten: string) {
-    return stringToShorten.substr(0, 10);
+    return stringToShorten.substring(0, 10);
 }
 function buildIdealCertificateName(certificate: Certificate): string {
     const fingerprint = makeFingerprint(certificate);
@@ -958,14 +958,14 @@ export class CertificateManager {
             if (err) {
                 return callback(err);
             }
-            debugLog("_moveCertificate", fingerprint.substr(0, 10), "from", status, "to", newStatus);
+            debugLog("_moveCertificate", fingerprint.substring(0, 10), "from", status, "to", newStatus);
             assert(status === "rejected" || status === "trusted");
             if (status !== newStatus) {
                 const certificateSrc = (this._thumbs as any)[status!][fingerprint]?.filename;
 
                 // istanbul ignore next
                 if (!certificateSrc) {
-                    debugLog(" cannot find certificate ", fingerprint.substr(0, 10), " in", this._thumbs, [status!]);
+                    debugLog(" cannot find certificate ", fingerprint.substring(0, 10), " in", this._thumbs, [status!]);
                     return callback(new Error("internal"));
                 }
                 const destFolder =
@@ -1165,7 +1165,7 @@ export class CertificateManager {
             w.on("ready", () => {
                 _innerCallback();
                 debugLog("ready");
-                debugLog(Object.entries(index).map((kv) => (kv[0] as string).substr(0, 10)));
+                debugLog(Object.entries(index).map((kv) => (kv[0] as string).substring(0, 10)));
             });
         }
         async.parallelLimit(
