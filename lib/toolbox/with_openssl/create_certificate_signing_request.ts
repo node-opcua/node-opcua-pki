@@ -25,8 +25,6 @@
 // tslint:disable:no-shadowed-variable
 
 import assert from "assert";
-
-import async from "async";
 import fs from "fs";
 
 import { Subject } from "../../misc/subject";
@@ -36,23 +34,17 @@ import { displaySubtitle } from "../display";
 import { execute_openssl } from "./execute_openssl";
 import { processAltNames } from "./_env";
 import { generateStaticConfig } from "./toolbox";
-import { promisify } from "util";
 
 const q = quote;
 const n = make_path;
 
 /**
  * create a certificate signing request
- *
- * @param certificateSigningRequestFilename
- * @param params
- * @param callback
  */
-export function createCertificateSigningRequest(
+export async function createCertificateSigningRequestWithOpenSSL (
     certificateSigningRequestFilename: string,
-    params: CreateCertificateSigningRequestWithConfigOptions,
-    callback: (err?: Error) => void
-): void {
+    params: CreateCertificateSigningRequestWithConfigOptions
+): Promise<void> {
     assert(params);
     assert(params.rootDir);
     assert(params.configFile);
@@ -73,32 +65,21 @@ export function createCertificateSigningRequest(
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     // process.env.OPENSSL_CONF  ="";
     const subjectOptions = subject ? ' -subj "' + subject + '"' : "";
-    async.series(
-        [
-            (callback: (err?: Error) => void) => {
-                displaySubtitle("- Creating a Certificate Signing Request with openssl", callback);
-            },
-            (callback: (err?: Error) => void) => {
-                execute_openssl(
-                    "req -new" +
-                        "  -sha256 " +
-                        " -batch " +
-                        " -text " +
-                        configOption +
-                        " -key " +
-                        q(n(params.privateKey)) +
-                        subjectOptions +
-                        " -out " +
-                        q(n(certificateSigningRequestFilename)),
-                    options,
-                    (err: Error | null) => {
-                        callback(err ? err : undefined);
-                    }
-                );
-            },
-        ],
-        (err) => callback(err as Error)
-    );
-}
 
-export const createCertificateSigningRequestAsync = promisify(createCertificateSigningRequest);
+    displaySubtitle("- Creating a Certificate Signing Request with openssl");
+    await execute_openssl(
+        "req -new" +
+        "  -sha256 " +
+        " -batch " +
+        " -text " +
+        configOption +
+        " -key " +
+        q(n(params.privateKey)) +
+        subjectOptions +
+        " -out " +
+        q(n(certificateSigningRequestFilename)),
+        options,
+
+    );
+
+}

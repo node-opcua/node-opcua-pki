@@ -42,10 +42,6 @@ describe("test certificate validation", function (this: Mocha.Suite) {
 
     /**
      * @method createCertificate
-     * @param params
-     * @param params.applicationUri
-     * @param params.dns
-     * @param callback
      */
     async function createSignedCertificate(certificate: Filename, params: Params, certificateAuthority: CertificateAuthority) {
         // create a signing request

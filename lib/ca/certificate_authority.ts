@@ -22,7 +22,6 @@
 // ---------------------------------------------------------------------------------------------------------------------
 // tslint:disable:no-shadowed-variable
 import assert from "assert";
-import async, { AsyncFunction } from "async";
 import chalk from "chalk";
 import fs from "fs";
 import path from "path";
@@ -30,13 +29,12 @@ import path from "path";
 import {
     Subject,
     SubjectOptions,
-    CertificateSigningRequestInfo,
     exploreCertificateSigningRequest,
     readCertificateSigningRequest,
+    generatePrivateKeyFile,
 } from "node-opcua-crypto";
 
 import {
-    ErrorCallback,
     Filename,
     KeySize,
     certificateFileExist,
@@ -63,7 +61,6 @@ import {
     execute_openssl,
     ExecuteOpenSSLOptions,
 } from "../toolbox/with_openssl";
-import { generatePrivateKeyFileCallback } from "../toolbox/without_openssl/create_private_key";
 
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
@@ -94,7 +91,7 @@ function octetStringToIpAddress(a: string) {
     );
 }
 assert(octetStringToIpAddress("c07b9179") === "192.123.145.121");
-function construct_CertificateAuthority(certificateAuthority: CertificateAuthority, callback: ErrorCallback) {
+async function construct_CertificateAuthority(certificateAuthority: CertificateAuthority): Promise<void> {
     // create the CA directory store
     // create the CA directory store
     //
@@ -119,50 +116,48 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
 
     const caRootDir = certificateAuthority.rootDir;
 
-    function make_folders() {
-        mkdir(caRootDir);
-        mkdir(path.join(caRootDir, "private"));
-        mkdir(path.join(caRootDir, "public"));
+    async function make_folders() {
+        await mkdir(caRootDir);
+        await mkdir(path.join(caRootDir, "private"));
+        await mkdir(path.join(caRootDir, "public"));
         // xx execute("chmod 700 private");
-        mkdir(path.join(caRootDir, "certs"));
-        mkdir(path.join(caRootDir, "crl"));
-        mkdir(path.join(caRootDir, "conf"));
+        await mkdir(path.join(caRootDir, "certs"));
+        await mkdir(path.join(caRootDir, "crl"));
+        await mkdir(path.join(caRootDir, "conf"));
     }
-    make_folders();
+    await make_folders();
 
-    function construct_default_files() {
+    async function construct_default_files() {
         const serial = path.join(caRootDir, "serial");
         if (!fs.existsSync(serial)) {
-            fs.writeFileSync(serial, "1000");
+            await fs.promises.writeFile(serial, "1000");
         }
 
         const crlNumber = path.join(caRootDir, "crlnumber");
         if (!fs.existsSync(crlNumber)) {
-            fs.writeFileSync(crlNumber, "1000");
+            await fs.promises.writeFile(crlNumber, "1000");
         }
 
         const indexFile = path.join(caRootDir, "index.txt");
         if (!fs.existsSync(indexFile)) {
-            fs.writeFileSync(indexFile, "");
+            await fs.promises.writeFile(indexFile, "");
         }
     }
-    construct_default_files();
+
+    await construct_default_files();
 
     if (fs.existsSync(path.join(caRootDir, "private/cakey.pem")) && !config.forceCA) {
         // certificate already exists => do not overwrite
         debugLog("CA private key already exists ... skipping");
-        return callback();
+        return;
     }
 
     // tslint:disable:no-empty
-    displayTitle("Create Certificate Authority (CA)", (_err?: Error | null) => {
-        /** */
-        _err;
-    });
+    displayTitle("Create Certificate Authority (CA)");
 
     const indexFileAttr = path.join(caRootDir, "index.txt.attr");
     if (!fs.existsSync(indexFileAttr)) {
-        fs.writeFileSync(indexFileAttr, "unique_subject = no");
+        await fs.promises.writeFile(indexFileAttr, "unique_subject = no");
     }
 
     const caConfigFile = certificateAuthority.configFile;
@@ -171,7 +166,7 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
         let data = configurationFileTemplate; // inlineText(configurationFile);
         data = data.replace(/%%ROOT_FOLDER%%/, make_path(caRootDir));
 
-        fs.writeFileSync(caConfigFile, data);
+        await fs.promises.writeFile(caConfigFile, data);
     }
 
     // http://www.akadia.com/services/ssh_test_certificate.html
@@ -186,89 +181,78 @@ function construct_CertificateAuthority(certificateAuthority: CertificateAuthori
 
     const privateKeyFilename = path.join(caRootDir, "private/cakey.pem");
     const csrFilename = path.join(caRootDir, "private/cakey.csr");
-    const tasks = [
-        (callback: ErrorCallback) => displayTitle("Generate the CA private Key - " + keySize, callback),
+
+    displayTitle("Generate the CA private Key - " + keySize),
 
         // The first step is to create your RSA Private Key.
         // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
         // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
-        (callback: ErrorCallback) => generatePrivateKeyFileCallback(privateKeyFilename, keySize, callback),
+        await generatePrivateKeyFile(privateKeyFilename, keySize),
 
-        (callback: ErrorCallback) => displayTitle("Generate a certificate request for the CA key", callback),
+        displayTitle("Generate a certificate request for the CA key"),
 
         // Once the private key is generated a Certificate Signing Request can be generated.
         // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
         // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
         // The second option is to self-sign the CSR, which will be demonstrated in the next section
-        (callback: ErrorCallback) =>
+        await
             execute_openssl(
                 "req -new" +
-                    " -sha256 " +
-                    " -text " +
-                    " -extensions v3_ca" +
-                    configOption +
-                    " -key " +
-                    q(n(privateKeyFilename)) +
-                    " -out " +
-                    q(n(csrFilename)) +
-                    " " +
-                    subjectOpt,
+                " -sha256 " +
+                " -text " +
+                " -extensions v3_ca" +
+                configOption +
+                " -key " +
+                q(n(privateKeyFilename)) +
+                " -out " +
+                q(n(csrFilename)) +
+                " " +
+                subjectOpt,
                 options,
-                callback
-            ),
 
-        // xx // Step 3: Remove Passphrase from Key
-        // xx execute("cp private/cakey.pem private/cakey.pem.org");
-        // xx execute(openssl_path + " rsa -in private/cakey.pem.org -out private/cakey.pem -passin pass:"+paraphrase);
+            );
 
-        (callback: ErrorCallback) => displayTitle("Generate CA Certificate (self-signed)", callback),
+    // xx // Step 3: Remove Passphrase from Key
+    // xx execute("cp private/cakey.pem private/cakey.pem.org");
+    // xx execute(openssl_path + " rsa -in private/cakey.pem.org -out private/cakey.pem -passin pass:"+paraphrase);
 
-        (callback: ErrorCallback) =>
-            execute_openssl(
-                " x509 -sha256 -req -days 3650 " +
-                    " -text " +
-                    " -extensions v3_ca" +
-                    " -extfile " +
-                    q(n(configFile)) +
-                    " -in private/cakey.csr " +
-                    " -signkey " +
-                    q(n(privateKeyFilename)) +
-                    " -out public/cacert.pem",
-                options,
-                callback
-            ),
+    displayTitle("Generate CA Certificate (self-signed)"),
 
-        (callback: ErrorCallback) => displaySubtitle("generate initial CRL (Certificate Revocation List)", callback),
+        await execute_openssl(
+            " x509 -sha256 -req -days 3650 " +
+            " -text " +
+            " -extensions v3_ca" +
+            " -extfile " +
+            q(n(configFile)) +
+            " -in private/cakey.csr " +
+            " -signkey " +
+            q(n(privateKeyFilename)) +
+            " -out public/cacert.pem",
+            options,
 
-        (callback: ErrorCallback) => regenerateCrl(certificateAuthority.revocationList, configOption, options, callback),
+        ),
 
-        (callback: ErrorCallback) => displayTitle("Create Certificate Authority (CA) ---> DONE", callback),
-    ];
+        displaySubtitle("generate initial CRL (Certificate Revocation List)"),
 
-    async.series(tasks, callback);
+        await regenerateCrl(certificateAuthority.revocationList, configOption, options),
+
+        displayTitle("Create Certificate Authority (CA) ---> DONE");
+
 }
 
-function regenerateCrl(revocationList: string, configOption: string, options: ExecuteOpenSSLOptions, callback: ErrorCallback) {
-    const tasks = [
-        (callback: ErrorCallback) => displaySubtitle("regenerate CRL (Certificate Revocation List)", callback),
+async function regenerateCrl(revocationList: string, configOption: string, options: ExecuteOpenSSLOptions) {
 
-        (callback: ErrorCallback) =>
-            // produce a CRL in PEM format
-            execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options, callback),
+    // produce a CRL in PEM format
+    displaySubtitle("regenerate CRL (Certificate Revocation List)");
+    await execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options);
+    await execute_openssl(
+        "crl " + " -in  crl/revocation_list.crl -out  crl/revocation_list.der " + " -outform der",
+        options
+    );
 
-        (callback: ErrorCallback) =>
-            execute_openssl(
-                "crl " + " -in  crl/revocation_list.crl -out  crl/revocation_list.der " + " -outform der",
-                options,
-                callback
-            ),
+    displaySubtitle("Display (Certificate Revocation List)");
+    await execute_openssl("crl " + " -in " + q(n(revocationList)) + " -text " + " -noout", options);
 
-        (callback: ErrorCallback) => displaySubtitle("Display (Certificate Revocation List)", callback),
-
-        (callback: ErrorCallback) =>
-            execute_openssl("crl " + " -in " + q(n(revocationList)) + " -text " + " -noout", options, callback),
-    ];
-    async.series(tasks, callback);
 }
 
 export interface CertificateAuthorityOptions {
@@ -321,17 +305,11 @@ export class CertificateAuthority {
         return make_path(this.rootDir, "./public/cacertificate_with_crl.pem");
     }
 
-    public async initialize(): Promise<void>;
-    public initialize(callback: ErrorCallback): void;
-    public initialize(callback?: ErrorCallback): void | Promise<void> {
-        assert(typeof callback === "function");
-        construct_CertificateAuthority(this, callback!);
+    public async initialize(): Promise<void> {
+        await construct_CertificateAuthority(this);
     }
 
-    public async constructCACertificateWithCRL(): Promise<void>;
-    public constructCACertificateWithCRL(callback: ErrorCallback): void;
-    public constructCACertificateWithCRL(callback?: ErrorCallback): void | Promise<void> {
-        assert(typeof callback === "function");
+    public async constructCACertificateWithCRL(): Promise<void> {
         const cacertWithCRL = this.caCertificateWithCrl;
 
         // note : in order to check if the certificate is revoked,
@@ -342,53 +320,36 @@ export class CertificateAuthority {
         // ( from http://security.stackexchange.com/a/58305/59982)
 
         if (fs.existsSync(this.revocationList)) {
-            fs.writeFileSync(
+            await fs.promises.writeFile(
                 cacertWithCRL,
                 fs.readFileSync(this.caCertificate, "utf8") + fs.readFileSync(this.revocationList, "utf8")
             );
         } else {
             // there is no revocation list yet
-            fs.writeFileSync(cacertWithCRL, fs.readFileSync(this.caCertificate));
+            await fs.promises.writeFile(cacertWithCRL, fs.readFileSync(this.caCertificate));
         }
-        callback!();
     }
 
-    public async constructCertificateChain(certificate: Filename): Promise<void>;
-    public constructCertificateChain(certificate: Filename, callback: ErrorCallback): void;
-    public constructCertificateChain(certificate: Filename, callback?: ErrorCallback): void | Promise<void> {
-        assert(typeof callback === "function");
+    public async constructCertificateChain(certificate: Filename): Promise<void> {
         assert(fs.existsSync(certificate));
         assert(fs.existsSync(this.caCertificate));
 
         debugLog(chalk.yellow("        certificate file :"), chalk.cyan(certificate));
         // append
-        fs.writeFileSync(
+        await fs.promises.writeFile(
             certificate,
-            fs.readFileSync(certificate, "utf8") + fs.readFileSync(this.caCertificate, "utf8")
+            await fs.promises.readFile(certificate, "utf8") +
+            await fs.promises.readFile(this.caCertificate, "utf8")
             //   + fs.readFileSync(this.revocationList)
         );
-        callback();
     }
 
-    public async createSelfSignedCertificate(certificateFile: Filename, privateKey: Filename, params: Params): Promise<void>;
-    public createSelfSignedCertificate(
-        certificateFile: Filename,
-        privateKey: Filename,
-        params: Params,
-        callback: ErrorCallback
-    ): void;
-    public createSelfSignedCertificate(
-        certificateFile: Filename,
-        privateKey: Filename,
-        params: Params,
-        callback?: ErrorCallback
-    ): void | Promise<void> {
+    public async createSelfSignedCertificate(certificateFile: Filename, privateKey: Filename, params: Params): Promise<void> {
         assert(typeof privateKey === "string");
         assert(fs.existsSync(privateKey));
-        assert(typeof callback === "function");
 
         if (!certificateFileExist(certificateFile)) {
-            return callback!();
+            return;
         }
 
         adjustDate(params);
@@ -408,62 +369,50 @@ export class CertificateAuthority {
 
         const subject = params.subject ? new Subject(params.subject!).toString() : "";
         const subjectOptions = subject && subject.length > 1 ? " -subj " + subject + " " : "";
-        const tasks = [];
-        tasks.push((callback: ErrorCallback) => displaySubtitle("- the certificate signing request", callback));
-        tasks.push((callback: ErrorCallback) =>
-            execute_openssl(
-                "req " +
-                    " -new -sha256 -text " +
-                    configOption +
-                    subjectOptions +
-                    " -batch -key " +
-                    q(n(privateKey)) +
-                    " -out " +
-                    q(n(csrFile)),
-                options,
-                callback
-            )
+
+
+        displaySubtitle("- the certificate signing request");
+        await execute_openssl(
+            "req " +
+            " -new -sha256 -text " +
+            configOption +
+            subjectOptions +
+            " -batch -key " +
+            q(n(privateKey)) +
+            " -out " +
+            q(n(csrFile)),
+            options
         );
 
-        tasks.push((callback: ErrorCallback) => displaySubtitle("- creating the self-signed certificate", callback));
-        tasks.push((callback: ErrorCallback) =>
-            execute_openssl(
-                "ca " +
-                    " -selfsign " +
-                    " -keyfile " +
-                    q(n(privateKey)) +
-                    " -startdate " +
-                    x509Date(params.startDate) +
-                    " -enddate " +
-                    x509Date(params.endDate) +
-                    " -batch -out " +
-                    q(n(certificateFile)) +
-                    " -in " +
-                    q(n(csrFile)),
-                options,
-                callback
-            )
+        displaySubtitle("- creating the self-signed certificate");
+        await execute_openssl(
+            "ca " +
+            " -selfsign " +
+            " -keyfile " +
+            q(n(privateKey)) +
+            " -startdate " +
+            x509Date(params.startDate) +
+            " -enddate " +
+            x509Date(params.endDate) +
+            " -batch -out " +
+            q(n(certificateFile)) +
+            " -in " +
+            q(n(csrFile)),
+            options,
+
         );
 
-        tasks.push((callback: ErrorCallback) => displaySubtitle("- dump the certificate for a check", callback));
-        tasks.push((callback: ErrorCallback) =>
-            execute_openssl("x509 -in " + q(n(certificateFile)) + "  -dates -fingerprint -purpose -noout", {}, callback)
+        displaySubtitle("- dump the certificate for a check");
+
+        await execute_openssl("x509 -in " + q(n(certificateFile)) + "  -dates -fingerprint -purpose -noout", {});
+
+        displaySubtitle("- verify self-signed certificate");
+        await execute_openssl_no_failure(
+            "verify -verbose -CAfile " + q(n(certificateFile)) + " " + q(n(certificateFile)),
+            options
         );
 
-        tasks.push((callback: ErrorCallback) => displaySubtitle("- verify self-signed certificate", callback));
-        tasks.push((callback: ErrorCallback) =>
-            execute_openssl_no_failure(
-                "verify -verbose -CAfile " + q(n(certificateFile)) + " " + q(n(certificateFile)),
-                options,
-                callback
-            )
-        );
-
-        tasks.push((callback: ErrorCallback) => fs.unlink(csrFile, callback));
-
-        async.series(tasks, (err?: Error | null) => {
-            callback!(err);
-        });
+        await fs.promises.unlink(csrFile);
     }
 
     /**
@@ -473,13 +422,9 @@ export class CertificateAuthority {
      * @param certificate -  the certificate to revoke
      * @param params
      * @param [params.reason = "keyCompromise" {String}]
-     * @param callback
      * @async
      */
-    public revokeCertificate(certificate: Filename, params: Params, callback: ErrorCallback): void;
-    public async revokeCertificate(certificate: Filename, params: Params): Promise<void>;
-    public revokeCertificate(certificate: Filename, params: Params, callback?: ErrorCallback): void | Promise<void> {
-        assert(typeof callback === "function");
+    public async revokeCertificate(certificate: Filename, params: Params): Promise<void> {
 
         const crlReasons = [
             "unspecified",
@@ -513,66 +458,53 @@ export class CertificateAuthority {
         const reason = params.reason || "keyCompromise";
         assert(crlReasons.indexOf(reason) >= 0);
 
-        const tasks = [
-            (callback: ErrorCallback) => displayTitle("Revoking certificate  " + certificate, callback),
 
-            (callback: ErrorCallback) => displaySubtitle("Revoke certificate", callback),
+        await displayTitle("Revoking certificate  " + certificate);
 
-            (callback: ErrorCallback) => {
-                execute_openssl_no_failure(
-                    "ca -verbose " + configOption + " -revoke " + q(certificate) + " -crl_reason " + reason,
-                    options,
-                    callback
-                );
-            },
-            // regenerate CRL (Certificate Revocation List)
-            (callback: ErrorCallback) => regenerateCrl(this.revocationList, configOption, options, callback),
+        await displaySubtitle("Revoke certificate");
 
-            (callback: ErrorCallback) => displaySubtitle("Verify that certificate is revoked  ", callback),
+        await
+            execute_openssl_no_failure(
+                "ca -verbose " + configOption + " -revoke " + q(certificate) + " -crl_reason " + reason,
+                options
+            );
+        // regenerate CRL (Certificate Revocation List)
+        await regenerateCrl(this.revocationList, configOption, options);
 
-            (callback: (err?: Error) => void) => {
-                execute_openssl_no_failure(
-                    "verify -verbose" +
-                        // configOption +
-                        " -CRLfile " +
-                        q(n(this.revocationList)) +
-                        " -CAfile " +
-                        q(n(this.caCertificate)) +
-                        " -crl_check " +
-                        q(n(certificate)),
-                    options,
-                    (err: Error | null, output?: string) => {
-                        err;
-                        output;
-                        callback();
-                    }
-                );
-            },
-            // produce CRL in DER format
-            (callback: ErrorCallback) => displaySubtitle("Produce CRL in DER form ", callback),
-            (callback: ErrorCallback) =>
-                execute_openssl(
-                    "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.der " + " -outform der",
-                    options,
-                    callback
-                ),
-            // produce CRL in PEM format with text
-            (callback: ErrorCallback) => displaySubtitle("Produce CRL in PEM form ", callback),
-            (callback: ErrorCallback) =>
-                execute_openssl(
-                    "crl " +
-                        " -in " +
-                        q(n(this.revocationList)) +
-                        " -out " +
-                        "crl/revocation_list.pem " +
-                        " -outform pem" +
-                        " -text ",
-                    options,
-                    callback
-                ),
-        ];
+        await displaySubtitle("Verify that certificate is revoked");
 
-        async.series(tasks, callback!);
+        await
+            execute_openssl_no_failure(
+                "verify -verbose" +
+                // configOption +
+                " -CRLfile " +
+                q(n(this.revocationList)) +
+                " -CAfile " +
+                q(n(this.caCertificate)) +
+                " -crl_check " +
+                q(n(certificate)),
+                options
+
+            );
+
+        // produce CRL in DER format
+        await displaySubtitle("Produce CRL in DER form ");
+        await execute_openssl(
+            "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.der " + " -outform der",
+            options);
+        // produce CRL in PEM format with text
+        await displaySubtitle("Produce CRL in PEM form "),
+            await execute_openssl(
+                "crl " +
+                " -in " +
+                q(n(this.revocationList)) +
+                " -out " +
+                "crl/revocation_list.pem " +
+                " -outform pem" +
+                " -text ",
+                options,
+
+            );
     }
 
     /**
@@ -583,139 +515,84 @@ export class CertificateAuthority {
      * @param params.applicationUri  - the applicationUri
      * @param params.startDate       - startDate of the certificate
      * @param params.validity        - number of day of validity of the certificate
-     * @param callback
      */
     public async signCertificateRequest(
         certificate: Filename,
         certificateSigningRequestFilename: Filename,
-        params: Params
-    ): Promise<Filename>;
-    public signCertificateRequest(
-        certificate: Filename,
-        certificateSigningRequestFilename: Filename,
-        params: Params,
-        callback: (err: Error | null, certificate?: Filename) => void
-    ): void;
-    public signCertificateRequest(
-        certificate: Filename,
-        certificateSigningRequestFilename: Filename,
-        params: Params,
-        callback?: (err: Error | null, certificate?: Filename) => void
-    ): void | Promise<Filename> {
-        // istanbul ignore next
-        if (!callback) {
-            throw new Error("Internal Error");
+        params1: Params
+    ): Promise<Filename> {
+        await ensure_openssl_installed();
+        assert(fs.existsSync(certificateSigningRequestFilename));
+        if (!certificateFileExist(certificate)) {
+            return "";
+        }
+        adjustDate(params1);
+        adjustApplicationUri(params1);
+        processAltNames(params1);
+
+        const options: ExecuteOptions = { cwd: this.rootDir };
+        let configFile: string;
+
+        // note :
+        // subjectAltName is not copied across
+        //  see https://github.com/openssl/openssl/issues/10458
+        const csr = await readCertificateSigningRequest(certificateSigningRequestFilename)
+        const csrInfo = exploreCertificateSigningRequest(csr);
+
+        const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0];
+        if (typeof applicationUri !== "string") {
+            throw new Error("Cannot find applicationUri in CSR");
         }
 
-        ensure_openssl_installed(() => {
-            try {
-                assert(fs.existsSync(certificateSigningRequestFilename));
-                assert(typeof callback === "function");
-                if (!certificateFileExist(certificate)) {
-                    return callback(null);
-                }
-                adjustDate(params);
-                adjustApplicationUri(params);
-                processAltNames(params);
+        const dns = csrInfo.extensionRequest.subjectAltName.dNSName || [];
+        let ip = csrInfo.extensionRequest.subjectAltName.iPAddress || [];
+        ip = ip.map(octetStringToIpAddress);
 
-                const options: ExecuteOptions = { cwd: this.rootDir };
-                let configFile: string;
-                const tasks = [];
+        const params: ProcessAltNamesParam = {
+            applicationUri,
+            dns,
+            ip,
+        };
 
-                let csrInfo: CertificateSigningRequestInfo;
-                // note :
-                // subjectAltName is not copied across
-                //  see https://github.com/openssl/openssl/issues/10458
-                tasks.push((callback: ErrorCallback) => {
-                    readCertificateSigningRequest(certificateSigningRequestFilename)
-                        .then((csr: Buffer) => {
-                            csrInfo = exploreCertificateSigningRequest(csr);
-                            callback();
-                        })
-                        .catch((err) => callback(err));
-                });
-                tasks.push((callback: ErrorCallback) => {
-                    const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0];
-                    if (typeof applicationUri !== "string") {
-                        return callback(new Error("Cannot find applicationUri in CSR"));
-                    }
+        processAltNames(params);
 
-                    const dns = csrInfo.extensionRequest.subjectAltName.dNSName || [];
-                    let ip = csrInfo.extensionRequest.subjectAltName.iPAddress || [];
-                    ip = ip.map(octetStringToIpAddress);
+        configFile = generateStaticConfig("conf/caconfig.cnf", options);
 
-                    const params: ProcessAltNamesParam = {
-                        applicationUri,
-                        dns,
-                        ip,
-                    };
+        displaySubtitle("- then we ask the authority to sign the certificate signing request");
 
-                    processAltNames(params);
+        const configOption = " -config " + configFile;
+        await execute_openssl(
+            "ca " +
+            configOption +
+            " -startdate " +
+            x509Date(params1.startDate) +
+            " -enddate " +
+            x509Date(params1.endDate) +
+            " -batch -out " +
+            q(n(certificate)) +
+            " -in " +
+            q(n(certificateSigningRequestFilename)),
+            options,
+        );
 
-                    configFile = generateStaticConfig("conf/caconfig.cnf", options);
-                    callback();
-                });
+        displaySubtitle("- dump the certificate for a check");
+        await execute_openssl("x509 -in " + q(n(certificate)) + "  -dates -fingerprint -purpose -noout", options);
 
-                tasks.push((callback: ErrorCallback) =>
-                    displaySubtitle("- then we ask the authority to sign the certificate signing request", callback)
-                );
-                tasks.push((callback: ErrorCallback) => {
-                    const configOption = " -config " + configFile;
-                    execute_openssl(
-                        "ca " +
-                            configOption +
-                            " -startdate " +
-                            x509Date(params.startDate) +
-                            " -enddate " +
-                            x509Date(params.endDate) +
-                            " -batch -out " +
-                            q(n(certificate)) +
-                            " -in " +
-                            q(n(certificateSigningRequestFilename)),
-                        options,
-                        callback
-                    );
-                });
+        displaySubtitle("- construct CA certificate with CRL");
+        await this.constructCACertificateWithCRL();
 
-                tasks.push((callback: ErrorCallback) => displaySubtitle("- dump the certificate for a check", callback));
-                tasks.push((callback: ErrorCallback) =>
-                    execute_openssl("x509 -in " + q(n(certificate)) + "  -dates -fingerprint -purpose -noout", options, callback)
-                );
+        // construct certificate chain
+        //   concatenate certificate with CA Certificate and revocation list
+        displaySubtitle("- construct certificate chain");
+        await this.constructCertificateChain(certificate);
+        // todo
+        displaySubtitle("- verify certificate against the root CA");
+        await this.verifyCertificate(certificate);
 
-                tasks.push((callback: ErrorCallback) => displaySubtitle("- construct CA certificate with CRL", callback));
-                tasks.push((callback: ErrorCallback) => {
-                    this.constructCACertificateWithCRL(callback);
-                });
-
-                // construct certificate chain
-                //   concatenate certificate with CA Certificate and revocation list
-                tasks.push((callback: ErrorCallback) => displaySubtitle("- construct certificate chain", callback));
-                tasks.push((callback: ErrorCallback) => {
-                    this.constructCertificateChain(certificate, callback);
-                });
-
-                // todo
-                tasks.push((callback: ErrorCallback) => displaySubtitle("- verify certificate against the root CA", callback));
-                tasks.push((callback: ErrorCallback) => {
-                    this.verifyCertificate(certificate, callback);
-                });
-
-                async.series(tasks as AsyncFunction<unknown, Error>[], (err?: Error | null) => {
-                    // istanbul ignore next
-                    if (err) {
-                        return callback(err);
-                    }
-                    callback(null, certificate);
-                });
-            } catch (err) {
-                callback!(err as Error);
-            }
-        });
+        return certificate;
     }
 
-    public async verifyCertificate(certificate: Filename): Promise<void>;
-    public verifyCertificate(certificate: Filename, callback: ErrorCallback): void;
-    public verifyCertificate(certificate: Filename, callback?: ErrorCallback): void | Promise<void> {
+    public async verifyCertificate(certificate: Filename): Promise<void> {
         // openssl verify crashes on windows! we cannot use it reliably
         // istanbul ignore next
         const isImplemented = false;
@@ -728,39 +605,10 @@ export class CertificateAuthority {
             setEnv("OPENSSL_CONF", make_path(configFile));
             const configOption = " -config " + configFile;
             configOption;
-            execute_openssl_no_failure(
+            await execute_openssl_no_failure(
                 "verify -verbose " + " -CAfile " + q(n(this.caCertificateWithCrl)) + " " + q(n(certificate)),
-                options,
-                (err: Error | null) => {
-                    callback!(err ? err : undefined);
-                }
-            );
-        } else {
-            return callback!();
+                options);
         }
     }
 }
 
-// tslint:disable:no-var-requires
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const thenify = require("thenify");
-const opts = { multiArgs: false };
-CertificateAuthority.prototype.initialize = thenify.withCallback(CertificateAuthority.prototype.initialize, opts);
-CertificateAuthority.prototype.constructCACertificateWithCRL = thenify.withCallback(
-    CertificateAuthority.prototype.constructCACertificateWithCRL,
-    opts
-);
-CertificateAuthority.prototype.constructCertificateChain = thenify.withCallback(
-    CertificateAuthority.prototype.constructCertificateChain,
-    opts
-);
-CertificateAuthority.prototype.createSelfSignedCertificate = thenify.withCallback(
-    CertificateAuthority.prototype.createSelfSignedCertificate,
-    opts
-);
-CertificateAuthority.prototype.revokeCertificate = thenify.withCallback(CertificateAuthority.prototype.revokeCertificate, opts);
-CertificateAuthority.prototype.verifyCertificate = thenify.withCallback(CertificateAuthority.prototype.verifyCertificate, opts);
-CertificateAuthority.prototype.signCertificateRequest = thenify.withCallback(
-    CertificateAuthority.prototype.signCertificateRequest,
-    opts
-);

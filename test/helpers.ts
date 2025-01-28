@@ -20,7 +20,7 @@ interface TestData {
     tmpFolder: string;
 }
 
-export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData {
+export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>): TestData {
     self.timeout("5 minutes");
 
     const testData: TestData = {
@@ -33,9 +33,9 @@ export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData
         }
         // tslint:disable-next-line: no-console
 
-        async function __done() {
-            if (f) {
-                await f();
+        async function next() {
+            if (nextFunction) {
+                await nextFunction();
             }
         }
 
@@ -45,9 +45,11 @@ export function beforeTest(self: Mocha.Suite, f?: () => Promise<void>): TestData
             // tslint:disable-next-line: no-console
             warningLog("    .... cleaning temporary folders ...", tmpFolder);
             await rimraf(tmpFolder);
+            warningLog("    .....  folder cleaned");
             await mkdir(tmpFolder);
-        }
-        await __done();
+            warningLog("    .....  creating empty folder", tmpFolder);
+            }
+        await next();
     });
     return testData;
 }

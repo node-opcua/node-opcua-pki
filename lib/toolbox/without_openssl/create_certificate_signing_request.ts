@@ -25,12 +25,9 @@ import { CreateCertificateSigningRequestWithConfigOptions } from "../common";
 import { Subject, pemToPrivateKey } from "node-opcua-crypto";
 import { display, displaySubtitle } from "../display";
 import { createCertificateSigningRequest as createCertificateSigningRequest1 } from "node-opcua-crypto";
+
 /**
  * create a certificate signing request
- *
- * @param certificateSigningRequestFilename
- * @param params
- * @param callback
  */
 export async function createCertificateSigningRequestAsync(
     certificateSigningRequestFilename: string,
@@ -70,12 +67,3 @@ export async function createCertificateSigningRequestAsync(
     // openssl  req -in ./tmp/without_openssl.csr -noout -verify
 }
 
-export function createCertificateSigningRequest(
-    certificateSigningRequestFilename: string,
-    params: CreateCertificateSigningRequestWithConfigOptions,
-    callback: (err?: Error) => void
-): void {
-    createCertificateSigningRequestAsync(certificateSigningRequestFilename, params)
-        .then(() => callback())
-        .catch((err) => callback(err));
-}

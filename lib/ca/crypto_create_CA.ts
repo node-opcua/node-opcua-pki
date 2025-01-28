@@ -33,7 +33,6 @@ import rimraf from "rimraf";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { callbackify, promisify } from "util";
 import { CertificatePurpose, Subject, SubjectOptions, generatePrivateKeyFile } from "node-opcua-crypto";
 // see https://github.com/yargs/yargs/issues/781
 import commands from "yargs";
@@ -43,7 +42,6 @@ import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "..
 import { CertificateAuthority, defaultSubject } from "./certificate_authority";
 import { CertificateManager, CreateSelfSignCertificateParam1 } from "../pki/certificate_manager";
 import {
-    ErrorCallback,
     Filename,
     KeySize,
     CreateCertificateSigningRequestWithConfigOptions,
@@ -63,8 +61,8 @@ import {
     dumpCertificate,
     ensure_openssl_installed,
     fingerprint,
+    createCertificateSigningRequestWithOpenSSL,
 } from "../toolbox/with_openssl";
-import { createCertificateSigningRequestAsync } from "../toolbox/with_openssl";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { hideBin } = require("yargs/helpers");
@@ -277,7 +275,7 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
     assert(typeof certificateDir === "string");
 
     certificateDir = prepare(certificateDir);
-    mkdir(certificateDir);
+    await mkdir(certificateDir);
     assert(fs.existsSync(certificateDir));
 
     // ------------------------------------------------------------------------------------------------------------
@@ -430,15 +428,6 @@ function add_standard_option(options: OptionMap, optionName: string) {
     }
 }
 
-function on_completion(err: Error | null | undefined, done: ErrorCallback) {
-    assert(typeof done === "function", "expecting function");
-    // istanbul ignore next
-    if (err) {
-        warningLog(chalk.redBright("ERROR : ") + err.message);
-    }
-    done();
-}
-
 async function createDefaultCertificate(
     base_name: string,
     prefix: string,
@@ -511,7 +500,7 @@ async function createDefaultCertificate(
         };
 
         // create CSR
-        await createCertificateSigningRequestAsync(certificateSigningRequestFile, params);
+        await createCertificateSigningRequestWithOpenSSL(certificateSigningRequestFile, params);
 
         return await g_certificateAuthority.signCertificateRequest(certificate, certificateSigningRequestFile, {
             applicationUri,
@@ -555,7 +544,7 @@ async function createDefaultCertificate(
 
     await createPrivateKeyIfNotExist(private_key_file, key_length);
     displaySubtitle(" extract public key " + public_key_file + " from private key ");
-    await promisify(getPublicKeyFromPrivateKey)(private_key_file, public_key_file);
+    await getPublicKeyFromPrivateKey(private_key_file, public_key_file);
     displaySubtitle(" create Certificate " + certificate_file);
 
     await createCertificateIfNotExist(certificate_file, private_key_file, applicationUri, yesterday, 365);
@@ -588,18 +577,11 @@ async function createDefaultCertificate(
     }
 }
 
-// tslint:disable-next-line:no-empty
-let done: ErrorCallback = (err?: Error | null) => {
-    /** */
-};
 
 async function wrap(func: () => Promise<void>) {
     try {
         await func();
     } catch (err) {
-        on_completion(err as Error, () => {
-            /** */
-        });
     }
 }
 
@@ -647,7 +629,6 @@ async function createDefaultCertificates(dev: boolean) {
     await create_default_certificates(dev);
 }
 
-assert(typeof done === "function");
 argv
     .strict()
     .wrap(132)
@@ -680,7 +661,7 @@ argv
         },
         (local_argv: IReadConfigurationOpts2) => {
             wrap(async () => {
-                await promisify(ensure_openssl_installed)();
+                await ensure_openssl_installed();
                 displayChapter("Create Demo certificates");
                 displayTitle("reading configuration");
                 await readConfiguration(local_argv);
@@ -702,7 +683,7 @@ argv
     .command(
         "createCA",
         "create a Certificate Authority",
-        /* builder*/ (yargs: commands.Argv) => {
+        /* builder*/(yargs: commands.Argv) => {
             const options: OptionMap = {
                 subject: {
                     default: defaultSubject,
@@ -719,9 +700,9 @@ argv
             const local_argv = yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
             return local_argv;
         },
-        /*handler*/ (local_argv: IReadConfigurationOpts3) => {
+        /*handler*/(local_argv: IReadConfigurationOpts3) => {
             wrap(async () => {
-                await promisify(ensure_openssl_installed)();
+                await ensure_openssl_installed();
                 await readConfiguration(local_argv);
                 await construct_CertificateAuthority(local_argv.subject);
             });
@@ -806,7 +787,6 @@ argv
         },
         (local_argv: IReadConfigurationOpts4) => {
             async function command_certificate(local_argv: IReadConfigurationOpts4) {
-                assert(typeof done === "function");
                 const selfSigned = !!local_argv.selfSigned;
                 if (!selfSigned) {
                     await command_full_certificate(local_argv);
@@ -838,7 +818,7 @@ argv
                     validity: gLocalConfig.validity || 365,
                 };
 
-                await promisify(certificateManager.createSelfSignedCertificate).call(certificateManager, params);
+                await certificateManager.createSelfSignedCertificate(params);
             }
 
             async function command_full_certificate(local_argv: IReadConfigurationOpts) {
@@ -852,10 +832,7 @@ argv
                 gLocalConfig.subject =
                     local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
-                const csr_file = await promisify(certificateManager.createCertificateRequest).call(
-                    certificateManager,
-                    gLocalConfig
-                );
+                const csr_file = await certificateManager.createCertificateRequest(gLocalConfig);
                 if (!csr_file) {
                     return;
                 }
@@ -865,8 +842,7 @@ argv
                 if (fs.existsSync(certificate)) {
                     throw new Error(" File " + certificate + " already exist");
                 }
-                await promisify(g_certificateAuthority.signCertificateRequest).call(
-                    g_certificateAuthority,
+                await g_certificateAuthority.signCertificateRequest(
                     certificate,
                     csr_file,
                     gLocalConfig
@@ -893,8 +869,10 @@ argv
             return yargs;
         },
         (local_argv: IReadConfigurationOpts5) => {
-            function revoke_certificate(certificate: Filename, callback: ErrorCallback) {
-                g_certificateAuthority.revokeCertificate(certificate, {}, callback);
+
+
+            async function revoke_certificate(certificate: Filename) {
+                await g_certificateAuthority.revokeCertificate(certificate, {});
             }
 
             wrap(async () => {
@@ -906,7 +884,7 @@ argv
                 }
                 await readConfiguration(local_argv);
                 await construct_CertificateAuthority("");
-                await promisify(revoke_certificate)(certificate);
+                await revoke_certificate(certificate);
                 warningLog("done ... ");
                 warningLog("  crl = ", g_certificateAuthority.revocationList);
                 warningLog("\nyou should now publish the new Certificate Revocation List");
@@ -972,8 +950,7 @@ argv
                 gLocalConfig.subject =
                     local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
-                const internal_csr_file = await promisify(certificateManager.createCertificateRequest).call(
-                    certificateManager,
+                const internal_csr_file = await certificateManager.createCertificateRequest(
                     gLocalConfig
                 );
                 if (!internal_csr_file) {
@@ -1044,8 +1021,7 @@ argv
                     throw new Error(" File " + certificate + " already exist");
                 }
 
-                await promisify(g_certificateAuthority.signCertificateRequest).call(
-                    g_certificateAuthority,
+                await g_certificateAuthority.signCertificateRequest(
                     certificate,
                     csr_file,
                     gLocalConfig
@@ -1064,7 +1040,7 @@ argv
         },
         (yargs: { certificateFile: string }) => {
             wrap(async () => {
-                const data = await promisify(dumpCertificate)(yargs.certificateFile);
+                const data = await dumpCertificate(yargs.certificateFile);
                 warningLog(data);
             });
         }
@@ -1078,7 +1054,7 @@ argv
         },
         (yargs: { pemCertificate: string }) => {
             wrap(async () => {
-                await promisify(toDer)(argv.pemCertificate);
+                await toDer(argv.pemCertificate);
             });
         }
     )
@@ -1092,7 +1068,7 @@ argv
         (local_argv: { certificateFile: string }) => {
             wrap(async () => {
                 const certificate = local_argv.certificateFile;
-                const data = await promisify(fingerprint)(certificate);
+                const data = await fingerprint(certificate);
                 if (!data) return;
                 const s = data.split("=")[1].split(":").join("").trim();
                 warningLog(s);
@@ -1107,29 +1083,10 @@ argv
     .help("help")
     .strict().argv;
 
-export function main(argumentsList: string, _done?: ErrorCallback) {
-    if (_done) {
-        done = _done;
-    }
+export async function main(argumentsList: string) {
 
-    commands.parse(argumentsList, (err: Error | null, g_argv: { help: boolean }) => {
-        // istanbul ignore next
-        if (err) {
-            warningLog(" err = ", err);
-            warningLog(" use --help for more info");
-            setImmediate(() => {
-                commands.showHelp();
-                done(err);
-            });
-        } else {
-            if (g_argv.help) {
-                setImmediate(() => {
-                    commands.showHelp();
-                    done();
-                });
-            } else {
-                done();
-            }
-        }
-    });
+    const g_argv = await commands.parse(argumentsList);
+    if (g_argv.help) {
+        commands.showHelp();
+    }
 }

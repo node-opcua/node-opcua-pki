@@ -79,12 +79,9 @@ export async function createSelfSignedCertificateAsync(
     await fs.promises.writeFile(certificate, cert, "utf-8");
 }
 
-export function createSelfSignedCertificate(
+export async function createSelfSignedCertificate(
     certificate: string,
-    params: CreateSelfSignCertificateWithConfigParam,
-    callback: (err?: Error | null) => void
-): void {
-    createSelfSignedCertificateAsync(certificate, params)
-        .then(() => callback())
-        .catch((err) => callback(err));
+    params: CreateSelfSignCertificateWithConfigParam
+): Promise<void> {
+    await createSelfSignedCertificateAsync(certificate, params);
 }

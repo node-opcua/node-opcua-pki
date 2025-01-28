@@ -22,29 +22,26 @@
 // ---------------------------------------------------------------------------------------------------------------------
 import path from "path";
 import fs from "fs";
-import { ErrorCallback } from "async";
 import { g_config } from "../config";
 import { ExecuteOptions, execute_openssl } from "./execute_openssl";
 import { quote } from "../common";
 
 const q = quote;
 
-export function createRandomFile(randomFile: string, options: ExecuteOptions, callback: (err?: Error) => void) {
+export async function createRandomFile(randomFile: string, options: ExecuteOptions): Promise<void> {
     // istanbul ignore next
     if (!useRandFile()) {
-        return callback();
+        return ;
     }
-    execute_openssl("rand " + " -out " + q(randomFile) + " -hex 256", options, (err: Error | null) => {
-        callback(err ? err : undefined);
-    });
+    await execute_openssl("rand " + " -out " + q(randomFile) + " -hex 256", options);
 }
 
-export function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions, callback: ErrorCallback): void {
+export async function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions): Promise<void> {
     const randomFilePath = options.cwd ? path.join(options.cwd, randomFile) : randomFile;
     if (fs.existsSync(randomFilePath)) {
-        return callback();
+        return;
     } else {
-        createRandomFile(randomFile, options, callback);
+        await createRandomFile(randomFile, options);
     }
 }
 

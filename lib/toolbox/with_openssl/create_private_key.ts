@@ -21,9 +21,8 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 import assert from "assert";
-import async from "async";
 import { hasEnv, getEnv } from "./_env";
-import { ErrorCallback, KeyLength, quote } from "../common";
+import { KeyLength, quote } from "../common";
 import { useRandFile, createRandomFileIfNotExist } from "./_create_random_file";
 import { execute_openssl } from "./execute_openssl";
 import { make_path } from "../common2";
@@ -34,13 +33,7 @@ const n = make_path;
 /**
  * create a RSA PRIVATE KEY
  *
- * @method createPrivateKeyOld
- *
- * @param privateKeyFilename
- * @param keyLength
- * @param callback {Function}
- */
-export function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLength, callback: ErrorCallback) {
+ */export async function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLength) {
     // istanbul ignore next
     if (useRandFile()) {
         assert(hasEnv("RANDFILE"));
@@ -48,8 +41,7 @@ export function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLe
 
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
     const randomFile = hasEnv("RANDFILE") ? n(getEnv("RANDFILE")) : "random.rnd";
-    const tasks = [
-        (callback: ErrorCallback) => createRandomFileIfNotExist(randomFile, {}, callback),
+    await createRandomFileIfNotExist(randomFile, {}),
 
         // Note   OpenSSL1 generates a -----BEGIN RSA PRIVATE KEY---- whereas
         //        OpenSSL3 generates a -----BEGIN PRIVATE KEY----- unless the new -traditional option is used
@@ -102,19 +94,13 @@ export function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLe
         //       INTEGER (1022 bit) 376719039084139366697037613682496827133479863181189073376679596057938…
         //       INTEGER (1021 bit) 162921471472202227976749871246879611058257361785053516568268141902018…
         // */
-        (callback: ErrorCallback) => {
-            execute_openssl(
-                "genrsa " +
-                    " -out " +
-                    q(n(privateKeyFilename)) +
-                    (useRandFile() ? " -rand " + q(randomFile) : "") +
-                    " " +
-                    keyLength,
-                {},
-                callback
-            );
-        },
-    ];
+        await execute_openssl(
+            "genrsa " +
+            " -out " +
+            q(n(privateKeyFilename)) +
+            (useRandFile() ? " -rand " + q(randomFile) : "") +
+            " " +
+            keyLength,
+            {});
 
-    async.series(tasks, callback);
 }

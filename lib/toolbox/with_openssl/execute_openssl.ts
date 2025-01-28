@@ -53,11 +53,10 @@ export interface ExecuteOptions {
     hideErrorMessage?: boolean;
 }
 
-export function execute(cmd: string, options: ExecuteOptions, callback: Callback<string>) {
-    assert(typeof callback === "function");
+export async function execute(cmd: string, options: ExecuteOptions): Promise<string> {
 
     const from = new Error();
-    /// assert(g_config.CARootDir && fs.existsSync(option.CARootDir));
+   
     options.cwd = options.cwd || process.cwd();
 
     // istanbul ignore next
@@ -67,116 +66,90 @@ export function execute(cmd: string, options: ExecuteOptions, callback: Callback
 
     const outputs: string[] = [];
 
-    const child = child_process.exec(
-        cmd,
-        {
-            cwd: options.cwd,
-            windowsHide: true,
-        },
-        (err: child_process.ExecException | null) => {
-            // istanbul ignore next
-            if (err) {
-                if (!options.hideErrorMessage) {
-                    const fence = "###########################################";
-                    console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
-                    console.error(chalk.bgWhiteBright.redBright("CWD = " + options.cwd));
-                    console.error(chalk.bgWhiteBright.redBright(err.message));
-                    console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
-
-                    console.error(from.stack);
-                }
-                callback(new Error(err.message));
-                return;
-            }
-            callback(null, outputs.join(""));
-        }
-    );
-
-    if (child.stdout) {
-        const stream2 = byline(child.stdout);
-        stream2.on("data", (line: string) => {
-            outputs.push(line + "\n");
-        });
-        if (!g_config.silent) {
-            stream2.on("data", (line: string) => {
-                line = line.toString();
-                if (doDebug) {
-                    process.stdout.write(chalk.white("        stdout ") + chalk.whiteBright(line) + "\n");
-                }
-            });
-        }
-    }
-
-    // istanbul ignore next
-    if (!g_config.silent) {
-        if (child.stderr) {
-            const stream1 = byline(child.stderr);
-            stream1.on("data", (line: string) => {
-                line = line.toString();
-                if (displayError) {
-                    process.stdout.write(chalk.white("        stderr ") + chalk.red(line) + "\n");
-                }
-            });
-        }
-    }
-}
-
-export function find_openssl(callback: (err: Error | null, opensslPath?: string) => void) {
-    get_openssl_exec_path((err: Error | null, _opensslPath?: string) => {
-        opensslPath = _opensslPath;
-        callback(err, opensslPath);
-    });
-}
-
-export function ensure_openssl_installed(callback: (err?: Error) => void) {
-    assert(typeof callback === "function");
-    if (!opensslPath) {
-        return find_openssl((err: Error | null) => {
-            // istanbul ignore next
-            if (err) {
-                return callback(err);
-            }
-
-            execute_openssl("version", { cwd: "." }, (err: Error | null, outputs?: string) => {
+    return await new Promise((resolve, reject) => {
+        const child = child_process.exec(
+            cmd,
+            {
+                cwd: options.cwd,
+                windowsHide: true,
+            },
+            (err: child_process.ExecException | null) => {
                 // istanbul ignore next
-                if (err || !outputs) {
-                    return callback(err || new Error("no outputs"));
+                if (err) {
+                    if (!options.hideErrorMessage) {
+                        const fence = "###########################################";
+                        console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
+                        console.error(chalk.bgWhiteBright.redBright("CWD = " + options.cwd));
+                        console.error(chalk.bgWhiteBright.redBright(err.message));
+                        console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
+
+                        console.error(from.stack);
+                    }
+                    reject(new Error(err.message));
+                    return;
                 }
-                g_config.opensslVersion = outputs.trim();
-                if (doDebug) {
-                    warningLog("OpenSSL version : ", g_config.opensslVersion);
-                }
-                callback(err ? err : undefined);
+                resolve(outputs.join(""));
+            }
+        );
+
+        if (child.stdout) {
+            const stream2 = byline(child.stdout);
+            stream2.on("data", (line: string) => {
+                outputs.push(line + "\n");
             });
-        });
-    } else {
-        return callback();
+            if (!g_config.silent) {
+                stream2.on("data", (line: string) => {
+                    line = line.toString();
+                    if (doDebug) {
+                        process.stdout.write(chalk.white("        stdout ") + chalk.whiteBright(line) + "\n");
+                    }
+                });
+            }
+        }
+
+        // istanbul ignore next
+        if (!g_config.silent) {
+            if (child.stderr) {
+                const stream1 = byline(child.stderr);
+                stream1.on("data", (line: string) => {
+                    line = line.toString();
+                    if (displayError) {
+                        process.stdout.write(chalk.white("        stderr ") + chalk.red(line) + "\n");
+                    }
+                });
+            }
+        }
+    });
+
+}
+
+export async function find_openssl(): Promise<string> {
+    return await get_openssl_exec_path();
+}
+
+export async function ensure_openssl_installed(): Promise<void> {
+    if (!opensslPath) {
+        opensslPath = await find_openssl();
+        const outputs = await execute_openssl("version", { cwd: "." });
+        g_config.opensslVersion = outputs.trim();
+        if (doDebug) {
+            warningLog("OpenSSL version : ", g_config.opensslVersion);
+        }
     }
 }
 
-export function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
-    return new Promise((resolve, reject) => {
-        execute_openssl(cmd, options, (err, output) => {
-            // istanbul ignore next
-            if (err) {
-                reject(err);
-            } else {
-                resolve(output || "");
-            }
-        });
-    });
+export async function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
+   return await execute_openssl(cmd, options);
 }
 
-export function execute_openssl_no_failure(cmd: string, options: ExecuteOpenSSLOptions, callback: Callback<string>) {
+export async function execute_openssl_no_failure(cmd: string, options: ExecuteOpenSSLOptions) {
     options = options || {};
     options.hideErrorMessage = true;
-    execute_openssl(cmd, options, (err: Error | null, output?: string) => {
-        // istanbul ignore next
-        if (err) {
-            debugLog(" (ignored error =  ERROR : )", err.message);
-        }
-        callback(null, output);
-    });
+    try {
+     return await execute_openssl(cmd, options);
+     } catch(err) {
+            debugLog(" (ignored error =  ERROR : )", (err as Error).message);
+     }
 }
 
 function getTempFolder(): string {
@@ -187,15 +160,13 @@ export interface ExecuteOpenSSLOptions extends ExecuteOptions {
     openssl_conf?: string;
 }
 
-type Callback<T> = (err: Error | null, output?: T) => void;
-export function execute_openssl(cmd: string, options: ExecuteOpenSSLOptions, callback: Callback<string>): void {
-    // tslint:disable-next-line:variable-name
+export async function execute_openssl(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
+  
+    debugLog("execute_openssl", cmd, options);
     const empty_config_file = n(getTempFolder(), "empty_config.cnf");
     if (!fs.existsSync(empty_config_file)) {
-        fs.writeFileSync(empty_config_file, "# empty config file");
+        await fs.promises.writeFile(empty_config_file, "# empty config file");
     }
-
-    assert(typeof callback === "function");
 
     options = options || {};
     options.openssl_conf = options.openssl_conf || empty_config_file; // "!! OPEN SLL CONF NOT DEFINED BAD FILE !!";
@@ -208,12 +179,6 @@ export function execute_openssl(cmd: string, options: ExecuteOpenSSLOptions, cal
         warningLog(chalk.cyan("                  RANDFILE    "), process.env.RANDFILE);
         warningLog(chalk.cyan("                  CMD         openssl "), chalk.cyanBright(cmd));
     }
-
-    ensure_openssl_installed((err?: Error) => {
-        // istanbul ignore next
-        if (err) {
-            return callback(err);
-        }
-        execute(quote(opensslPath) + " " + cmd, options, callback);
-    });
+    await ensure_openssl_installed();
+    return await execute(quote(opensslPath) + " " + cmd, options);
 }

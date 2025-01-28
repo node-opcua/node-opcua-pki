@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "../lib/toolbox/without_openssl";
-import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithOpenSSL } from "../lib/toolbox/with_openssl";
+import { createCertificateSigningRequestWithOpenSSL } from "../lib/toolbox/with_openssl/create_certificate_signing_request";
 import { CertificateManager } from "../lib/pki/certificate_manager";
 import { mkdirSync } from "fs";
 import { CertificatePurpose } from "node-opcua-crypto";
@@ -43,7 +43,7 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
             purpose: CertificatePurpose.ForApplication,
         });
 
-        await createCertificateSigningRequestAsyncWithOpenSSL(csr2, {
+        await createCertificateSigningRequestWithOpenSSL(csr2, {
             rootDir,
             configFile,
             privateKey,

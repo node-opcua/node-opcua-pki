@@ -40,7 +40,7 @@ function openssl_require2DigitYearInDate() {
     // istanbul ignore next
     if (!g_config.opensslVersion) {
         throw new Error(
-            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed(callback)"
+            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed()"
         );
     }
     return g_config.opensslVersion.match(/OpenSSL 0\.9/);
@@ -68,17 +68,15 @@ const n = make_path;
  *   openssl rsa -pubout -in private_key.pem
  *
  * @method getPublicKeyFromPrivateKey
- * @param privateKeyFilename
- * @param publicKeyFilename
- * @param callback
+ * @param privateKeyFilename: the existing file with the private key
+ * @param publicKeyFilename: the file where to store the public key
  */
-export function getPublicKeyFromPrivateKey(
+export async function getPublicKeyFromPrivateKey(
     privateKeyFilename: string,
-    publicKeyFilename: string,
-    callback: (err: Error | null) => void
-) {
+    publicKeyFilename: string
+): Promise<void> {
     assert(fs.existsSync(privateKeyFilename));
-    execute_openssl("rsa -pubout -in " + q(n(privateKeyFilename)) + " -out " + q(n(publicKeyFilename)), {}, callback);
+    await execute_openssl("rsa -pubout -in " + q(n(privateKeyFilename)) + " -out " + q(n(publicKeyFilename)), {});
 }
 
 /**
@@ -88,15 +86,13 @@ export function getPublicKeyFromPrivateKey(
  * @method getPublicKeyFromCertificate
  * @param certificateFilename
  * @param publicKeyFilename
- * @param callback
  */
-export function getPublicKeyFromCertificate(
+export async function getPublicKeyFromCertificate(
     certificateFilename: string,
     publicKeyFilename: string,
-    callback: (err: Error | null) => void
 ) {
     assert(fs.existsSync(certificateFilename));
-    execute_openssl("x509 -pubkey -in " + q(n(certificateFilename)) + " > " + q(n(publicKeyFilename)), {}, callback);
+    await execute_openssl("x509 -pubkey -in " + q(n(certificateFilename)) + " > " + q(n(publicKeyFilename)), {});
 }
 export function x509Date(date?: Date): string {
     date = date || new Date();
@@ -122,23 +118,20 @@ export function x509Date(date?: Date): string {
 
 /**
  * @param certificate - the certificate file in PEM format, file must exist
- * @param callback
  */
-export function dumpCertificate(certificate: Filename, callback: (err: Error | null, output?: string) => void): void {
+export async function dumpCertificate(certificate: Filename): Promise<string> {
     assert(fs.existsSync(certificate));
-    assert(typeof callback === "function");
-
-    execute_openssl("x509 " + " -in " + q(n(certificate)) + " -text " + " -noout", {}, callback);
+    return await execute_openssl("x509 " + " -in " + q(n(certificate)) + " -text " + " -noout", {});
 }
 
-export function toDer(certificatePem: string, callback: (err: Error | null, output?: string) => void) {
+export async function toDer(certificatePem: string): Promise<string> {
     assert(fs.existsSync(certificatePem));
     const certificateDer = certificatePem.replace(".pem", ".der");
-    execute_openssl("x509  " + " -outform der " + " -in " + certificatePem + " -out " + certificateDer, {}, callback);
+    return await execute_openssl("x509  " + " -outform der " + " -in " + certificatePem + " -out " + certificateDer, {});
 }
 
-export function fingerprint(certificatePem: string, callback: (err: Error | null, output?: string) => void) {
+export async function fingerprint(certificatePem: string): Promise<string> {
     // openssl x509 -in my_certificate.pem -hash -dates -noout -fingerprint
     assert(fs.existsSync(certificatePem));
-    execute_openssl("x509  " + " -fingerprint " + " -noout " + " -in " + certificatePem, {}, callback);
+    return await execute_openssl("x509  " + " -fingerprint " + " -noout " + " -in " + certificatePem, {});
 }

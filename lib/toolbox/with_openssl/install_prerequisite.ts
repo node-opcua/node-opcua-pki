@@ -23,11 +23,10 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import  fs from "fs";
+import fs from "fs";
 import os from "os";
 import path from "path";
 import url from "url";
-import assert from "assert";
 import byline from "byline";
 import chalk from "chalk";
 import child_process from "child_process";
@@ -61,8 +60,6 @@ declare interface WgetInterface {
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const wget = require("wget-improved-2") as WgetInterface;
 
-type CallbackFunc<T> = (err: Error | null, result?: T) => void;
-
 interface ExecuteResult {
     exitCode: number;
     output: string;
@@ -90,7 +87,7 @@ function makeOptions(): WgetOptions {
     return {};
 }
 
-function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: string) {
+async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
     let output = "";
 
     // xx cwd = cwd ? {cwd: cwd} : {};
@@ -99,22 +96,28 @@ function execute(cmd: string, callback: CallbackFunc<ExecuteResult>, cwd?: strin
         windowsHide: true,
     };
 
-    const child = child_process.exec(
-        cmd,
-        options,
-        (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
-            const exitCode = err === null ? 0 : err!.code!;
-            callback(err ? err : null, { exitCode, output });
-        }
-    );
+    return await new Promise<ExecuteResult>((resolve, reject) => {
 
-    const stream1 = byline(child.stdout!);
-    stream1.on("data", (line: string) => {
-        output += line + "\n";
-        // istanbul ignore next
-        if (doDebug) {
-            process.stdout.write("        stdout " + chalk.yellow(line) + "\n");
-        }
+        const child = child_process.exec(
+            cmd,
+            options,
+            (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
+                const exitCode = err === null ? 0 : err!.code!;
+                if (err) reject(err);
+                else {
+                    resolve({ exitCode, output });
+                }
+            }
+        );
+
+        const stream1 = byline(child.stdout!);
+        stream1.on("data", (line: string) => {
+            output += line + "\n";
+            // istanbul ignore next
+            if (doDebug) {
+                process.stdout.write("        stdout " + chalk.yellow(line) + "\n");
+            }
+        });
     });
 }
 
@@ -126,71 +129,71 @@ function is_expected_openssl_version(strVersion: string): boolean {
     return !!strVersion.match(/OpenSSL 1|3/);
 }
 
-export function check_system_openssl_version(callback: (err: Error | null, output?: string) => void) {
-    execute("which openssl", (err: Error | null, result?: ExecuteResult) => {
-        // istanbul ignore next
-        if (err) {
-            warningLog("warning: ", err.message);
-            return callback(new Error("Cannot find openssl"));
+async function getopensslExecPath(): Promise<string> {
+    let result1: ExecuteResult | undefined;
+    try {
+        result1 = await execute("which openssl");
+    } catch (err) {
+        warningLog("warning: ", (err as Error).message);
+        throw new Error("Cannot find openssl");
+    }
+
+    const exitCode = result1!.exitCode;
+    const output = result1!.output;
+
+    if (exitCode !== 0) {
+        warningLog(
+            chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer ")
+        );
+        warningLog(chalk.yellow("Please install it before running this programs"));
+        throw new Error("Cannot find openssl");
+    }
+    const opensslExecPath = output.replace(/\n\r/g, "").trim();
+    return opensslExecPath;
+}
+export async function check_system_openssl_version(): Promise<string> {
+
+    const opensslExecPath = await getopensslExecPath();
+
+    // tslint:disable-next-line:variable-name
+    const q_opensslExecPath = quote(opensslExecPath);
+
+    // istanbul ignore next
+    if (doDebug) {
+        warningLog("              OpenSSL found in : " + chalk.yellow(opensslExecPath));
+    }
+    // ------------------------ now verify that openssl version is the correct one
+    const result = await execute(q_opensslExecPath + " version");
+
+    const exitCode = result!.exitCode;
+    const output = result!.output;
+
+    const version = output.trim();
+
+    const versionOK = exitCode === 0 && is_expected_openssl_version(version);
+    if (!versionOK) {
+        let message =
+            chalk.whiteBright("Warning !!!!!!!!!!!! ") +
+            "\nyour version of openssl is " +
+            version +
+            ". It doesn't match the expected version";
+
+        if (process.platform === "darwin") {
+            message +=
+                chalk.cyan("\nplease refer to :") +
+                chalk.yellow(
+                    " https://github.com/node-opcua/node-opcua/" + "wiki/installing-node-opcua-or-node-red-on-MacOS"
+                );
         }
 
-        const exitCode = result!.exitCode;
-        const output = result!.output;
-
-        if (exitCode !== 0) {
-            warningLog(
-                chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer ")
-            );
-            warningLog(chalk.yellow("Please install it before running this programs"));
-
-            return callback(new Error("Cannot find openssl"));
-        }
-        const opensslExecPath = output.replace(/\n\r/g, "").trim();
-
-        // tslint:disable-next-line:variable-name
-        const q_opensslExecPath = quote(opensslExecPath);
-
-        // istanbul ignore next
-        if (doDebug) {
-            warningLog("              OpenSSL found in : " + chalk.yellow(opensslExecPath));
-        }
-        // ------------------------ now verify that openssl version is the correct one
-        execute(q_opensslExecPath + " version", (err: Error | null, result?: ExecuteResult) => {
-            if (err) {
-                return callback(err);
-            }
-
-            const exitCode = result!.exitCode;
-            const output = result!.output;
-
-            const version = output.trim();
-
-            const versionOK = exitCode === 0 && is_expected_openssl_version(version);
-            if (!versionOK) {
-                let message =
-                    chalk.whiteBright("Warning !!!!!!!!!!!! ") +
-                    "\nyour version of openssl is " +
-                    version +
-                    ". It doesn't match the expected version";
-
-                if (process.platform === "darwin") {
-                    message +=
-                        chalk.cyan("\nplease refer to :") +
-                        chalk.yellow(
-                            " https://github.com/node-opcua/node-opcua/" + "wiki/installing-node-opcua-or-node-red-on-MacOS"
-                        );
-                }
-
-                const table = new Table();
-                table.push([message]);
-                console.error(table.toString());
-            }
-            return callback(null, output);
-        });
-    });
+        const table = new Table();
+        table.push([message]);
+        console.error(table.toString());
+    }
+    return output;
 }
 
-function install_and_check_win32_openssl_version(callback: (err: Error | null, opensslExecPath?: string) => void): void {
+async function install_and_check_win32_openssl_version(): Promise<string> {
     const downloadFolder = path.join(os.tmpdir(), ".");
 
     function get_openssl_folder_win32(): string {
@@ -208,39 +211,33 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         return path.join(opensslFolder, "openssl.exe");
     }
 
-    function check_openssl_win32(callback: (err: Error | null, opensslOk?: boolean, opensslPath?: string) => void) {
+    async function check_openssl_win32(): Promise<{ opensslOk?: boolean, version?: string }> {
         const opensslExecPath = get_openssl_exec_path_win32();
 
         const exists = fs.existsSync(opensslExecPath);
         if (!exists) {
             warningLog("checking presence of ", opensslExecPath);
             warningLog(chalk.red(" cannot find file ") + opensslExecPath);
-            return callback(null, false, "cannot find file " + opensslExecPath);
+            return {
+                opensslOk: false, version: "cannot find file " + opensslExecPath
+            };
         } else {
             // tslint:disable-next-line:variable-name
             const q_openssl_exe_path = quote(opensslExecPath);
             const cwd = ".";
 
-            execute(
-                q_openssl_exe_path + " version",
-                (err: Error | null, result?: ExecuteResult) => {
-                    if (err) {
-                        return callback(err);
-                    }
+            const { exitCode, output } = await execute(q_openssl_exe_path + " version", cwd);
+            const version = output.trim();
+            // istanbul ignore next
 
-                    const exitCode = result!.exitCode;
-                    const output = result!.output;
+            if (doDebug) {
+                warningLog(" Version = ", version);
+            }
+            return {
+                opensslOk: exitCode === 0 && is_expected_openssl_version(version),
+                version
+            }
 
-                    const version = output.trim();
-                    // istanbul ignore next
-
-                    if (doDebug) {
-                        warningLog(" Version = ", version);
-                    }
-                    callback(null, exitCode === 0 && is_expected_openssl_version(version), version);
-                },
-                cwd
-            );
         }
     }
 
@@ -266,7 +263,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         return 32;
     }
 
-    function download_openssl(callback: (err: Error | null, downloadedFile?: string) => void) {
+    async function download_openssl(): Promise<{ downloadedFile: string }> {
         // const url = (win32or64() === 64 )
         //         ? "http://indy.fulgan.com/SSL/openssl-1.0.2o-x64_86-win64.zip"
         //         : "http://indy.fulgan.com/SSL/openssl-1.0.2o-i386-win32.zip"
@@ -281,7 +278,7 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         warningLog("downloading " + chalk.yellow(url) + " to " + outputFilename);
 
         if (fs.existsSync(outputFilename)) {
-            return callback(null, outputFilename);
+            return { downloadedFile: outputFilename };
         }
         const options = makeOptions();
         const bar = new ProgressBar(chalk.cyan("[:bar]") + chalk.cyan(" :percent ") + chalk.white(":etas"), {
@@ -291,55 +288,58 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
             width: 100,
         });
 
-        const download = wget.download(url, outputFilename, options);
-        download.on("error", (err: Error) => {
-            warningLog(err);
-            setImmediate(() => {
-                callback(err);
+
+        return await new Promise((resolve, reject) => {
+            const download = wget.download(url, outputFilename, options);
+            download.on("error", (err: Error) => {
+                warningLog(err);
+                setImmediate(() => {
+                    reject(err);
+                });
+            });
+            download.on("end", (output: string) => {
+                // istanbul ignore next
+                if (doDebug) {
+                    warningLog(output);
+                }
+                // warningLog("done ...");
+                resolve({ downloadedFile: outputFilename });
+            });
+            download.on("progress", (progress: any) => {
+                bar.update(progress);
             });
         });
-        download.on("end", (output: string) => {
-            // istanbul ignore next
-            if (doDebug) {
-                warningLog(output);
-            }
-            // warningLog("done ...");
-            setImmediate(() => {
-                callback(null, outputFilename);
-            });
-        });
-        download.on("progress", (progress: any) => {
-            bar.update(progress);
-        });
+
     }
 
-    function unzip_openssl(zipFilename: string, callback: (err?: Error) => void) {
+    async function unzip_openssl(zipFilename: string) {
         const opensslFolder = get_openssl_folder_win32();
 
-        yauzl.open(zipFilename, { lazyEntries: true }, (err?: Error | null, zipFile?: yauzl.ZipFile) => {
-            if (err) {
-                return callback(err);
-            }
-            if (!zipFile) {
-                return callback(new Error("Internal error"));
-            }
 
-            zipFile.readEntry();
+        const zipFile = await new Promise < yauzl.ZipFile>((resolve, reject)=>{
+            yauzl.open(zipFilename, { lazyEntries: true }, (err?: Error | null, zipfile?: yauzl.ZipFile) => {
+                if (err) { reject(err); }
+                resolve(zipfile!);
+            });
+        })
+        
+        zipFile.readEntry();
 
+        await new Promise((resolve, reject) => {
             zipFile.on("end", (err?: Error) => {
                 setImmediate(() => {
                     // istanbul ignore next
                     if (doDebug) {
                         warningLog("unzip done");
                     }
-                    callback(err);
+                    reject(err);
                 });
             });
 
             zipFile.on("entry", (entry: yauzl.Entry) => {
                 zipFile.openReadStream(entry, (err?: Error | null, readStream?: Readable) => {
                     if (err) {
-                        return callback(err);
+                        return reject(err);
                     }
 
                     const file = path.join(opensslFolder, entry.fileName);
@@ -372,84 +372,64 @@ function install_and_check_win32_openssl_version(callback: (err: Error | null, o
         fs.mkdirSync(opensslFolder);
     }
 
-    check_openssl_win32((err: Error | null, opensslOK?: boolean) => {
-        if (err) {
-            return callback(err);
+    const { opensslOk, version } = await check_openssl_win32();
+
+    if (!opensslOk) {
+        warningLog(chalk.yellow("openssl seems to be missing and need to be installed"));
+        const { downloadedFile } = await download_openssl();
+
+        // istanbul ignore next
+        if (doDebug) {
+            warningLog("deflating ", chalk.yellow(downloadedFile!));
         }
-        if (!opensslOK) {
-            warningLog(chalk.yellow("openssl seems to be missing and need to be installed"));
-            download_openssl((err: Error | null, filename?: string) => {
-                if (err) {
-                    return callback(err);
-                }
+        await unzip_openssl(downloadedFile);
 
-                // istanbul ignore next
-                if (doDebug) {
-                    warningLog("deflating ", chalk.yellow(filename!));
-                }
-                unzip_openssl(filename!, (err?: Error) => {
-                    if (err) {
-                        return callback(err);
-                    }
-                    const opensslExists = !!fs.existsSync(opensslExecPath);
+        const opensslExists = !!fs.existsSync(opensslExecPath);
 
-                    // istanbul ignore next
-                    if (doDebug) {
-                        warningLog(
-                            "verifying ",
-                            opensslExists,
-                            opensslExists ? chalk.green("OK ") : chalk.red(" Error"),
-                            opensslExecPath
-                        );
-                        warningLog("done ", err ? err : "");
-                    }
-
-                    check_openssl_win32((err: Error | null) => {
-                        callback(err, opensslExecPath);
-                    });
-                });
-            });
-        } else {
-            // istanbul ignore next
-            if (doDebug) {
-                warningLog(chalk.green("openssl is already installed and have the expected version."));
-            }
-            return callback(null, opensslExecPath);
+        // istanbul ignore next
+        if (doDebug) {
+            warningLog(
+                "verifying ",
+                opensslExists,
+                opensslExists ? chalk.green("OK ") : chalk.red(" Error"),
+                opensslExecPath
+            );
         }
-    });
+
+        const opensslExecPath2 = await check_openssl_win32();
+        return opensslExecPath;
+    } else {
+        // istanbul ignore next
+        if (doDebug) {
+            warningLog(chalk.green("openssl is already installed and have the expected version."));
+        }
+        return opensslExecPath;
+    }
+
 }
 
 /**
  *
- * @param callback    {Function}
- * @param callback.err {Error|null}
- * @param callback.pathToOpenSSL {string}
+ * return path to the openssl executable
  */
-export function install_prerequisite(callback: (err: Error | null, pathToOpenSSL?: string) => void) {
+export async function install_prerequisite(): Promise<string> {
     // istanbul ignore else
     if (process.platform !== "win32") {
-        return check_system_openssl_version(callback);
+        return await check_system_openssl_version();
     } else {
-        return install_and_check_win32_openssl_version(callback);
+        return await install_and_check_win32_openssl_version();
     }
 }
 
-export function get_openssl_exec_path(callback: (err: Error | null, execPath?: string) => void) {
-    assert(typeof callback === "function");
+export async function get_openssl_exec_path(): Promise<string> {
 
     if (process.platform === "win32") {
-        install_prerequisite((err: Error | null, opensslExecPath?: string) => {
-            if (err) {
-                return callback(err);
-            }
-            if (!fs.existsSync(opensslExecPath!)) {
-                throw new Error("internal error cannot find " + opensslExecPath);
-            }
-            callback(err, opensslExecPath);
-        });
+        const opensslExecPath = await install_prerequisite()
+        if (!fs.existsSync(opensslExecPath!)) {
+            throw new Error("internal error cannot find " + opensslExecPath);
+        }
+        return opensslExecPath;
     } else {
-        setImmediate(() => {
-            callback(null, "openssl");
-        });
+        return "openssl";
     }
 }

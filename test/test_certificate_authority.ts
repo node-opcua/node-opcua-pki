@@ -18,7 +18,6 @@ import {
 } from "node-opcua-crypto";
 
 import {
-    ErrorCallback,
     Filename,
     g_config,
     Params,
@@ -47,15 +46,10 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
         };
     });
 
-    it("should read openssl version", (done: ErrorCallback) => {
-        execute_openssl("version", { cwd: "." }, (err: Error | null, output?: string) => {
-            if (err) {
-                return done(err);
-            }
-            output = output!.trim();
-            g_config.opensslVersion.should.eql(output);
-            done(err!);
-        });
+    it("should read openssl version", async () => {
+        let output =  await execute_openssl("version", { cwd: "." });
+        output = output!.trim();
+        g_config.opensslVersion.should.eql(output);
     });
 
     it("should create a CertificateAuthority", async () => {
@@ -232,8 +226,6 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
     /**
      *
      * @param certificate  {String} certificate to create
-     * @param privateKey
-     * @param callback
      */
     async function createSelfSignedCertificate(certificate: Filename, privateKey: Filename): Promise<string> {
         const startDate = new Date();

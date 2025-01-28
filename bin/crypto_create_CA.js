@@ -30,8 +30,6 @@
 const _pkg = require("../package.json");
 
 // eslint-disable-next-line no-undef
-require("../dist/lib/ca/crypto_create_CA.js").main(process.argv.splice(2), () => {
-    /* empty */
-    // xx updateNotifier({pkg}).notify();
-    
-});
+const { main } = require("../dist/lib/ca/crypto_create_CA.js");
+
+main(process.argv.splice(2));

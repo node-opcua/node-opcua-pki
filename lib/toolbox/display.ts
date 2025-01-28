@@ -25,46 +25,36 @@ import { g_config } from "./config";
 import { warningLog } from "./debug";
 
 // istanbul ignore next
-export function displayChapter(str: string, callback?: (err?: Error) => void) {
+export function displayChapter(str: string) {
     const l = "                                                                                               ";
     warningLog(chalk.bgWhite(l) + " ");
     str = ("        " + str + l).substring(0, l.length);
     warningLog(chalk.bgWhite.cyan(str));
     warningLog(chalk.bgWhite(l) + " ");
-    if (callback) {
-        callback();
-    }
 }
 
-export function displayTitle(str: string, callback?: (err?: Error) => void) {
+export function displayTitle(str: string) {
     // istanbul ignore next
     if (!g_config.silent) {
         warningLog("");
         warningLog(chalk.yellowBright(str));
         warningLog(chalk.yellow(new Array(str.length + 1).join("=")), "\n");
     }
-    if (callback) {
-        callback();
-    }
+    
 }
 
-export function displaySubtitle(str: string, callback?: (err?: Error) => void) {
+export function displaySubtitle(str: string) {
     // istanbul ignore next
     if (!g_config.silent) {
         warningLog("");
         warningLog("    " + chalk.yellowBright(str));
         warningLog("    " + chalk.white(new Array(str.length + 1).join("-")), "\n");
     }
-    if (callback) {
-        callback();
-    }
-}
-export function display(str: string, callback?: (err?: Error) => void) {
+ }
+export function display(str: string) {
     // istanbul ignore next
     if (!g_config.silent) {
         warningLog("       " + str);
     }
-    if (callback) {
-        callback();
-    }
+   
 }

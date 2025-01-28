@@ -38,7 +38,7 @@ export function certificateFileExist(certificateFile: string): boolean {
     return true;
 }
 
-export function mkdir(folder: string): void {
+export async function mkdir(folder: string): Promise<void> {
     if (!fs.existsSync(folder)) {
         // istanbul ignore next
         debugLog(chalk.white(" .. constructing "), folder);

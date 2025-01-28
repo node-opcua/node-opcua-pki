@@ -4,7 +4,6 @@ Error.stackTraceLimit = Infinity;
 // tslint:disable:no-shadowed-variable
 import fs from "fs";
 import path from "path";
-import { promisify } from "util";
 import "should";
 import { readCertificate } from "node-opcua-crypto";
 
@@ -50,6 +49,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
     });
 
     it("should create its own self-signed certificate", async () => {
+        
         function get_days(date1: Date, date2: Date): number {
             const ms_in_one_day = 24 * 3600000;
             const diff = date1.getTime() - date2.getTime();
@@ -85,7 +85,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
         fs.existsSync(expectedCertificate).should.eql(true, "self-signed certificate must exist");
 
-        const data = (await promisify(dumpCertificate)(expectedCertificate))!;
+        const data = await dumpCertificate(expectedCertificate)!;
 
         await fs.promises.writeFile(path.join(testData.tmpFolder, "dump_cert1.txt"), data!);
 
@@ -132,12 +132,12 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         //         -keyout private_key.pem -outform der -out certificate.der"
         await executeOpensslAsync(
             "req " +
-                "-x509 -days 365 -nodes -newkey rsa:1024 " +
-                "-batch -keyout private_key.pem " +
-                "-outform der -out " +
-                q(n(certificate)) +
-                " -config " +
-                q(n(defaultOpensslConf)),
+            "-x509 -days 365 -nodes -newkey rsa:1024 " +
+            "-batch -keyout private_key.pem " +
+            "-outform der -out " +
+            q(n(certificate)) +
+            " -config " +
+            q(n(defaultOpensslConf)),
             {}
         );
     }
@@ -199,7 +199,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     });
 
     it("Q4 - Async CertificateManager#trustCertificate  should store in trusted folder", async () => {
-        const fsReadFile = promisify(fs.readFile);
+        const fsReadFile = fs.promises.readFile;
 
         const certificate: Buffer = await fsReadFile(sample_certificate3_der);
 
@@ -231,7 +231,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         status2_a.should.eql("BadCertificateInvalid");
     });
     it("Q6 - isCertificateTrusted", async () => {
-        const fsReadFile = promisify(fs.readFile);
+        const fsReadFile = fs.promises.readFile;
 
         const certificate: Buffer = await fsReadFile(sample_certificate3_der);
         const status = await cm.isCertificateTrusted(certificate);
@@ -270,14 +270,9 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
             location: path.join(testData.tmpFolder, "PKI_aa"),
         };
         const cm = new CertificateManager(options);
-
-        await new Promise<void>((resolve) => {
-            cm.initialize((err) => {
-                console.log("initialized done", err);
-                resolve();
-            });
-            cm.dispose();
-        });
+        await cm.initialize();
+        console.log("initialized done");
+        cm.dispose();
     });
     it("Q8B - Disposing while initializing ", async () => {
         const options = {
@@ -285,15 +280,21 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         };
         const cm = new CertificateManager(options);
 
-        await new Promise<void>((resolve) => {
-            cm.initialize((err) => {
-                console.log("initialized done", err);
-                resolve();
-            });
-            setImmediate(() => {
-                cm.dispose();
-                console.log("disposed");
-            });
-        });
+        const promises: Promise<void>[] = [
+            (async () => {
+                await cm.initialize();
+                console.log("initialized done");
+            })(),
+            (async () => {
+                await new Promise<void>((resolve) => {
+                    setImmediate(() => {
+                        cm.dispose();
+                        console.log("disposed");
+                        resolve();
+                    });
+                });
+            })()
+        ];
+        await Promise.all(promises);
     });
 });
