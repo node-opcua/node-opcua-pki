@@ -40,7 +40,7 @@ function openssl_require2DigitYearInDate() {
     // istanbul ignore next
     if (!g_config.opensslVersion) {
         throw new Error(
-            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed()"
+            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed()",
         );
     }
     return g_config.opensslVersion.match(/OpenSSL 0\.9/);
@@ -71,10 +71,7 @@ const n = make_path;
  * @param privateKeyFilename: the existing file with the private key
  * @param publicKeyFilename: the file where to store the public key
  */
-export async function getPublicKeyFromPrivateKey(
-    privateKeyFilename: string,
-    publicKeyFilename: string
-): Promise<void> {
+export async function getPublicKeyFromPrivateKey(privateKeyFilename: string, publicKeyFilename: string): Promise<void> {
     assert(fs.existsSync(privateKeyFilename));
     await execute_openssl("rsa -pubout -in " + q(n(privateKeyFilename)) + " -out " + q(n(publicKeyFilename)), {});
 }
@@ -87,10 +84,7 @@ export async function getPublicKeyFromPrivateKey(
  * @param certificateFilename
  * @param publicKeyFilename
  */
-export async function getPublicKeyFromCertificate(
-    certificateFilename: string,
-    publicKeyFilename: string,
-) {
+export async function getPublicKeyFromCertificate(certificateFilename: string, publicKeyFilename: string) {
     assert(fs.existsSync(certificateFilename));
     await execute_openssl("x509 -pubkey -in " + q(n(certificateFilename)) + " > " + q(n(publicKeyFilename)), {});
 }

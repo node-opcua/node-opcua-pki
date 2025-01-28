@@ -1,4 +1,3 @@
-
 // Convert pfx file to pem file
 // Conversion to a combined PEM file
 // To convert a PFX file to a PEM file that contains both the certificate and private key,

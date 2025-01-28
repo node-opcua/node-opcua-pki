@@ -42,12 +42,9 @@ const q = quote;
 const n = make_path;
 
 /**
- * @param certificate: the filename of the certificate to create  
+ * @param certificate: the filename of the certificate to create
  */
-export async function createSelfSignedCertificate(
-    certificate: string,
-    params: CreateSelfSignCertificateWithConfigParam
-) {
+export async function createSelfSignedCertificate(certificate: string, params: CreateSelfSignCertificateWithConfigParam) {
     await ensure_openssl_installed();
 
     params.purpose = params.purpose || CertificatePurpose.ForApplication;
@@ -61,7 +58,7 @@ export async function createSelfSignedCertificate(
     assert(fs.existsSync(params.rootDir));
     assert(fs.existsSync(params.privateKey));
     if (!params.subject) {
-        throw new Error("Missing subject")
+        throw new Error("Missing subject");
     }
     assert(typeof params.applicationUri === "string");
     assert(params.dns instanceof Array);
@@ -94,7 +91,6 @@ export async function createSelfSignedCertificate(
             extension = "v3_selfsigned";
     }
 
-
     displayTitle("Generate a certificate request");
 
     // Once the private key is generated a Certificate Signing Request can be generated.
@@ -103,50 +99,48 @@ export async function createSelfSignedCertificate(
     // The second option is to self-sign the CSR, which will be demonstrated in the next section
     await execute_openssl(
         "req -new" +
-        " -sha256 " +
-        " -text " +
-        " -extensions " +
-        extension +
-        " " +
-        configOption +
-        " -key " +
-        q(n(params.privateKey)) +
-        " -out " +
-        q(n(certificateRequestFilename)) +
-        ' -subj "' +
-        subject +
-        '"',
-        {});
-
+            " -sha256 " +
+            " -text " +
+            " -extensions " +
+            extension +
+            " " +
+            configOption +
+            " -key " +
+            q(n(params.privateKey)) +
+            " -out " +
+            q(n(certificateRequestFilename)) +
+            ' -subj "' +
+            subject +
+            '"',
+        {},
+    );
 
     // Xx // Step 3: Remove Passphrase from Key
     // Xx execute("cp private/cakey.pem private/cakey.pem.org");
     // Xx execute(openssl_path + " rsa -in private/cakey.pem.org
     // Xx -out private/cakey.pem -passin pass:"+paraphrase);
 
-
     displayTitle("Generate Certificate (self-signed)");
     await execute_openssl(
         " x509 -req " +
-        " -days " +
-        params.validity +
-        " -extensions " +
-        extension +
-        " " +
-        " -extfile " +
-        q(n(configFile)) +
-        " -in " +
-        q(n(certificateRequestFilename)) +
-        " -signkey " +
-        q(n(params.privateKey)) +
-        " -text " +
-        " -out " +
-        q(certificate) +
-        " -text ",
-        {});
+            " -days " +
+            params.validity +
+            " -extensions " +
+            extension +
+            " " +
+            " -extfile " +
+            q(n(configFile)) +
+            " -in " +
+            q(n(certificateRequestFilename)) +
+            " -signkey " +
+            q(n(params.privateKey)) +
+            " -text " +
+            " -out " +
+            q(certificate) +
+            " -text ",
+        {},
+    );
     // remove unnecessary certificate request file
 
     await fs.promises.unlink(certificateRequestFilename);
-
-
 }

@@ -31,7 +31,7 @@ import { createCertificateSigningRequest as createCertificateSigningRequest1 } f
  */
 export async function createCertificateSigningRequestAsync(
     certificateSigningRequestFilename: string,
-    params: CreateCertificateSigningRequestWithConfigOptions
+    params: CreateCertificateSigningRequestWithConfigOptions,
 ): Promise<void> {
     assert(params);
     assert(params.rootDir);
@@ -63,7 +63,6 @@ export async function createCertificateSigningRequestAsync(
     display("- privateKey " + params.privateKey);
     display("- certificateSigningRequestFilename " + certificateSigningRequestFilename);
 
-    // to verify that the CSR is correct: 
+    // to verify that the CSR is correct:
     // openssl  req -in ./tmp/without_openssl.csr -noout -verify
 }
-

@@ -31,7 +31,9 @@ export function certificateFileExist(certificateFile: string): boolean {
     // istanbul ignore next
     if (fs.existsSync(certificateFile) && !g_config.force) {
         warningLog(
-            chalk.yellow("        certificate ") + chalk.cyan(certificateFile) + chalk.yellow(" already exists => do not overwrite")
+            chalk.yellow("        certificate ") +
+                chalk.cyan(certificateFile) +
+                chalk.yellow(" already exists => do not overwrite"),
         );
         return false;
     }

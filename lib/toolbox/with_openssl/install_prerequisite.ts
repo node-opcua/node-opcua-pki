@@ -97,7 +97,6 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
     };
 
     return await new Promise<ExecuteResult>((resolve, reject) => {
-
         const child = child_process.exec(
             cmd,
             options,
@@ -107,7 +106,7 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
                 else {
                     resolve({ exitCode, output });
                 }
-            }
+            },
         );
 
         const stream1 = byline(child.stdout!);
@@ -122,7 +121,7 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
 }
 
 function quote(str: string): string {
-    return '"' + str.replace(/\\/g, "/") + "\"";
+    return '"' + str.replace(/\\/g, "/") + '"';
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
@@ -142,9 +141,7 @@ async function getopensslExecPath(): Promise<string> {
     const output = result1!.output;
 
     if (exitCode !== 0) {
-        warningLog(
-            chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer ")
-        );
+        warningLog(chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer "));
         warningLog(chalk.yellow("Please install it before running this programs"));
         throw new Error("Cannot find openssl");
     }
@@ -152,7 +149,6 @@ async function getopensslExecPath(): Promise<string> {
     return opensslExecPath;
 }
 export async function check_system_openssl_version(): Promise<string> {
-
     const opensslExecPath = await getopensslExecPath();
 
     // tslint:disable-next-line:variable-name
@@ -181,9 +177,7 @@ export async function check_system_openssl_version(): Promise<string> {
         if (process.platform === "darwin") {
             message +=
                 chalk.cyan("\nplease refer to :") +
-                chalk.yellow(
-                    " https://github.com/node-opcua/node-opcua/" + "wiki/installing-node-opcua-or-node-red-on-MacOS"
-                );
+                chalk.yellow(" https://github.com/node-opcua/node-opcua/" + "wiki/installing-node-opcua-or-node-red-on-MacOS");
         }
 
         const table = new Table();
@@ -211,7 +205,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
         return path.join(opensslFolder, "openssl.exe");
     }
 
-    async function check_openssl_win32(): Promise<{ opensslOk?: boolean, version?: string }> {
+    async function check_openssl_win32(): Promise<{ opensslOk?: boolean; version?: string }> {
         const opensslExecPath = get_openssl_exec_path_win32();
 
         const exists = fs.existsSync(opensslExecPath);
@@ -219,7 +213,8 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             warningLog("checking presence of ", opensslExecPath);
             warningLog(chalk.red(" cannot find file ") + opensslExecPath);
             return {
-                opensslOk: false, version: "cannot find file " + opensslExecPath
+                opensslOk: false,
+                version: "cannot find file " + opensslExecPath,
             };
         } else {
             // tslint:disable-next-line:variable-name
@@ -235,9 +230,8 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             }
             return {
                 opensslOk: exitCode === 0 && is_expected_openssl_version(version),
-                version
-            }
-
+                version,
+            };
         }
     }
 
@@ -288,7 +282,6 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             width: 100,
         });
 
-
         return await new Promise((resolve, reject) => {
             const download = wget.download(url, outputFilename, options);
             download.on("error", (err: Error) => {
@@ -309,20 +302,20 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                 bar.update(progress);
             });
         });
-
     }
 
     async function unzip_openssl(zipFilename: string) {
         const opensslFolder = get_openssl_folder_win32();
 
-
-        const zipFile = await new Promise < yauzl.ZipFile>((resolve, reject)=>{
+        const zipFile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
             yauzl.open(zipFilename, { lazyEntries: true }, (err?: Error | null, zipfile?: yauzl.ZipFile) => {
-                if (err) { reject(err); }
+                if (err) {
+                    reject(err);
+                }
                 resolve(zipfile!);
             });
-        })
-        
+        });
+
         zipFile.readEntry();
 
         await new Promise((resolve, reject) => {
@@ -388,12 +381,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
 
         // istanbul ignore next
         if (doDebug) {
-            warningLog(
-                "verifying ",
-                opensslExists,
-                opensslExists ? chalk.green("OK ") : chalk.red(" Error"),
-                opensslExecPath
-            );
+            warningLog("verifying ", opensslExists, opensslExists ? chalk.green("OK ") : chalk.red(" Error"), opensslExecPath);
         }
 
         const opensslExecPath2 = await check_openssl_win32();
@@ -405,7 +393,6 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
         }
         return opensslExecPath;
     }
-
 }
 
 /**
@@ -422,9 +409,8 @@ export async function install_prerequisite(): Promise<string> {
 }
 
 export async function get_openssl_exec_path(): Promise<string> {
-
     if (process.platform === "win32") {
-        const opensslExecPath = await install_prerequisite()
+        const opensslExecPath = await install_prerequisite();
         if (!fs.existsSync(opensslExecPath!)) {
             throw new Error("internal error cannot find " + opensslExecPath);
         }

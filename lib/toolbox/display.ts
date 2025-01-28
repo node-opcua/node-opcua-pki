@@ -40,7 +40,6 @@ export function displayTitle(str: string) {
         warningLog(chalk.yellowBright(str));
         warningLog(chalk.yellow(new Array(str.length + 1).join("=")), "\n");
     }
-    
 }
 
 export function displaySubtitle(str: string) {
@@ -50,11 +49,10 @@ export function displaySubtitle(str: string) {
         warningLog("    " + chalk.yellowBright(str));
         warningLog("    " + chalk.white(new Array(str.length + 1).join("-")), "\n");
     }
- }
+}
 export function display(str: string) {
     // istanbul ignore next
     if (!g_config.silent) {
         warningLog("       " + str);
     }
-   
 }

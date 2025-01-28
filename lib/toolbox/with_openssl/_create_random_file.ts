@@ -31,7 +31,7 @@ const q = quote;
 export async function createRandomFile(randomFile: string, options: ExecuteOptions): Promise<void> {
     // istanbul ignore next
     if (!useRandFile()) {
-        return ;
+        return;
     }
     await execute_openssl("rand " + " -out " + q(randomFile) + " -hex 256", options);
 }

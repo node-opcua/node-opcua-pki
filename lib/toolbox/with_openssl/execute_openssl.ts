@@ -33,9 +33,7 @@ import fs from "fs";
 import os from "os";
 
 import { get_openssl_exec_path } from "./install_prerequisite";
-import {
-    quote,
-} from "../common";
+import { quote } from "../common";
 import { g_config } from "../config";
 import { debugLog, displayError, doDebug, warningLog } from "../debug";
 import { setEnv } from "./_env";
@@ -47,16 +45,14 @@ let opensslPath: string | undefined; // not initialized
 
 const n = make_path;
 
-
 export interface ExecuteOptions {
     cwd?: string;
     hideErrorMessage?: boolean;
 }
 
 export async function execute(cmd: string, options: ExecuteOptions): Promise<string> {
-
     const from = new Error();
-   
+
     options.cwd = options.cwd || process.cwd();
 
     // istanbul ignore next
@@ -89,7 +85,7 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
                     return;
                 }
                 resolve(outputs.join(""));
-            }
+            },
         );
 
         if (child.stdout) {
@@ -120,7 +116,6 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
             }
         }
     });
-
 }
 
 export async function find_openssl(): Promise<string> {
@@ -139,17 +134,17 @@ export async function ensure_openssl_installed(): Promise<void> {
 }
 
 export async function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
-   return await execute_openssl(cmd, options);
+    return await execute_openssl(cmd, options);
 }
 
 export async function execute_openssl_no_failure(cmd: string, options: ExecuteOpenSSLOptions) {
     options = options || {};
     options.hideErrorMessage = true;
     try {
-     return await execute_openssl(cmd, options);
-     } catch(err) {
-            debugLog(" (ignored error =  ERROR : )", (err as Error).message);
-     }
+        return await execute_openssl(cmd, options);
+    } catch (err) {
+        debugLog(" (ignored error =  ERROR : )", (err as Error).message);
+    }
 }
 
 function getTempFolder(): string {
@@ -161,7 +156,6 @@ export interface ExecuteOpenSSLOptions extends ExecuteOptions {
 }
 
 export async function execute_openssl(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
-  
     debugLog("execute_openssl", cmd, options);
     const empty_config_file = n(getTempFolder(), "empty_config.cnf");
     if (!fs.existsSync(empty_config_file)) {

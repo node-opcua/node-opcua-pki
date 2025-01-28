@@ -54,7 +54,6 @@ export function getEnvironmentVarNames(): any[] {
     });
 }
 
-
 export function processAltNames(params: ProcessAltNamesParam) {
     params.dns = params.dns || [];
     params.ip = params.ip || [];
@@ -64,13 +63,12 @@ export function processAltNames(params: ProcessAltNamesParam) {
     subjectAltName.push("URI:" + params.applicationUri);
     subjectAltName = ([] as string[]).concat(
         subjectAltName,
-        params.dns.map((d: string) => "DNS:" + d)
+        params.dns.map((d: string) => "DNS:" + d),
     );
     subjectAltName = ([] as string[]).concat(
         subjectAltName,
-        params.ip.map((d: string) => "IP:" + d)
+        params.ip.map((d: string) => "IP:" + d),
     );
     const subjectAltNameString = subjectAltName.join(", ");
     setEnv("ALTNAME", subjectAltNameString);
 }
-

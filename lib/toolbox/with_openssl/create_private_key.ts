@@ -33,7 +33,7 @@ const n = make_path;
 /**
  * create a RSA PRIVATE KEY
  *
- */export async function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLength) {
+ */ export async function createPrivateKeyOld(privateKeyFilename: string, keyLength: KeyLength) {
     // istanbul ignore next
     if (useRandFile()) {
         assert(hasEnv("RANDFILE"));
@@ -42,7 +42,6 @@ const n = make_path;
     assert([1024, 2048, 3072, 4096].indexOf(keyLength) >= 0);
     const randomFile = hasEnv("RANDFILE") ? n(getEnv("RANDFILE")) : "random.rnd";
     await createRandomFileIfNotExist(randomFile, {}),
-
         // Note   OpenSSL1 generates a -----BEGIN RSA PRIVATE KEY---- whereas
         //        OpenSSL3 generates a -----BEGIN PRIVATE KEY----- unless the new -traditional option is used
         //
@@ -95,12 +94,7 @@ const n = make_path;
         //       INTEGER (1021 bit) 162921471472202227976749871246879611058257361785053516568268141902018…
         // */
         await execute_openssl(
-            "genrsa " +
-            " -out " +
-            q(n(privateKeyFilename)) +
-            (useRandFile() ? " -rand " + q(randomFile) : "") +
-            " " +
-            keyLength,
-            {});
-
+            "genrsa " + " -out " + q(n(privateKeyFilename)) + (useRandFile() ? " -rand " + q(randomFile) : "") + " " + keyLength,
+            {},
+        );
 }

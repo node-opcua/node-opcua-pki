@@ -21,7 +21,11 @@
 // ---------------------------------------------------------------------------------------------------------------------
 import assert = require("assert");
 import fs = require("fs");
-import { CertificatePurpose, createSelfSignedCertificate as createSelfSignedCertificate1, pemToPrivateKey } from "node-opcua-crypto";
+import {
+    CertificatePurpose,
+    createSelfSignedCertificate as createSelfSignedCertificate1,
+    pemToPrivateKey,
+} from "node-opcua-crypto";
 
 import { CreateSelfSignCertificateWithConfigParam, adjustDate } from "../common";
 import { Subject } from "../../misc/subject";
@@ -29,7 +33,7 @@ import { displayTitle } from "../display";
 
 export async function createSelfSignedCertificateAsync(
     certificate: string,
-    params: CreateSelfSignCertificateWithConfigParam
+    params: CreateSelfSignCertificateWithConfigParam,
 ): Promise<void> {
     params.purpose = params.purpose || CertificatePurpose.ForApplication;
     assert(params.purpose, "Please provide a Certificate Purpose");
@@ -74,14 +78,14 @@ export async function createSelfSignedCertificateAsync(
         ip: params.ip,
         subject,
         applicationUri: params.applicationUri,
-        purpose
+        purpose,
     });
     await fs.promises.writeFile(certificate, cert, "utf-8");
 }
 
 export async function createSelfSignedCertificate(
     certificate: string,
-    params: CreateSelfSignCertificateWithConfigParam
+    params: CreateSelfSignCertificateWithConfigParam,
 ): Promise<void> {
     await createSelfSignedCertificateAsync(certificate, params);
 }

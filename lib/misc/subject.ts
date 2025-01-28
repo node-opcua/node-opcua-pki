@@ -1,1 +1,1 @@
-export {Subject, SubjectOptions} from "node-opcua-crypto";
+export { Subject, SubjectOptions } from "node-opcua-crypto";

@@ -41,9 +41,9 @@ const n = make_path;
 /**
  * create a certificate signing request
  */
-export async function createCertificateSigningRequestWithOpenSSL (
+export async function createCertificateSigningRequestWithOpenSSL(
     certificateSigningRequestFilename: string,
-    params: CreateCertificateSigningRequestWithConfigOptions
+    params: CreateCertificateSigningRequestWithConfigOptions,
 ): Promise<void> {
     assert(params);
     assert(params.rootDir);
@@ -69,17 +69,15 @@ export async function createCertificateSigningRequestWithOpenSSL (
     displaySubtitle("- Creating a Certificate Signing Request with openssl");
     await execute_openssl(
         "req -new" +
-        "  -sha256 " +
-        " -batch " +
-        " -text " +
-        configOption +
-        " -key " +
-        q(n(params.privateKey)) +
-        subjectOptions +
-        " -out " +
-        q(n(certificateSigningRequestFilename)),
+            "  -sha256 " +
+            " -batch " +
+            " -text " +
+            configOption +
+            " -key " +
+            q(n(params.privateKey)) +
+            subjectOptions +
+            " -out " +
+            q(n(certificateSigningRequestFilename)),
         options,
-
     );
-
 }

@@ -433,7 +433,7 @@ async function createDefaultCertificate(
     prefix: string,
     key_length: KeySize,
     applicationUri: string,
-    dev: boolean
+    dev: boolean,
 ) {
     // possible key length in bits
     assert(key_length === 1024 || key_length === 2048 || key_length === 3072 || key_length === 4096);
@@ -464,7 +464,7 @@ async function createDefaultCertificate(
         private_key: Filename,
         applicationUri: string,
         startDate: Date,
-        validity: number
+        validity: number,
     ): Promise<string> {
         // istanbul ignore next
         if (fs.existsSync(certificate)) {
@@ -480,7 +480,7 @@ async function createDefaultCertificate(
         privateKey: Filename,
         applicationUri: string,
         startDate: Date,
-        validity: number
+        validity: number,
     ): Promise<string> {
         const certificateSigningRequestFile = certificate + ".csr";
 
@@ -496,7 +496,7 @@ async function createDefaultCertificate(
             configFile,
             dns,
             ip,
-            purpose: CertificatePurpose.ForApplication
+            purpose: CertificatePurpose.ForApplication,
         };
 
         // create CSR
@@ -516,7 +516,7 @@ async function createDefaultCertificate(
         private_key: Filename,
         applicationUri: string,
         startDate: Date,
-        validity: number
+        validity: number,
     ) {
         await g_certificateAuthority.createSelfSignedCertificate(certificate, private_key, {
             applicationUri,
@@ -569,7 +569,7 @@ async function createDefaultCertificate(
                 private_key_file,
                 applicationUri + "Revoked", // make sure we used a uniq URI here
                 yesterday,
-                365
+                365,
             );
             warningLog(" certificate to revoke => ", certificate);
             revoke_certificate(certificate_revoked);
@@ -577,12 +577,10 @@ async function createDefaultCertificate(
     }
 }
 
-
 async function wrap(func: () => Promise<void>) {
     try {
         await func();
-    } catch (err) {
-    }
+    } catch (err) {}
 }
 
 async function create_default_certificates(dev: boolean) {
@@ -677,13 +675,13 @@ argv
                 await createDefaultCertificates(local_argv.dev);
                 displayChapter("Demo certificates  CREATED");
             });
-        }
+        },
     )
 
     .command(
         "createCA",
         "create a Certificate Authority",
-        /* builder*/(yargs: commands.Argv) => {
+        /* builder*/ (yargs: commands.Argv) => {
             const options: OptionMap = {
                 subject: {
                     default: defaultSubject,
@@ -700,13 +698,13 @@ argv
             const local_argv = yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
             return local_argv;
         },
-        /*handler*/(local_argv: IReadConfigurationOpts3) => {
+        /*handler*/ (local_argv: IReadConfigurationOpts3) => {
             wrap(async () => {
                 await ensure_openssl_installed();
                 await readConfiguration(local_argv);
                 await construct_CertificateAuthority(local_argv.subject);
             });
-        }
+        },
     )
     .command(
         "createPKI",
@@ -726,7 +724,7 @@ argv
                 await readConfiguration(local_argv);
                 await construct_CertificateManager();
             });
-        }
+        },
     )
 
     // ----------------------------------------------- certificate
@@ -842,18 +840,14 @@ argv
                 if (fs.existsSync(certificate)) {
                     throw new Error(" File " + certificate + " already exist");
                 }
-                await g_certificateAuthority.signCertificateRequest(
-                    certificate,
-                    csr_file,
-                    gLocalConfig
-                );
+                await g_certificateAuthority.signCertificateRequest(certificate, csr_file, gLocalConfig);
 
                 assert(typeof gLocalConfig.outputFile === "string");
                 fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
             }
 
             wrap(async () => await command_certificate(local_argv));
-        }
+        },
     )
 
     // ----------------------------------------------- revoke
@@ -869,8 +863,6 @@ argv
             return yargs;
         },
         (local_argv: IReadConfigurationOpts5) => {
-
-
             async function revoke_certificate(certificate: Filename) {
                 await g_certificateAuthority.revokeCertificate(certificate, {});
             }
@@ -889,7 +881,7 @@ argv
                 warningLog("  crl = ", g_certificateAuthority.revocationList);
                 warningLog("\nyou should now publish the new Certificate Revocation List");
             });
-        }
+        },
     )
 
     .command(
@@ -950,9 +942,7 @@ argv
                 gLocalConfig.subject =
                     local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
-                const internal_csr_file = await certificateManager.createCertificateRequest(
-                    gLocalConfig
-                );
+                const internal_csr_file = await certificateManager.createCertificateRequest(gLocalConfig);
                 if (!internal_csr_file) {
                     return;
                 }
@@ -971,7 +961,7 @@ argv
 
                 warningLog("CSR file = ", gLocalConfig.outputFile);
             });
-        }
+        },
     )
     .command(
         "sign",
@@ -1021,16 +1011,12 @@ argv
                     throw new Error(" File " + certificate + " already exist");
                 }
 
-                await g_certificateAuthority.signCertificateRequest(
-                    certificate,
-                    csr_file,
-                    gLocalConfig
-                );
+                await g_certificateAuthority.signCertificateRequest(certificate, csr_file, gLocalConfig);
 
                 assert(typeof gLocalConfig.outputFile === "string");
                 fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
             });
-        }
+        },
     )
     .command(
         "dump <certificateFile>",
@@ -1043,7 +1029,7 @@ argv
                 const data = await dumpCertificate(yargs.certificateFile);
                 warningLog(data);
             });
-        }
+        },
     )
 
     .command(
@@ -1056,7 +1042,7 @@ argv
             wrap(async () => {
                 await toDer(argv.pemCertificate);
             });
-        }
+        },
     )
 
     .command(
@@ -1073,7 +1059,7 @@ argv
                 const s = data.split("=")[1].split(":").join("").trim();
                 warningLog(s);
             });
-        }
+        },
     )
     .command("$0", "help", (yargs: commands.Argv) => {
         warningLog("--help for help");
@@ -1084,7 +1070,6 @@ argv
     .strict().argv;
 
 export async function main(argumentsList: string) {
-
     const g_argv = await commands.parse(argumentsList);
     if (g_argv.help) {
         commands.showHelp();
