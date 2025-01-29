@@ -311,22 +311,27 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             yauzl.open(zipFilename, { lazyEntries: true }, (err?: Error | null, zipfile?: yauzl.ZipFile) => {
                 if (err) {
                     reject(err);
+                } else {
+                    resolve(zipfile!);
                 }
-                resolve(zipfile!);
             });
         });
 
         zipFile.readEntry();
 
-        await new Promise((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
             zipFile.on("end", (err?: Error) => {
                 setImmediate(() => {
                     // istanbul ignore next
                     if (doDebug) {
                         warningLog("unzip done");
                     }
-                    reject(err);
-                });
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+              });
             });
 
             zipFile.on("entry", (entry: yauzl.Entry) => {
