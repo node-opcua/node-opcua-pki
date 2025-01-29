@@ -1,7 +1,7 @@
 import path from "path";
 import rimraf from "rimraf";
 
-import { g_config, mkdir, warningLog } from "../lib/index";
+import { g_config, mkdirSync, warningLog } from "../lib/index";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 
@@ -46,7 +46,7 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
             warningLog("    .... cleaning temporary folders ...", tmpFolder);
             await rimraf(tmpFolder);
             warningLog("    .....  folder cleaned");
-            await mkdir(tmpFolder);
+            mkdirSync(tmpFolder);
             warningLog("    .....  creating empty folder", tmpFolder);
             }
         await next();

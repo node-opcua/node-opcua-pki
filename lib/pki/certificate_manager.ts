@@ -53,11 +53,10 @@ import { SubjectOptions } from "../misc/subject";
 import { CertificateStatus, Filename, KeySize, Thumbprint } from "../toolbox/common";
 
 import { debugLog, warningLog } from "../toolbox/debug";
-import { make_path, mkdir } from "../toolbox/common2";
+import { make_path, mkdirSync } from "../toolbox/common2";
 
 import { CreateSelfSignCertificateParam, CreateSelfSignCertificateWithConfigParam } from "../toolbox/common";
-import { createCertificateSigningRequestWithOpenSSL, dumpCertificate } from "../toolbox/with_openssl";
-import { createSelfSignedCertificate } from "../toolbox/without_openssl";
+import { createCertificateSigningRequestAsync, createSelfSignedCertificate } from "../toolbox/without_openssl";
 
 import _simple_config_template from "./templates/simple_config_template.cnf";
 /**
@@ -266,7 +265,7 @@ export class CertificateManager {
         this.location = make_path(options.location, "");
         this.keySize = options.keySize;
 
-        mkdir(options.location);
+        mkdirSync(options.location);
 
         // istanbul ignore next
         if (!fs.existsSync(this.location)) {
@@ -583,18 +582,18 @@ export class CertificateManager {
     private async _initialize(): Promise<void> {
         assert((this.state = CertificateManagerState.Initializing));
         const pkiDir = this.location;
-        mkdir(pkiDir);
-        mkdir(path.join(pkiDir, "own"));
-        mkdir(path.join(pkiDir, "own/certs"));
-        mkdir(path.join(pkiDir, "own/private"));
-        mkdir(path.join(pkiDir, "rejected"));
-        mkdir(path.join(pkiDir, "trusted"));
-        mkdir(path.join(pkiDir, "trusted/certs"));
-        mkdir(path.join(pkiDir, "trusted/crl"));
+        mkdirSync(pkiDir);
+        mkdirSync(path.join(pkiDir, "own"));
+        mkdirSync(path.join(pkiDir, "own/certs"));
+        mkdirSync(path.join(pkiDir, "own/private"));
+        mkdirSync(path.join(pkiDir, "rejected"));
+        mkdirSync(path.join(pkiDir, "trusted"));
+        mkdirSync(path.join(pkiDir, "trusted/certs"));
+        mkdirSync(path.join(pkiDir, "trusted/crl"));
 
-        mkdir(path.join(pkiDir, "issuers"));
-        mkdir(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
-        mkdir(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
+        mkdirSync(path.join(pkiDir, "issuers"));
+        mkdirSync(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
+        mkdirSync(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
         if (!fs.existsSync(this.configFile) || !fs.existsSync(this.privateKey)) {
             return await this.withLock2(async () => {
@@ -705,7 +704,7 @@ export class CertificateManager {
             const now = new Date();
             const today = now.toISOString().slice(0, 10) + "_" + now.getTime();
             const certificateSigningRequestFilename = path.join(this.rootDir, "own/certs", "certificate_" + today + ".csr");
-            await createCertificateSigningRequestWithOpenSSL(certificateSigningRequestFilename, _params);
+            await createCertificateSigningRequestAsync(certificateSigningRequestFilename, _params);
             return certificateSigningRequestFilename;
         });
     }
@@ -817,11 +816,7 @@ export class CertificateManager {
                 wantedIssuerKey,
                 selectedTrustedCertificates.length,
             );
-            for (const entry of selectedTrustedCertificates) {
-                const data = await dumpCertificate(entry.filename);
-                debugLog("    ", entry.filename);
-                debugLog(data);
-            }
+
         }
         return selectedTrustedCertificates.length > 0 ? selectedTrustedCertificates[0].certificate : null;
     }

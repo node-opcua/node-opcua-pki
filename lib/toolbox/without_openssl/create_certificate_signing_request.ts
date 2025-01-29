@@ -23,8 +23,8 @@ import assert from "assert";
 import fs from "fs";
 import { CreateCertificateSigningRequestWithConfigOptions } from "../common";
 import { Subject, pemToPrivateKey } from "node-opcua-crypto";
+import { createCertificateSigningRequest } from "node-opcua-crypto";
 import { display, displaySubtitle } from "../display";
-import { createCertificateSigningRequest as createCertificateSigningRequest1 } from "node-opcua-crypto";
 
 /**
  * create a certificate signing request
@@ -50,7 +50,7 @@ export async function createCertificateSigningRequestAsync(
     const privateKeyPem = await fs.promises.readFile(params.privateKey, "utf-8");
     const privateKey = await pemToPrivateKey(privateKeyPem);
 
-    const { csr } = await createCertificateSigningRequest1({
+    const { csr } = await createCertificateSigningRequest({
         privateKey,
         dns: params.dns,
         ip: params.ip,
