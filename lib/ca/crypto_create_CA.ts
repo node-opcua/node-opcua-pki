@@ -50,7 +50,7 @@ import {
     displayTitle,
     g_config,
     make_path,
-    mkdir,
+    mkdirSync,
     debugLog,
     warningLog,
 } from "../toolbox";
@@ -275,7 +275,7 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
     assert(typeof certificateDir === "string");
 
     certificateDir = prepare(certificateDir);
-    await mkdir(certificateDir);
+    mkdirSync(certificateDir);
     assert(fs.existsSync(certificateDir));
 
     // ------------------------------------------------------------------------------------------------------------
@@ -669,7 +669,7 @@ argv
                     const certificateDir = gLocalConfig.certificateDir || "";
                     await rimraf(certificateDir + "/*.pem*");
                     await rimraf(certificateDir + "/*.pub*");
-                    await mkdir(certificateDir);
+                    mkdirSync(certificateDir);
                 }
                 displayTitle("create certificates");
                 await createDefaultCertificates(local_argv.dev);

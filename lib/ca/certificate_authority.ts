@@ -39,7 +39,7 @@ import {
     KeySize,
     certificateFileExist,
     make_path,
-    mkdir,
+    mkdirSync,
     debugLog,
     adjustApplicationUri,
     adjustDate,
@@ -117,13 +117,13 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     const caRootDir = certificateAuthority.rootDir;
 
     async function make_folders() {
-        await mkdir(caRootDir);
-        await mkdir(path.join(caRootDir, "private"));
-        await mkdir(path.join(caRootDir, "public"));
+        mkdirSync(caRootDir);
+        mkdirSync(path.join(caRootDir, "private"));
+        mkdirSync(path.join(caRootDir, "public"));
         // xx execute("chmod 700 private");
-        await mkdir(path.join(caRootDir, "certs"));
-        await mkdir(path.join(caRootDir, "crl"));
-        await mkdir(path.join(caRootDir, "conf"));
+        mkdirSync(path.join(caRootDir, "certs"));
+        mkdirSync(path.join(caRootDir, "crl"));
+        mkdirSync(path.join(caRootDir, "conf"));
     }
     await make_folders();
 
@@ -182,49 +182,49 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     const privateKeyFilename = path.join(caRootDir, "private/cakey.pem");
     const csrFilename = path.join(caRootDir, "private/cakey.csr");
 
-    displayTitle("Generate the CA private Key - " + keySize),
-        // The first step is to create your RSA Private Key.
-        // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
-        // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
-        await generatePrivateKeyFile(privateKeyFilename, keySize),
-        displayTitle("Generate a certificate request for the CA key"),
-        // Once the private key is generated a Certificate Signing Request can be generated.
-        // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
-        // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
-        // The second option is to self-sign the CSR, which will be demonstrated in the next section
-        await execute_openssl(
-            "req -new" +
-                " -sha256 " +
-                " -text " +
-                " -extensions v3_ca" +
-                configOption +
-                " -key " +
-                q(n(privateKeyFilename)) +
-                " -out " +
-                q(n(csrFilename)) +
-                " " +
-                subjectOpt,
-            options,
-        );
+    displayTitle("Generate the CA private Key - " + keySize);
+    // The first step is to create your RSA Private Key.
+    // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
+    // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
+    await generatePrivateKeyFile(privateKeyFilename, keySize);
+    displayTitle("Generate a certificate request for the CA key");
+    // Once the private key is generated a Certificate Signing Request can be generated.
+    // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
+    // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
+    // The second option is to self-sign the CSR, which will be demonstrated in the next section
+    await execute_openssl(
+        "req -new" +
+        " -sha256 " +
+        " -text " +
+        " -extensions v3_ca" +
+        configOption +
+        " -key " +
+        q(n(privateKeyFilename)) +
+        " -out " +
+        q(n(csrFilename)) +
+        " " +
+        subjectOpt,
+        options,
+    );
 
     // xx // Step 3: Remove Passphrase from Key
     // xx execute("cp private/cakey.pem private/cakey.pem.org");
     // xx execute(openssl_path + " rsa -in private/cakey.pem.org -out private/cakey.pem -passin pass:"+paraphrase);
 
-    displayTitle("Generate CA Certificate (self-signed)"),
+    displayTitle("Generate CA Certificate (self-signed)");
         await execute_openssl(
             " x509 -sha256 -req -days 3650 " +
-                " -text " +
-                " -extensions v3_ca" +
-                " -extfile " +
-                q(n(configFile)) +
-                " -in private/cakey.csr " +
-                " -signkey " +
-                q(n(privateKeyFilename)) +
-                " -out public/cacert.pem",
+            " -text " +
+            " -extensions v3_ca" +
+            " -extfile " +
+            q(n(configFile)) +
+            " -in private/cakey.csr " +
+            " -signkey " +
+            q(n(privateKeyFilename)) +
+            " -out public/cacert.pem",
             options,
-        ),
-        displaySubtitle("generate initial CRL (Certificate Revocation List)"),
+        );
+        displaySubtitle("generate initial CRL (Certificate Revocation List)");
         await regenerateCrl(certificateAuthority.revocationList, configOption, options),
         displayTitle("Create Certificate Authority (CA) ---> DONE");
 }
@@ -246,6 +246,7 @@ export interface CertificateAuthorityOptions {
 }
 
 export class CertificateAuthority {
+
     public readonly keySize: KeySize;
     public readonly location: string;
     public readonly subject: Subject;
@@ -356,30 +357,30 @@ export class CertificateAuthority {
         displaySubtitle("- the certificate signing request");
         await execute_openssl(
             "req " +
-                " -new -sha256 -text " +
-                configOption +
-                subjectOptions +
-                " -batch -key " +
-                q(n(privateKey)) +
-                " -out " +
-                q(n(csrFile)),
+            " -new -sha256 -text " +
+            configOption +
+            subjectOptions +
+            " -batch -key " +
+            q(n(privateKey)) +
+            " -out " +
+            q(n(csrFile)),
             options,
         );
 
         displaySubtitle("- creating the self-signed certificate");
         await execute_openssl(
             "ca " +
-                " -selfsign " +
-                " -keyfile " +
-                q(n(privateKey)) +
-                " -startdate " +
-                x509Date(params.startDate) +
-                " -enddate " +
-                x509Date(params.endDate) +
-                " -batch -out " +
-                q(n(certificateFile)) +
-                " -in " +
-                q(n(csrFile)),
+            " -selfsign " +
+            " -keyfile " +
+            q(n(privateKey)) +
+            " -startdate " +
+            x509Date(params.startDate) +
+            " -enddate " +
+            x509Date(params.endDate) +
+            " -batch -out " +
+            q(n(certificateFile)) +
+            " -in " +
+            q(n(csrFile)),
             options,
         );
 
@@ -435,9 +436,9 @@ export class CertificateAuthority {
         const reason = params.reason || "keyCompromise";
         assert(crlReasons.indexOf(reason) >= 0);
 
-        await displayTitle("Revoking certificate  " + certificate);
+        displayTitle("Revoking certificate  " + certificate);
 
-        await displaySubtitle("Revoke certificate");
+        displaySubtitle("Revoke certificate");
 
         await execute_openssl_no_failure(
             "ca -verbose " + configOption + " -revoke " + q(certificate) + " -crl_reason " + reason,
@@ -446,32 +447,33 @@ export class CertificateAuthority {
         // regenerate CRL (Certificate Revocation List)
         await regenerateCrl(this.revocationList, configOption, options);
 
-        await displaySubtitle("Verify that certificate is revoked");
+        displaySubtitle("Verify that certificate is revoked");
 
         await execute_openssl_no_failure(
             "verify -verbose" +
-                // configOption +
-                " -CRLfile " +
-                q(n(this.revocationList)) +
-                " -CAfile " +
-                q(n(this.caCertificate)) +
-                " -crl_check " +
-                q(n(certificate)),
+            // configOption +
+            " -CRLfile " +
+            q(n(this.revocationList)) +
+            " -CAfile " +
+            q(n(this.caCertificate)) +
+            " -crl_check " +
+            q(n(certificate)),
             options,
         );
 
         // produce CRL in DER format
-        await displaySubtitle("Produce CRL in DER form ");
+        displaySubtitle("Produce CRL in DER form ");
         await execute_openssl(
             "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.der " + " -outform der",
             options,
         );
         // produce CRL in PEM format with text
-        await displaySubtitle("Produce CRL in PEM form "),
-            await execute_openssl(
-                "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.pem " + " -outform pem" + " -text ",
-                options,
-            );
+        displaySubtitle("Produce CRL in PEM form ");
+
+        await execute_openssl(
+            "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.pem " + " -outform pem" + " -text ",
+            options,
+        );
     }
 
     /**
@@ -530,15 +532,15 @@ export class CertificateAuthority {
         const configOption = " -config " + configFile;
         await execute_openssl(
             "ca " +
-                configOption +
-                " -startdate " +
-                x509Date(params1.startDate) +
-                " -enddate " +
-                x509Date(params1.endDate) +
-                " -batch -out " +
-                q(n(certificate)) +
-                " -in " +
-                q(n(certificateSigningRequestFilename)),
+            configOption +
+            " -startdate " +
+            x509Date(params1.startDate) +
+            " -enddate " +
+            x509Date(params1.endDate) +
+            " -batch -out " +
+            q(n(certificate)) +
+            " -in " +
+            q(n(certificateSigningRequestFilename)),
             options,
         );
 
