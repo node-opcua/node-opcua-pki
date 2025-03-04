@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import "should";
 
-import { mkdirSync, warningLog } from "../lib";
+import { mkdirRecursiveSync, warningLog } from "../lib";
 import { getPublicKeyFromCertificate, getPublicKeyFromPrivateKey } from "../lib/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
 import { generatePrivateKeyFile } from "node-opcua-crypto";
@@ -16,7 +16,7 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
     before(async () => {
         
         privateKey = path.join(testData.tmpFolder, "some_private_key");
-        mkdirSync(testData.tmpFolder);
+        mkdirRecursiveSync(testData.tmpFolder);
 
         warningLog("generating private key");
         await generatePrivateKeyFile(privateKey, 2048);

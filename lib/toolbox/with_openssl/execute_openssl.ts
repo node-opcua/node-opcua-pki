@@ -37,13 +37,13 @@ import { quote } from "../common";
 import { g_config } from "../config";
 import { debugLog, displayError, doDebug, warningLog } from "../debug";
 import { setEnv } from "./_env";
-import { make_path } from "../common2";
+import { makePath } from "../common2";
 
 // tslint:disable-next-line:variable-name
 
 let opensslPath: string | undefined; // not initialized
 
-const n = make_path;
+const n = makePath;
 
 export interface ExecuteOptions {
     cwd?: string;

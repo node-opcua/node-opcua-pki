@@ -49,8 +49,8 @@ import {
     displaySubtitle,
     displayTitle,
     g_config,
-    make_path,
-    mkdirSync,
+    makePath,
+    mkdirRecursiveSync,
     debugLog,
     warningLog,
 } from "../toolbox";
@@ -267,7 +267,7 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
 
     function prepare(file: Filename): Filename {
         const tmp = path.resolve(performSubstitution(file));
-        return make_path(tmp);
+        return makePath(tmp);
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -275,7 +275,7 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
     assert(typeof certificateDir === "string");
 
     certificateDir = prepare(certificateDir);
-    mkdirSync(certificateDir);
+    mkdirRecursiveSync(certificateDir);
     assert(fs.existsSync(certificateDir));
 
     // ------------------------------------------------------------------------------------------------------------
@@ -438,13 +438,13 @@ async function createDefaultCertificate(
     // possible key length in bits
     assert(key_length === 1024 || key_length === 2048 || key_length === 3072 || key_length === 4096);
 
-    const private_key_file = make_path(base_name, prefix + "key_" + key_length + ".pem");
-    const public_key_file = make_path(base_name, prefix + "public_key_" + key_length + ".pub");
-    const certificate_file = make_path(base_name, prefix + "cert_" + key_length + ".pem");
-    const certificate_file_outofdate = make_path(base_name, prefix + "cert_" + key_length + "_outofdate.pem");
-    const certificate_file_not_active_yet = make_path(base_name, prefix + "cert_" + key_length + "_not_active_yet.pem");
-    const certificate_revoked = make_path(base_name, prefix + "cert_" + key_length + "_revoked.pem");
-    const self_signed_certificate_file = make_path(base_name, prefix + "selfsigned_cert_" + key_length + ".pem");
+    const private_key_file = makePath(base_name, prefix + "key_" + key_length + ".pem");
+    const public_key_file = makePath(base_name, prefix + "public_key_" + key_length + ".pub");
+    const certificate_file = makePath(base_name, prefix + "cert_" + key_length + ".pem");
+    const certificate_file_outofdate = makePath(base_name, prefix + "cert_" + key_length + "_outofdate.pem");
+    const certificate_file_not_active_yet = makePath(base_name, prefix + "cert_" + key_length + "_not_active_yet.pem");
+    const certificate_revoked = makePath(base_name, prefix + "cert_" + key_length + "_revoked.pem");
+    const self_signed_certificate_file = makePath(base_name, prefix + "selfsigned_cert_" + key_length + ".pem");
 
     const fqdn = getFullyQualifiedDomainName();
     const hostname = os.hostname();
@@ -484,7 +484,7 @@ async function createDefaultCertificate(
     ): Promise<string> {
         const certificateSigningRequestFile = certificate + ".csr";
 
-        const configFile = make_path(base_name, "../certificates/PKI/own/openssl.cnf");
+        const configFile = makePath(base_name, "../certificates/PKI/own/openssl.cnf");
 
         const dns = [os.hostname()];
         const ip = ["127.0.0.1"];
@@ -671,7 +671,7 @@ argv
                     const certificateDir = gLocalConfig.certificateDir || "";
                     await rimraf(certificateDir + "/*.pem*");
                     await rimraf(certificateDir + "/*.pub*");
-                    mkdirSync(certificateDir);
+                    mkdirRecursiveSync(certificateDir);
                 }
                 displayTitle("create certificates");
                 await createDefaultCertificates(local_argv.dev);

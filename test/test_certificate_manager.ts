@@ -9,12 +9,12 @@ import { readCertificate } from "node-opcua-crypto";
 
 import { beforeTest, grep } from "./helpers";
 
-import { CertificateStatus, Filename, g_config, make_path, quote, CertificateManager } from "../lib";
+import { CertificateStatus, Filename, g_config, makePath, quote, CertificateManager } from "../lib";
 
 import { dumpCertificate, generateStaticConfig, processAltNames, executeOpensslAsync } from "../lib/toolbox/with_openssl";
 
 const q = quote;
-const n = make_path;
+const n = makePath;
 
 describe("CertificateManager", function (this: Mocha.Suite) {
     this.timeout(40000);
@@ -127,7 +127,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         const defaultOpensslConfPath = path.join(__dirname, "../tmp/PKI2/own/openssl.cnf");
         const defaultOpensslConf = generateStaticConfig(defaultOpensslConfPath);
 
-        certificate = make_path(certificate);
+        certificate = makePath(certificate);
         // openssl req -x509 -days 365 -nodes -newkey rsa:1024 \
         //         -keyout private_key.pem -outform der -out certificate.der"
         await executeOpensslAsync(

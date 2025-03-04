@@ -35,11 +35,11 @@ import { ensure_openssl_installed, execute_openssl } from "./execute_openssl";
 import { generateStaticConfig } from "./toolbox";
 import { processAltNames } from "./_env";
 
-import { make_path } from "../common2";
+import { makePath } from "../common2";
 import { CertificatePurpose } from "node-opcua-crypto";
 
 const q = quote;
-const n = make_path;
+const n = makePath;
 
 /**
  * @param certificate: the filename of the certificate to create

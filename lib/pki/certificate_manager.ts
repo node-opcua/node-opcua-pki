@@ -53,7 +53,7 @@ import { SubjectOptions } from "../misc/subject";
 import { CertificateStatus, Filename, KeySize, Thumbprint } from "../toolbox/common";
 
 import { debugLog, warningLog } from "../toolbox/debug";
-import { make_path, mkdirSync } from "../toolbox/common2";
+import { makePath, mkdirRecursiveSync } from "../toolbox/common2";
 
 import { CreateSelfSignCertificateParam, CreateSelfSignCertificateWithConfigParam } from "../toolbox/common";
 import { createCertificateSigningRequestAsync, createSelfSignedCertificate } from "../toolbox/without_openssl";
@@ -263,10 +263,10 @@ export class CertificateManager {
         assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
         assert(this.state === CertificateManagerState.Uninitialized);
 
-        this.location = make_path(options.location, "");
+        this.location = makePath(options.location, "");
         this.keySize = options.keySize;
 
-        mkdirSync(options.location);
+        mkdirRecursiveSync(options.location);
 
         // istanbul ignore next
         if (!fs.existsSync(this.location)) {
@@ -583,18 +583,18 @@ export class CertificateManager {
     private async _initialize(): Promise<void> {
         assert((this.state = CertificateManagerState.Initializing));
         const pkiDir = this.location;
-        mkdirSync(pkiDir);
-        mkdirSync(path.join(pkiDir, "own"));
-        mkdirSync(path.join(pkiDir, "own/certs"));
-        mkdirSync(path.join(pkiDir, "own/private"));
-        mkdirSync(path.join(pkiDir, "rejected"));
-        mkdirSync(path.join(pkiDir, "trusted"));
-        mkdirSync(path.join(pkiDir, "trusted/certs"));
-        mkdirSync(path.join(pkiDir, "trusted/crl"));
+        mkdirRecursiveSync(pkiDir);
+        mkdirRecursiveSync(path.join(pkiDir, "own"));
+        mkdirRecursiveSync(path.join(pkiDir, "own/certs"));
+        mkdirRecursiveSync(path.join(pkiDir, "own/private"));
+        mkdirRecursiveSync(path.join(pkiDir, "rejected"));
+        mkdirRecursiveSync(path.join(pkiDir, "trusted"));
+        mkdirRecursiveSync(path.join(pkiDir, "trusted/certs"));
+        mkdirRecursiveSync(path.join(pkiDir, "trusted/crl"));
 
-        mkdirSync(path.join(pkiDir, "issuers"));
-        mkdirSync(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
-        mkdirSync(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
+        mkdirRecursiveSync(path.join(pkiDir, "issuers"));
+        mkdirRecursiveSync(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
+        mkdirRecursiveSync(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
         if (!fs.existsSync(this.configFile) || !fs.existsSync(this.privateKey)) {
             return await this.withLock2(async () => {
@@ -696,9 +696,9 @@ export class CertificateManager {
         assert(!_params.rootDir);
         assert(!_params.configFile);
         assert(!_params.privateKey);
-        _params.rootDir = this.rootDir;
-        _params.configFile = this.configFile;
-        _params.privateKey = this.privateKey;
+        _params.rootDir = path.resolve(this.rootDir);
+        _params.configFile = path.resolve(this.configFile);
+        _params.privateKey = path.resolve(this.privateKey);
 
         return await this.withLock2<string>(async () => {
             // compose a file name for the request

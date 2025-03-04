@@ -40,15 +40,15 @@ export function certificateFileExist(certificateFile: string): boolean {
     return true;
 }
 
-export function mkdirSync(folder: string): void {
+export function mkdirRecursiveSync(folder: string): void {
     if (!fs.existsSync(folder)) {
         // istanbul ignore next
         debugLog(chalk.white(" .. constructing "), folder);
-        fs.mkdirSync(folder);
+        fs.mkdirSync(folder, {recursive: true});
     }
 }
 
-export function make_path(folderName: string, filename?: string): string {
+export function makePath(folderName: string, filename?: string): string {
     let s;
     if (filename) {
         s = path.join(path.normalize(folderName), filename);

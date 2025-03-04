@@ -31,7 +31,7 @@ import path from "path";
 
 import { Filename } from "../common";
 import { quote } from "../common";
-import { make_path } from "../common2";
+import { makePath } from "../common2";
 import { g_config } from "../config";
 import { ExecuteOptions, execute_openssl } from "./execute_openssl";
 import { getEnvironmentVarNames, getEnv } from "./_env";
@@ -50,18 +50,24 @@ g_config.opensslVersion = "";
 
 export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
     const prePath = (options && options.cwd) || "";
-    const staticConfigPath = configPath + ".tmp";
-    let staticConfig = fs.readFileSync(path.join(prePath, configPath), { encoding: "utf8" });
+
+    const originalFilename = !path.isAbsolute(configPath) ? path.join(prePath, configPath) : configPath;
+    let staticConfig = fs.readFileSync(originalFilename, { encoding: "utf8" });
     for (const envVar of getEnvironmentVarNames()) {
         staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), getEnv(envVar.key));
     }
-    fs.writeFileSync(path.join(prePath, staticConfigPath), staticConfig);
-
-    return staticConfigPath;
+    const staticConfigPath = configPath + ".tmp";
+    const temporaryConfigPath = !path.isAbsolute(configPath) ? path.join(prePath, staticConfigPath) : staticConfigPath;
+    fs.writeFileSync(temporaryConfigPath, staticConfig);
+    if (options && options.cwd) {
+        return path.relative(options.cwd, temporaryConfigPath);
+    } else {
+        return temporaryConfigPath;
+    }
 }
 
 const q = quote;
-const n = make_path;
+const n = makePath;
 
 /**
  *   calculate the public key from private key

@@ -3,11 +3,11 @@ import child_process from "child_process";
 import fs from "fs";
 import path from "path";
 import "should";
-import { Filename, make_path } from "../lib";
+import { Filename, makePath } from "../lib";
 import { dumpCertificate } from "../lib/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 
-const n = make_path;
+const n = makePath;
 
 async function create_demo_certificates(cwd: Filename) {
     await call_crypto_create_CA("demo --dev", cwd);

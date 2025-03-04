@@ -26,17 +26,18 @@
 
 import assert from "assert";
 import fs from "fs";
+import path from "path";
 
 import { Subject } from "../../misc/subject";
 import { CreateCertificateSigningRequestWithConfigOptions, quote } from "../common";
-import { make_path } from "../common2";
+import { makePath } from "../common2";
 import { displaySubtitle } from "../display";
 import { execute_openssl } from "./execute_openssl";
 import { processAltNames } from "./_env";
 import { generateStaticConfig } from "./toolbox";
 
 const q = quote;
-const n = make_path;
+const n = makePath;
 
 /**
  * create a certificate signing request
@@ -57,8 +58,9 @@ export async function createCertificateSigningRequestWithOpenSSL(
 
     // note : this openssl command requires a config file
     processAltNames(params);
-    const configFile = generateStaticConfig(params.configFile);
-    const options = { cwd: params.rootDir, openssl_conf: configFile };
+    const configFile = generateStaticConfig(params.configFile, { cwd: params.rootDir});
+
+    const options = { cwd: params.rootDir, openssl_conf: path.relative(params.rootDir,configFile) };
 
     const configOption = " -config " + q(n(configFile));
 

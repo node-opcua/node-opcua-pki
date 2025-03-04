@@ -38,8 +38,8 @@ import {
     Filename,
     KeySize,
     certificateFileExist,
-    make_path,
-    mkdirSync,
+    makePath,
+    mkdirRecursiveSync,
     debugLog,
     adjustApplicationUri,
     adjustDate,
@@ -75,7 +75,7 @@ const config = {
     pkiDir: "INVALID",
 };
 
-const n = make_path;
+const n = makePath;
 const q = quote;
 
 // convert 'c07b9179'  to    "192.123.145.121"
@@ -114,16 +114,16 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
 
     const subject = certificateAuthority.subject;
 
-    const caRootDir = certificateAuthority.rootDir;
+    const caRootDir = path.resolve(certificateAuthority.rootDir);
 
     async function make_folders() {
-        mkdirSync(caRootDir);
-        mkdirSync(path.join(caRootDir, "private"));
-        mkdirSync(path.join(caRootDir, "public"));
+        mkdirRecursiveSync(caRootDir);
+        mkdirRecursiveSync(path.join(caRootDir, "private"));
+        mkdirRecursiveSync(path.join(caRootDir, "public"));
         // xx execute("chmod 700 private");
-        mkdirSync(path.join(caRootDir, "certs"));
-        mkdirSync(path.join(caRootDir, "crl"));
-        mkdirSync(path.join(caRootDir, "conf"));
+        mkdirRecursiveSync(path.join(caRootDir, "certs"));
+        mkdirRecursiveSync(path.join(caRootDir, "crl"));
+        mkdirRecursiveSync(path.join(caRootDir, "conf"));
     }
     await make_folders();
 
@@ -164,18 +164,18 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // eslint-disable-next-line no-constant-condition
     if (1 || !fs.existsSync(caConfigFile)) {
         let data = configurationFileTemplate; // inlineText(configurationFile);
-        data = data.replace(/%%ROOT_FOLDER%%/, make_path(caRootDir));
+        data = makePath(data.replace(/%%ROOT_FOLDER%%/, caRootDir));
 
         await fs.promises.writeFile(caConfigFile, data);
     }
 
     // http://www.akadia.com/services/ssh_test_certificate.html
     const subjectOpt = ' -subj "' + subject.toString() + '" ';
-    const options = { cwd: caRootDir };
     processAltNames({} as Params);
 
+    const options = { cwd: caRootDir };
     const configFile = generateStaticConfig("conf/caconfig.cnf", options);
-    const configOption = " -config " + q(n(configFile));
+    const configOption = " -config " +  q(n(configFile));
 
     const keySize = certificateAuthority.keySize;
 
@@ -269,25 +269,25 @@ export class CertificateAuthority {
 
     public get caCertificate() {
         // the Certificate Authority Certificate
-        return make_path(this.rootDir, "./public/cacert.pem");
+        return makePath(this.rootDir, "./public/cacert.pem");
     }
 
     /**
      * the file name where  the current Certificate Revocation List is stored (in DER format)
      */
     public get revocationListDER() {
-        return make_path(this.rootDir, "./crl/revocation_list.der");
+        return makePath(this.rootDir, "./crl/revocation_list.der");
     }
 
     /**
      * the file name where  the current Certificate Revocation List is stored (in PEM format)
      */
     public get revocationList() {
-        return make_path(this.rootDir, "./crl/revocation_list.crl");
+        return makePath(this.rootDir, "./crl/revocation_list.crl");
     }
 
     public get caCertificateWithCrl() {
-        return make_path(this.rootDir, "./public/cacertificate_with_crl.pem");
+        return makePath(this.rootDir, "./public/cacertificate_with_crl.pem");
     }
 
     public async initialize(): Promise<void> {
@@ -342,11 +342,11 @@ export class CertificateAuthority {
 
         const csrFile = certificateFile + "_csr";
         assert(csrFile);
-        const configFile = generateStaticConfig(this.configFile);
+        const configFile = generateStaticConfig(this.configFile, { cwd: this.rootDir });
 
         const options = {
             cwd: this.rootDir,
-            openssl_conf: make_path(configFile),
+            openssl_conf: makePath(configFile),
         };
 
         const configOption = "";
@@ -419,7 +419,7 @@ export class CertificateAuthority {
 
         const options = {
             cwd: this.rootDir,
-            openssl_conf: make_path(configFile),
+            openssl_conf: makePath(configFile),
         };
 
         setEnv("ALTNAME", "");
@@ -571,7 +571,7 @@ export class CertificateAuthority {
             const options = { cwd: this.rootDir };
             const configFile = generateStaticConfig("conf/caconfig.cnf", options);
 
-            setEnv("OPENSSL_CONF", make_path(configFile));
+            setEnv("OPENSSL_CONF", makePath(configFile));
             const configOption = " -config " + configFile;
             configOption;
             await execute_openssl_no_failure(

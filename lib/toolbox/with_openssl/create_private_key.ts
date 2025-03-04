@@ -25,10 +25,10 @@ import { hasEnv, getEnv } from "./_env";
 import { KeyLength, quote } from "../common";
 import { useRandFile, createRandomFileIfNotExist } from "./_create_random_file";
 import { execute_openssl } from "./execute_openssl";
-import { make_path } from "../common2";
+import { makePath } from "../common2";
 
 const q = quote;
-const n = make_path;
+const n = makePath;
 
 /**
  * create a RSA PRIVATE KEY
