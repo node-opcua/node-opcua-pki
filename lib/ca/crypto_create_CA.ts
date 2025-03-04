@@ -69,7 +69,7 @@ const { hideBin } = require("yargs/helpers");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const argv = require("yargs/yargs")(hideBin(process.argv));
 
-const epilog = "Copyright (c) sterfive - node-opcua - 2017-2024";
+const epilog = "Copyright (c) sterfive - node-opcua - 2017-2025";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nbDays: number): Date {
@@ -580,7 +580,9 @@ async function createDefaultCertificate(
 async function wrap(func: () => Promise<void>) {
     try {
         await func();
-    } catch (err) {}
+    } catch (err) {
+        console.log((err as Error).message);
+    }
 }
 
 async function create_default_certificates(dev: boolean) {
