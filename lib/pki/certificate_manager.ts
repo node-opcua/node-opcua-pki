@@ -159,14 +159,15 @@ function makeFingerprint(certificate: Certificate | CertificateRevocationList): 
 function short(stringToShorten: string) {
     return stringToShorten.substring(0, 10);
 }
+const forbiddenChars = /[\x00-\x1F<>:"\/\\|?*]/g;
 function buildIdealCertificateName(certificate: Certificate): string {
     const fingerprint = makeFingerprint(certificate);
     try {
         const commonName = exploreCertificate(certificate).tbsCertificate.subject.commonName || "";
-        // commonName may contain invalid characters for a filename such as / or \ or
+        // commonName may contain invalid characters for a filename such as / or \ or :
         // that we need to replace with a valid character.
-        // replace / or \ with _
-        const sanitizedCommonName = commonName.replace(/[\/\\]/g, "_");
+        // replace / or \ or : with _
+        const sanitizedCommonName = commonName.replace(forbiddenChars, "_");
         return sanitizedCommonName + "[" + fingerprint + "]";
     } catch (err) {
         // make be certificate is incorrect !
@@ -857,7 +858,7 @@ export class CertificateManager {
 
             // istanbul ignore next
             if (!certificateSrc) {
-                debugLog(" cannot find certificate ", fingerprint.substr(0, 10), " in", this._thumbs, [status!]);
+                debugLog(" cannot find certificate ", fingerprint.substring(0, 10), " in", this._thumbs, [status!]);
                 throw new Error("internal");
             }
             const destFolder =
@@ -1040,7 +1041,7 @@ export class CertificateManager {
             await new Promise<void>((resolve, reject) => {
                 w.on("ready", () => {
                     debugLog("ready");
-                    debugLog(Object.entries(index).map((kv) => (kv[0] as string).substr(0, 10)));
+                    debugLog(Object.entries(index).map((kv) => (kv[0] as string).substring(0, 10)));
                     resolve();
                 });
             });
