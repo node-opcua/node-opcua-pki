@@ -41,7 +41,6 @@
     "byline": "^5.0.0",
     "chalk": "4.1.2",
     "chokidar": "4.0.3",
-    "cli-table": "^0.3.11",
     "node-opcua-crypto": "4.16.0",
     "progress": "^2.0.3",
     "rimraf": "4.4.1",
@@ -52,7 +51,6 @@
   "devDependencies": {
     "@types/async": "^3.2.24",
     "@types/byline": "^4.2.36",
-    "@types/cli-table": "^0.3.4",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.12.0",
     "@types/node-dir": "0.0.37",

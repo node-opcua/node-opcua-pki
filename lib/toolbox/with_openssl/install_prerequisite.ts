@@ -33,8 +33,6 @@ import child_process from "child_process";
 import ProgressBar from "progress";
 import yauzl from "yauzl";
 import { Readable } from "stream";
-
-import Table = require("cli-table");
 import { warningLog } from "../debug";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
@@ -180,9 +178,7 @@ export async function check_system_openssl_version(): Promise<string> {
                 chalk.yellow(" https://github.com/node-opcua/node-opcua/" + "wiki/installing-node-opcua-or-node-red-on-MacOS");
         }
 
-        const table = new Table();
-        table.push([message]);
-        console.error(table.toString());
+        console.log(message);
     }
     return output;
 }
