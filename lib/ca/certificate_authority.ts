@@ -175,7 +175,7 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
 
     const options = { cwd: caRootDir };
     const configFile = generateStaticConfig("conf/caconfig.cnf", options);
-    const configOption = " -config " +  q(n(configFile));
+    const configOption = " -config " + q(n(configFile));
 
     const keySize = certificateAuthority.keySize;
 
@@ -212,20 +212,20 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // xx execute(openssl_path + " rsa -in private/cakey.pem.org -out private/cakey.pem -passin pass:"+paraphrase);
 
     displayTitle("Generate CA Certificate (self-signed)");
-        await execute_openssl(
-            " x509 -sha256 -req -days 3650 " +
-            " -text " +
-            " -extensions v3_ca" +
-            " -extfile " +
-            q(n(configFile)) +
-            " -in private/cakey.csr " +
-            " -signkey " +
-            q(n(privateKeyFilename)) +
-            " -out public/cacert.pem",
-            options,
-        );
-        displaySubtitle("generate initial CRL (Certificate Revocation List)");
-        await regenerateCrl(certificateAuthority.revocationList, configOption, options),
+    await execute_openssl(
+        " x509 -sha256 -req -days 3650 " +
+        " -text " +
+        " -extensions v3_ca" +
+        " -extfile " +
+        q(n(configFile)) +
+        " -in private/cakey.csr " +
+        " -signkey " +
+        q(n(privateKeyFilename)) +
+        " -out public/cacert.pem",
+        options,
+    );
+    displaySubtitle("generate initial CRL (Certificate Revocation List)");
+    await regenerateCrl(certificateAuthority.revocationList, configOption, options),
         displayTitle("Create Certificate Authority (CA) ---> DONE");
 }
 
@@ -508,7 +508,7 @@ export class CertificateAuthority {
         const csr = await readCertificateSigningRequest(certificateSigningRequestFilename);
         const csrInfo = exploreCertificateSigningRequest(csr);
 
-        const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0];
+        const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier ? csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0] : undefined;
         if (typeof applicationUri !== "string") {
             throw new Error("Cannot find applicationUri in CSR");
         }
