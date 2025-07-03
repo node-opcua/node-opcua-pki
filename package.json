@@ -69,6 +69,6 @@
     "typescript": "^5.8.3"
   },
   "bin": {
-    "pki": "./bin/crypto_create_CA.js"
+    "pki": "./bin/crypto_create_CA.cjs"
   }
 }
