@@ -18,8 +18,17 @@
     "tslint": "npx tslint -c tslint.json lib/**/*.ts",
     "postinstall2": "opencollective-postinstall",
     "postinstall3": "github-sponsors",
-    "makelinks": "npx tsx ../make-links/makelinks.ts"
+    "makelinks": "npx tsx ../make-links/makelinks.ts",
+    "prepublishOnly": "node scripts/prepare-publish.cjs clean",
+    "postpublish": "node scripts/prepare-publish.cjs restore",
+    "pack:clean": "node scripts/prepare-publish.cjs clean && npm pack && node scripts/prepare-publish.cjs restore"
   },
+  "files": [
+      "dist/**/*.js",
+      "dist/**/*.d.ts",
+      "bin/**/*.js",
+      "bin/**/*.d.ts"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/node-opcua/node-opcua-pki.git"

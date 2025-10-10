@@ -1,16 +1,7 @@
-tmp
-test/
-dist/test/** 
-.*
-Makefile
-*.map
-*.bat
-*.pem
-tslint.json
-*.tgz
-notes.md
-tsconfig.json
-/lib
+# Ignore all .map files, wherever they are
+**/*.map
+**/**/*.map
+**/**/**/*.map
+
+# You can also ignore other build artifacts
 *.tsbuildinfo
-certificates
-# !*.map
