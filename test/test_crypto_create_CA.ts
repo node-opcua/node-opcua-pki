@@ -21,7 +21,7 @@ async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
     const rootFolder = process.cwd();
     const cmd = "node";
 
-    const args1: string = n(path.join(rootFolder, "./bin/crypto_create_CA.js")) + " " + cmdArguments;
+    const args1: string = n(path.join(rootFolder, "./bin/crypto_create_CA.cjs")) + " " + cmdArguments;
     const args = args1.replace("  ", " ").split(" ");
 
     const options = {

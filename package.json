@@ -14,7 +14,7 @@
     "release-it": "npx release-it",
     "ncu": "npx npm-check-updates -u -x rimraf,env-paths,chalk,yargs,update-notifier,@types/node     ",
     "ncu2": "npx npm-check-updates -u -f rimraf,env-paths,chalk,yargs,update-notifier,@types/node -t minor",
-    "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.js",
+    "pkg": "npx pkg -o pkg/pki bin/crypto_create_CA.cjs",
     "tslint": "npx tslint -c tslint.json lib/**/*.ts",
     "postinstall2": "opencollective-postinstall",
     "postinstall3": "github-sponsors",
