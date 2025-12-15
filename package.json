@@ -1,6 +1,6 @@
 {
   "name": "node-opcua-pki",
-  "version": "5.5.0",
+  "version": "5.6.0",
   "description": "PKI management for node-opcua",
   "type": "commonjs",
   "main": "./dist/lib/index.js",
@@ -24,10 +24,10 @@
     "pack:clean": "node scripts/prepare-publish.cjs clean && npm pack && node scripts/prepare-publish.cjs restore"
   },
   "files": [
-      "dist/**/*.js",
-      "dist/**/*.d.ts",
-      "bin/**/*.js",
-      "bin/**/*.d.ts"
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "bin/**/*.js",
+    "bin/**/*.d.ts"
   ],
   "repository": {
     "type": "git",
