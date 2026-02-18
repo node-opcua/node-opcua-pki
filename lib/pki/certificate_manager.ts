@@ -241,7 +241,7 @@ export class CertificateManager {
     public state: CertificateManagerState = CertificateManagerState.Uninitialized;
     public folderPoolingInterval = 5000;
 
-    private readonly keySize: KeySize;
+    public readonly keySize: KeySize;
     private readonly location: string;
     private readonly _watchers: fs.FSWatcher[] = [];
     private _readCertificatesCalled = false;
