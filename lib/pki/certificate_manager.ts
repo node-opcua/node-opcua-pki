@@ -503,8 +503,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                    "  not before date =" +
-                    certificateInfo.notBefore,
+                "  not before date =" +
+                certificateInfo.notBefore,
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -738,19 +738,30 @@ export class CertificateManager {
         return VerificationStatus.Good;
     }
 
-    public async addRevocationList(crl: CertificateRevocationList): Promise<VerificationStatus> {
+    /**
+     * Add a CRL to the certificate manager.
+     * @param crl - the CRL to add
+     * @param target - "issuers" (default) writes to issuers/crl, "trusted" writes to trusted/crl
+     */
+    public async addRevocationList(
+        crl: CertificateRevocationList,
+        target: "issuers" | "trusted" = "issuers"
+    ): Promise<VerificationStatus> {
         return await this.withLock2<VerificationStatus>(async () => {
             try {
+                const index = target === "trusted" ? this._thumbs.crl : this._thumbs.issuersCrl;
+                const folder = target === "trusted" ? this.crlFolder : this.issuersCrlFolder;
+
                 const crlInfo = exploreCertificateRevocationList(crl);
                 const key = crlInfo.tbsCertList.issuerFingerprint;
-                if (!this._thumbs.issuersCrl[key]) {
-                    this._thumbs.issuersCrl[key] = { crls: [], serialNumbers: {} };
+                if (!index[key]) {
+                    index[key] = { crls: [], serialNumbers: {} };
                 }
                 const pemCertificate = toPem(crl, "X509 CRL");
-                const filename = path.join(this.issuersCrlFolder, "crl_" + buildIdealCertificateName(crl) + ".pem");
+                const filename = path.join(folder, "crl_" + buildIdealCertificateName(crl) + ".pem");
                 await fs.promises.writeFile(filename, pemCertificate, "ascii");
 
-                await this._on_crl_file_added(this._thumbs.issuersCrl, filename);
+                await this._on_crl_file_added(index, filename);
 
                 await this.waitAndCheckCRLProcessingStatus();
 
@@ -760,6 +771,46 @@ export class CertificateManager {
                 return VerificationStatus.BadSecurityChecksFailed;
             }
         });
+    }
+
+    /**
+     * Remove all CRL files from the specified folder(s) and clear the
+     * corresponding in-memory index.
+     * @param target - "issuers" clears issuers/crl, "trusted" clears
+     *   trusted/crl, "all" clears both.
+     */
+    public async clearRevocationLists(
+        target: "issuers" | "trusted" | "all"
+    ): Promise<void> {
+        const clearFolder = async (
+            folder: string,
+            index: { [key: string]: CRLData }
+        ) => {
+            try {
+                const files = await fs.promises.readdir(folder);
+                for (const file of files) {
+                    const ext = path.extname(file).toLowerCase();
+                    if (ext === ".crl" || ext === ".pem" || ext === ".der") {
+                        await fs.promises.unlink(path.join(folder, file));
+                    }
+                }
+            } catch (err: any) {
+                if (err.code !== "ENOENT") {
+                    throw err;
+                }
+            }
+            // Clear the in-memory index
+            for (const key of Object.keys(index)) {
+                delete index[key];
+            }
+        };
+
+        if (target === "issuers" || target === "all") {
+            await clearFolder(this.issuersCrlFolder, this._thumbs.issuersCrl);
+        }
+        if (target === "trusted" || target === "all") {
+            await clearFolder(this.crlFolder, this._thumbs.crl);
+        }
     }
 
     /**
