@@ -19,15 +19,15 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import assert = require("node:assert");
-import fs = require("node:fs");
+import assert from "node:assert";
+import fs from "node:fs";
 
 import {
+    Subject,
     CertificatePurpose,
     createSelfSignedCertificate as createSelfSignedCertificate1,
     pemToPrivateKey
 } from "node-opcua-crypto";
-import { Subject } from "../../misc/subject";
 import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common";
 import { displayTitle } from "../display";
 

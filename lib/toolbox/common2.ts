@@ -21,12 +21,14 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
+import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
+
 import chalk from "chalk";
+
 import { g_config } from "./config";
 
-import assert = require("node:assert");
 
 import { debugLog, warningLog } from "./debug";
 

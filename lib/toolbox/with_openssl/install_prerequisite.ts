@@ -29,10 +29,13 @@ import os from "node:os";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import url from "node:url";
+
 import byline from "byline";
 import chalk from "chalk";
 import ProgressBar from "progress";
+import wget from "wget-improved-2"
 import yauzl from "yauzl";
+
 import { warningLog } from "../debug";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
@@ -54,9 +57,6 @@ declare interface WgetInterface {
     download(url: string, outputFilename: string, options: WgetOptions): NodeJS.EventEmitter;
 }
 
-// tslint:disable-next-line:no-var-requires
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const wget = require("wget-improved-2") as WgetInterface;
 
 interface ExecuteResult {
     exitCode: number;
