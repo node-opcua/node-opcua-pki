@@ -2,7 +2,7 @@
 test-cov: coverage coveralls codeclimate
 
 coverage:
-	nyc mocha
+	npx nyc mocha
 
 coveralls: coverage
 	npx nyc report --reporter=text-lcov \
