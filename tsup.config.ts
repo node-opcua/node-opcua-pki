@@ -1,28 +1,37 @@
 import { defineConfig } from "tsup";
 
+const pkgDir = "packages/node-opcua-pki";
+
+// Read the inner package.json to get runtime deps as externals
+const innerPkg = require(`./${pkgDir}/package.json`);
+const externalDeps = Object.keys(innerPkg.dependencies || {});
+
 export default defineConfig([
     {
         entry: {
-            index: "lib/index.ts"
+            index: `${pkgDir}/lib/index.ts`
         },
+        outDir: `${pkgDir}/dist`,
         format: ["esm", "cjs"],
         dts: true,
         sourcemap: true,
         clean: true,
         target: "es2022",
-        shims: true
+        shims: true,
+        external: externalDeps
     },
     {
         entry: {
-            "bin/pki": "bin/pki.ts",
-            "bin/install_prerequisite": "bin/install_prerequisite.ts"
+            "bin/pki": `${pkgDir}/bin/pki.ts`,
+            "bin/install_prerequisite": `${pkgDir}/bin/install_prerequisite.ts`
         },
+        outDir: `${pkgDir}/dist`,
         format: ["esm"], // Only ESM for scripts
         dts: false,
         sourcemap: true,
         clean: false, // Don't wipe stage 1
         target: "es2022",
         shims: true,
-        external: ["node-opcua-pki"]
+        external: [...externalDeps, "node-opcua-pki"]
     }
 ]);

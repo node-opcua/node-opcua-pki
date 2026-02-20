@@ -1,0 +1,52 @@
+{
+    "name": "node-opcua-pki",
+    "version": "5.7.0",
+    "description": "PKI management for node-opcua",
+    "type": "commonjs",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js"
+        }
+    },
+    "bin": {
+        "pki": "./dist/bin/pki.mjs"
+    },
+    "files": [
+        "dist",
+        "LICENSE",
+        "readme.md"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/node-opcua/node-opcua-pki.git"
+    },
+    "bugs": {
+        "url": "https://github.com/node-opcua/node-opcua-pki/issues"
+    },
+    "keywords": [
+        "PKI",
+        "node-opcua"
+    ],
+    "collective": {
+        "url": "https://opencollective.com/node-opcua"
+    },
+    "author": "Etienne Rossignon",
+    "license": "MIT",
+    "dependencies": {
+        "@ster5/global-mutex": "^2.0.0",
+        "byline": "^5.0.0",
+        "chalk": "4.1.2",
+        "chokidar": "4.0.3",
+        "command-line-args": "^6.0.1",
+        "command-line-usage": "^7.0.3",
+        "node-opcua-crypto": "5.0.0",
+        "progress": "^2.0.3",
+        "rimraf": "4.4.1",
+        "wget-improved-2": "^3.3.0",
+        "yauzl": "^3.2.0"
+    }
+}

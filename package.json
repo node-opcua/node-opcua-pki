@@ -1,17 +1,11 @@
 {
-  "name": "node-opcua-pki",
+  "name": "node-opcua-pki-project",
+  "private": true,
   "version": "5.7.0",
-  "description": "PKI management for node-opcua",
-  "type": "commonjs",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    }
-  },
+  "description": "PKI management for node-opcua (monorepo)",
+  "workspaces": [
+    "packages/node-opcua-pki"
+  ],
   "scripts": {
     "build": "tsup",
     "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
@@ -27,19 +21,11 @@
     "release:major": "npx release-it major",
     "ncu": "npx npm-check-updates -u -x chokidar,rimraf,env-paths,chalk,update-notifier,@types/node",
     "ncu2": "npx npm-check-updates -u -f chokidar,rimraf,env-paths,chalk,update-notifier,@types/node -t minor",
-    "pkg": "npx pkg -o pkg/pki dist/bin/pki.js",
     "lint": "biome lint",
     "format": "biome format --write",
-    "postinstall2": "opencollective-postinstall",
-    "postinstall3": "github-sponsors",
     "makelinks": "npx tsx ../make-links/makelinks.ts",
-    "prepublishOnly": "npm run build",
-    "pack:clean": "node scripts/prepare-publish.cjs clean && npm pack && node scripts/prepare-publish.cjs restore",
     "prepare": "husky"
   },
-  "files": [
-    "dist"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/node-opcua/node-opcua-pki.git"
@@ -47,28 +33,8 @@
   "bugs": {
     "url": "https://github.com/node-opcua/node-opcua-pki/issues"
   },
-  "keywords": [
-    "PKI",
-    "node-opcua"
-  ],
-  "collective": {
-    "url": "https://opencollective.com/node-opcua"
-  },
   "author": "Etienne Rossignon",
   "license": "MIT",
-  "dependencies": {
-    "@ster5/global-mutex": "^2.0.0",
-    "byline": "^5.0.0",
-    "chalk": "4.1.2",
-    "chokidar": "4.0.3",
-    "command-line-args": "^6.0.1",
-    "command-line-usage": "^7.0.3",
-    "node-opcua-crypto": "5.0.0",
-    "progress": "^2.0.3",
-    "rimraf": "4.4.1",
-    "wget-improved-2": "^3.3.0",
-    "yauzl": "^3.2.0"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.3",
     "@types/async": "^3.2.25",
@@ -91,8 +57,5 @@
     "ts-node": "^10.9.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
-  },
-  "bin": {
-    "pki": "./dist/bin/pki.mjs"
   }
 }

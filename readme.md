@@ -1,221 +1,76 @@
-### node-opcua-pki
+# node-opcua-pki
 
-  [![NPM download](https://img.shields.io/npm/dm/node-opcua-pki.svg)](https://www.npmtrends.com/node-opcua-pki)
-  [![NPM version](https://img.shields.io/npm/v/node-opcua-pki)](https://www.npmjs.com/package/node-opcua-pki?activeTab=versions)
+[![NPM download](https://img.shields.io/npm/dm/node-opcua-pki.svg)](https://www.npmtrends.com/node-opcua-pki)
+[![NPM version](https://img.shields.io/npm/v/node-opcua-pki)](https://www.npmjs.com/package/node-opcua-pki?activeTab=versions)
 [![Build Status](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml/badge.svg)](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml)
-  [![Coverage Status](https://coveralls.io/repos/github/node-opcua/node-opcua-pki/badge.svg?branch=master)](https://coveralls.io/github/node-opcua/node-opcua-pki?branch=master)
-  [![install size](https://packagephobia.com/badge?p=node-opcua-pki)](https://packagephobia.com/result?p=node-opcua-pki)
-  [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
-  
-## Installation
+[![Coverage Status](https://coveralls.io/repos/github/node-opcua/node-opcua-pki/badge.svg?branch=master)](https://coveralls.io/github/node-opcua/node-opcua-pki?branch=master)
+[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
 
-##### install globally
+**PKI management for [node-opcua](https://node-opcua.github.io/)** — create and manage OPC UA certificates, Certificate Authorities, and Public Key Infrastructures from the command line or programmatically.
 
-```
-$ npm install -g node-opcua-pki
-$ crypto_create_CA --help
-```
+📦 **Published package**: [node-opcua-pki on npm](https://www.npmjs.com/package/node-opcua-pki)
+📖 **CLI & API documentation**: [packages/node-opcua-pki/readme.md](packages/node-opcua-pki/readme.md)
 
-##### use with npx
+## Repository Structure
+
+This repository is organized as a mini monorepo:
 
 ```
-npx node-opcua-pki --help
-npx node-opcua-pki certificate --help
+node-opcua-pki/
+├── packages/
+│   └── node-opcua-pki/       ← published to npm
+│       ├── lib/              source code
+│       ├── bin/              CLI entry points
+│       └── dist/             build output
+├── test/                     test suite
+├── tsup.config.ts            build configuration
+├── tsconfig.json             TypeScript configuration
+└── biome.json                linter & formatter configuration
 ```
 
-Note: see https://reference.opcfoundation.org/GDS/docs/F.1/
+## Development
 
-# commands
+### Prerequisites
 
-| command     | Help                                            |
-| ----------- | ----------------------------------------------- |
-| demo        | create default certificate for node-opcua demos |
-| createCA    | create a Certificate Authority                  |
-| createPKI   | create a Public Key Infrastructure              |
-| certificate | create a new certificate                        |
-| csr         | create a new certificate signing request(CSR)   |
-| sign        | sign a CSR and generate a certificate           |
-| revoke      | revoke an existing certificate                  |
-| dump        | display a certificate                           |
-| toder       | convert a certificate to a DER format           |
-| fingerprint | print the certificate fingerprint               |
+- **Node.js** ≥ 18
+- **OpenSSL** or **LibreSSL** (auto-installed on Windows)
 
-Options:
---help display help
+### Getting Started
 
-## create a PKI
-
-```
-node-opcua-pki createPKI
+```bash
+git clone https://github.com/node-opcua/node-opcua-pki.git
+cd node-opcua-pki
+npm install
+npm run build
 ```
 
-### Options:
+### Scripts
 
-| option                     | description                                        | type      | default                         |
-| -------------------------- | -------------------------------------------------- | --------- | ------------------------------- | 
-| -r, --root                 | the location of the Certificate folder             | [string]  | [default: "{CWD}/certificates"] |
-| --PKIFolder                | the location of the Public Key Infrastructure      | [string]  | [default: "{root}/PKI"]         |
-| -k, --keySize, --keyLength | the private key size in bits (1024,2048,3072,4096) | [number]  | [default: 2048]                 |
-| -s, --silent               | minimize output                                    | [boolean] | [default: false]                |
+| Script             | Description                                   |
+| ------------------ | --------------------------------------------- |
+| `npm run build`    | Build the package with tsup (ESM + CJS + DTS) |
+| `npm test`         | Run the test suite with mocha                 |
+| `npm run test:cjs` | Verify CommonJS imports work                  |
+| `npm run test:esm` | Verify ESM imports work                       |
+| `npm run lint`     | Run biome linter                              |
+| `npm run format`   | Format code with biome                        |
 
-The result
+### Pre-commit Hooks
 
-```
-└─ 📂certificates
-    └─📂PKI
-       ├─📂issuers
-       │ ├─📂certs                 contains known Certificate Authorities' certificates
-       │ └─📂crl                   contains Certificate Revocation List associates with the CA Certificates
-       ├─📂own
-       │ ├─📂certs                 where to store generated public certificates generated for the private key.
-       │ └─📂private
-       │    └─🔐private_key.pem  the private key in PEM format
-       ├─📂rejected                  contains certificates that have been rejected.
-       └─📂trusted
-         ├─📂certs                 contains the X.509 v3 Certificates that are trusted.
-         └─📂crl                   contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-```
+This project uses [Husky](https://typicode.github.io/husky/) to enforce code quality. On every commit:
 
-## create a Certificate Signing Request (CSR)
+1. `biome format --write --staged` — auto-formats staged files
+2. `biome check --staged` — lints and blocks commit on errors
 
-Options:
-| option              | description                                     | type   | default                                       |
-|---------------------|-------------------------------------------------|--------|-----------------------------------------------|
-|-a, --applicationUri |the application URI                              |[string]|[default: "urn:{hostname}:Node-OPCUA-Server"]  |
-|-o, --output         | the name of the generated signing_request       |[string]|[default: "my_certificate_signing_request.csr"]|
-|--dns                | the list of valid domain name (comma separated) |[string]|[default: "{hostname}"]                        |
-|--ip                 | the list of valid IPs (comma separated)         |[string]|[default: ""]                                  |
-|--subject            | the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )|[string]| [default: "/CN=Certificate"]|
-|-r, --root           | the location of the Certificate folder          |[string]|[default: "{CWD}/certificates"]                |
-|--PKIFolder          | the location of the Public Key Infrastructure   |[string]|[default: "{root}/PKI"]                        |
+## Support
 
-## Create a certificate authority
+Sterfive provides this module free of charge, "as is," with the hope that it will be useful to you. However, any support requests, bug fixes, or enhancements are handled exclusively through our paid services.
 
-|                                  |                                                  | default value                                                                   |
-| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `--subject`                      | the CA certificate subject                       | "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA" |
-| `--root`, `-r`                   | the location of the Certificate folder           | "{CWD}/certificates"                                                            |
-| ` --CAFolder`, `-c`              | the location of the Certificate Authority folder | "{root}/CA"]                                                                    |
-| `--keySize`, `-k`, `--keyLength` | the private key size in bits (1024, 2048 ,3072, 4096)| |
+We highly recommend subscribing to our [support program](https://support.sterfive.com) to ensure your requests are addressed and resolved.
 
+## Getting Professional Support
 
-The result
-
-```
-└─ 📂certificates
-    └─📂PKI
-       ├─📂CA           Certificate Authority
-       ├─📂rejected     The Certificate store contains certificates that have been rejected.
-       │ ├─📂certs      Contains the X.509 v3 Certificates which have been rejected.
-       ├─📂trusted      The Certificate store contains trusted Certificates.
-       │ ├─📂certs      Contains the X.509 v3 Certificates that are trusted.
-       │ └─📂crl        Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-       ├─📂issuers      The Certificate store contains the CA Certificates needed for validation.
-       │ ├─📂certs      Contains the X.509 v3 Certificates that are needed for validation.
-       │ ├─📂crl        Contains the X.509 v3 CRLs for any Certificates in the ./certs directory.
-```
-
-## sign a signing request (requires a CA)
-
-| option         | description                                      | type                | default                                         |
-| -------------- | ------------------------------------------------ | ------------------- | ----------------------------------------------- |
-| -i, --csr      | the csr                                          | [string] [required] | [default: "my_certificate_signing_request.csr"] |
-| -o, --output   | the name of the generated certificate            | [string] [required] | [default: "my_certificate.pem"]                 |
-| -v, --validity | the certificate validity in days                 | [number]            | [default: 365]                                  |
-| -r, --root     | the location of the Certificate folder           | [string]            | [default: "{CWD}/certificates"]                 |
-| -c, --CAFolder | the location of the Certificate Authority folder | [string]            | [default: "{root}/CA"]                          |
-
-## demo command
-
-this command creates a bunch of certificates with various characteristics for demo and testing purposes.
-
-```
-crypto_create_CA  demo [--dev] [--silent] [--clean]
-```
-
-Options:
-
-|              |                                                                |                    |
-| ------------ | -------------------------------------------------------------- | ------------------ |
-| --help       | display help                                                   |                    |
-| --dev        | create all sort of fancy certificates for dev testing purposes |                    |
-| --clean      | Purge existing directory [use with care!]                      |                    |
-| --silent, -s | minimize output                                                |                    |
-| --root, -r   | the location of the Certificate folder                         | {CWD}/certificates |
-
-Example:
-
-```
-$crypto_create_CA  demo --dev
-```
-
-##### certificate command
-
-```
-$crypto_create_CA certificate --help
-```
-
-Options:
-
-|                      |                                                                                                |                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------- |
-| --help               | display help                                                                                   |                                  |
-| --applicationUri, -a | the application URI                                                                            | urn:{hostname}:Node-OPCUA-Server |
-| --output, -o         | the name of the generated certificate                                                          | my_certificate.pem               |
-| --selfSigned, -s     | if true, the certificate will be self-signed                                                   | false                            |
-| --validity, -v       | the certificate validity in days                                                               |                                  |
-| --silent, -s         | minimize output                                                                                |                                  |
-| --root, -r           | the location of the Certificate folder                                                         | {CWD}/certificates               |
-| --CAFolder, -c       | the location of the Certificate Authority folder                                               | {root}/CA                        |
-| --PKIFolder, -p      | the location of the Public Key Infrastructure                                                  | {root}/PKI                       |
-| --privateKey, -p     | optional:the private key to use to generate certificate                                        |                                  |
-| --subject            | the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello ) |                                  |
-
-
-
-###### examples
-
-* create a self-signed certificate
-
-``` 
-npx node-opcua-pki certificate --dns=machine1.com,machine2.com --ip="192.1.2.3;192.3.4.5" -a 'urn:{hostname}:My-OPCUA-Server' --selfSigned -o  my_self_signed_certificate.pem
-``` 
-
-#### References
-
--   https://www.entrust.com/wp-content/uploads/2013/05/pathvalidation_wp.pdf
--   https://en.wikipedia.org/wiki/Certification_path_validation_algorithm
--   https://tools.ietf.org/html/rfc5280
-
-#### prerequisite:
-
-This module requires OpenSSL or LibreSSL to be installed.
-
-On Windows, a version of OpenSSL is automatically downloaded and installed at run time, if not present. You will need an internet connection open.
-
-You need to install it on Linux, (or in your docker image), or on macOS
-
--   on ubuntu/Debian:
-
-```
-apt install openssl
-```
-
-or alpine:
-
-```
-apk add openssl
-```
-
-# Support
-Sterfive provides this module free of charge, “as is,” with the hope that it will be useful to you. However, any support requests, bug fixes, or enhancements are handled exclusively through our paid services. We believe strongly that independent open-source companies should be fairly compensated for their contributions to the community.
-
-We highly recommend subscribing to our [support program](https://support.sterfive.com) to ensure your requests are addressed and resolved. Please note that we only consider requests from members of our support program or sponsors.
-
-
-## Getting professional support
-
-NodeOPCUA PKI is developed and maintained by sterfive.com.
+NodeOPCUA PKI is developed and maintained by [sterfive.com](https://www.sterfive.com).
 
 To get professional support, consider subscribing to the node-opcua membership community:
 
@@ -223,8 +78,12 @@ To get professional support, consider subscribing to the node-opcua membership c
 
 or contact [sterfive](https://www.sterfive.com) for dedicated consulting and more advanced support.
 
-## :heart: Supporting the development effort - Sponsors & Backers</span>
+## :heart: Supporting the Development Effort — Sponsors & Backers
 
 If you like node-opcua-pki and if you are relying on it in one of your projects, please consider becoming a backer and [sponsoring us](https://github.com/sponsors/node-opcua), this will help us to maintain a high-quality stack and constant evolution of this module.
 
 If your company would like to participate and influence the development of future versions of node-opcua please contact [sterfive](mailto:contact@sterfive.com).
+
+## License
+
+MIT — Copyright (c) 2014-2026 Etienne Rossignon / [Sterfive](https://www.sterfive.com)
