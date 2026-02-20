@@ -34,7 +34,6 @@ import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
 import { CertificatePurpose, generatePrivateKeyFile, Subject, type SubjectOptions } from "node-opcua-crypto";
-import { rimraf } from "rimraf";
 
 import { makeApplicationUrn } from "../misc/applicationurn";
 import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "../misc/hostname";
@@ -684,8 +683,12 @@ export async function main(argumentsList: string | string[]) {
                 displayTitle("Cleaning old certificates");
                 assert(gLocalConfig);
                 const certificateDir = gLocalConfig.certificateDir || "";
-                await rimraf(`${certificateDir}/*.pem*`);
-                await rimraf(`${certificateDir}/*.pub*`);
+                const files = await fs.promises.readdir(certificateDir);
+                for (const file of files) {
+                    if (file.includes(".pem") || file.includes(".pub")) {
+                        await fs.promises.unlink(path.join(certificateDir, file));
+                    }
+                }
                 mkdirRecursiveSync(certificateDir);
             }
             displayTitle("create certificates");

@@ -1,6 +1,6 @@
+import fs from "node:fs";
 import path from "node:path";
 import { g_config, mkdirRecursiveSync, warningLog } from "node-opcua-pki";
-import { rimraf } from "rimraf";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 
@@ -43,7 +43,7 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
             doneOnce = true;
             // tslint:disable-next-line: no-console
             warningLog("    .... cleaning temporary folders ...", tmpFolder);
-            await rimraf(tmpFolder);
+            await fs.promises.rm(tmpFolder, { recursive: true, force: true });
             warningLog("    .....  folder cleaned");
             mkdirRecursiveSync(tmpFolder);
             warningLog("    .....  creating empty folder", tmpFolder);
