@@ -178,8 +178,8 @@ function flagsToString(s: Status) {
         s.certFlags.validity === TimeValidity.expired
             ? chalk.red("E")
             : s.certFlags.validity === TimeValidity.not_yet_valid
-                ? chalk.redBright("V")
-                : chalk.green("√");
+              ? chalk.redBright("V")
+              : chalk.green("√");
     const r = s.certFlags.revoked ? chalk.magenta("R") : " ";
     const m = s.certFlags.manipulated ? chalk.red("$") : s.certFlags.wrongCert ? chalk.cyan("w") : " ";
 

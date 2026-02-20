@@ -243,8 +243,8 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
             await call_crypto_create_CA(
                 "certificate -v " +
-                validity +
-                " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
+                    validity +
+                    " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
                 cwd
             );
 

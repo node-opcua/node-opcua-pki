@@ -8,7 +8,12 @@ import path from "node:path";
 import "should";
 import { readCertificate } from "node-opcua-crypto";
 import { CertificateManager, type CertificateStatus, type Filename, g_config, makePath, quote } from "node-opcua-pki";
-import { dumpCertificate, executeOpensslAsync, generateStaticConfig, processAltNames } from "node-opcua-pki-priv/toolbox/with_openssl";
+import {
+    dumpCertificate,
+    executeOpensslAsync,
+    generateStaticConfig,
+    processAltNames
+} from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 
 const q = quote;
@@ -129,12 +134,12 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         //         -keyout private_key.pem -outform der -out certificate.der"
         await executeOpensslAsync(
             "req " +
-            "-x509 -days 365 -nodes -newkey rsa:1024 " +
-            "-batch -keyout private_key.pem " +
-            "-outform der -out " +
-            q(n(certificate)) +
-            " -config " +
-            q(n(defaultOpensslConf)),
+                "-x509 -days 365 -nodes -newkey rsa:1024 " +
+                "-batch -keyout private_key.pem " +
+                "-outform der -out " +
+                q(n(certificate)) +
+                " -config " +
+                q(n(defaultOpensslConf)),
             {}
         );
     }
