@@ -1,9 +1,5 @@
 name: CI
 
-env:
-  COVERALLS_REPO_TOKEN: "${{ secrets.COVERALLS_REPO_TOKEN }}"
-  CODECLIMATE_REPO_TOKEN: "${{ secrets.CODECLIMATE_REPO_TOKEN }}"
-
 on:
   push:
     branches:
@@ -64,4 +60,14 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm install nyc @istanbuljs/nyc-config-typescript
-      - run: make test-cov
+
+      - name: Run tests with coverage
+        run: npx nyc mocha
+
+      - name: Generate lcov report
+        run: npx nyc report --reporter=lcov
+
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
