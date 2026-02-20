@@ -1,140 +1,142 @@
 name: CI
 
 env:
-    COVERALLS_REPO_TOKEN: "${{ secrets.COVERALLS_REPO_TOKEN }}"
-    CODECLIMATE_REPO_TOKEN: "${{ secrets.CODECLIMATE_REPO_TOKEN }}"
+  COVERALLS_REPO_TOKEN: "${{ secrets.COVERALLS_REPO_TOKEN }}"
+  CODECLIMATE_REPO_TOKEN: "${{ secrets.CODECLIMATE_REPO_TOKEN }}"
 
 on:
-    push:
-        branches:
-            - master
-    pull_request:
+  push:
+    branches:
+      - master
+  pull_request:
 
 jobs:
-    test:
-        strategy:
-            fail-fast: false # prevent test to stop if one fails
-            matrix:
-                node-version: [18.x, 20.x, 22.x]
-                os: [ubuntu-latest, macos-latest, windows-latest]
+  test:
+    strategy:
+      fail-fast: false # prevent test to stop if one fails
+      matrix:
+        node-version: [18.x, 20.x, 22.x, 24.x]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
-        runs-on: ${{ matrix.os }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Use Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ matrix.node-version }}
-            - uses: actions/cache@v4
-              with:
-                  path: ~/.pkg-cache/
-                  key: ${{  matrix.os }}-${{ matrix.node-version }}
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pkg-cache/
+          key: ${{  matrix.os }}-${{ matrix.node-version }}
 
-            - name: openssl
-              run: openssl version
+      - name: openssl
+        run: openssl version
 
-            - name: nodejs
-              run: node --version
+      - name: nodejs
+        run: node --version
 
-            - name: Install new version npm@10
-              run: npm install -g npm
-              
-            - name: Install deps
-              run: npm install
+      - name: Install new version npm@10
+        run: npm install -g npm
 
-            - name: Build
-              run: npm run build
+      - name: Install deps
+        run: npm install
 
-            - name: Test
-              run: npm run test
+      - name: Build
+        run: npm run build
 
-    coverage:
-        runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                node-version: [16.x]
-        steps:
-            - uses: actions/checkout@v4
-            - name: Use Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ matrix.node-version }}
-            - run: npm install -g npm@9
-            - run: npm install -g nyc coveralls mocha typescript codeclimate
-            - run: tsc --version
-            - run: npm install
-            - run: npm run build
-            - run: npm install nyc @istanbuljs/nyc-config-typescript
-            - run: make test-cov
+      - name: Test
+        run: npm run test:all
 
-    # build-legacy_14:
-    #     # The type of runner that the job will run on
-    #     strategy:
-    #         matrix:
-    #             node-version: [
-    #               # 12.x, 
-    #               14.x,
-    #             ]
-    #             os: [
-    #               # ubuntu-18.04, 
-    #               ubuntu-20.04, ubuntu-latest, macos-latest, windows-latest]
-    #     runs-on: ${{ matrix.os }}
-    #     # Steps represent a sequence of tasks that will be executed as part of the job
-    #     steps:
-    #         # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    #         - name: checkout
-    #           uses: actions/checkout@v4
+  coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm install -g npm@9
+      - run: npm install -g nyc coveralls mocha typescript codeclimate
+      - run: tsc --version
+      - run: npm install
+      - run: npm run build
+      - run: npm install nyc @istanbuljs/nyc-config-typescript
+      - run: make test-cov
 
-    #         - name: Use Node.js ${{ matrix.node-version }}
-    #           uses: actions/setup-node@v4
-    #           with:
-    #               node-version: ${{ matrix.node-version }}
+  # build-legacy_14:
+  #     # The type of runner that the job will run on
+  #     strategy:
+  #         matrix:
+  #             node-version: [
+  #               # 12.x,
+  #               14.x,
+  #             ]
+  #             os: [
+  #               # ubuntu-18.04,
+  #               ubuntu-20.04, ubuntu-latest, macos-latest, windows-latest]
+  #     runs-on: ${{ matrix.os }}
+  #     # Steps represent a sequence of tasks that will be executed as part of the job
+  #     steps:
+  #         # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+  #         - name: checkout
+  #           uses: actions/checkout@v4
 
-    #         - name: openssl
-    #           run: openssl version
-    #         - name: nodejs
-    #           run: node --version
+  #         - name: Use Node.js ${{ matrix.node-version }}
+  #           uses: actions/setup-node@v4
+  #           with:
+  #               node-version: ${{ matrix.node-version }}
 
-    #         # Runs a set of commands using the runners shell
-    #         - name: build
-    #           run: |
-    #               npm install typescript mocha ts-node @types/node@${{ matrix.node-version }} npm@8 -g
-    #               npm install 
-    #               npm run build
-    #               npm run test
-    build-legacy_16:
-        # The type of runner that the job will run on
-        strategy:
-            matrix:
-                node-version: [
-                  16.x,
-                ]
-                os: [
-                  # ubuntu-18.04, 
-                  ubuntu-22.04, ubuntu-latest, macos-latest, windows-latest]
-        runs-on: ${{ matrix.os }}
-        # Steps represent a sequence of tasks that will be executed as part of the job
-        steps:
-            # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-            - name: checkout
-              uses: actions/checkout@v4
+  #         - name: openssl
+  #           run: openssl version
+  #         - name: nodejs
+  #           run: node --version
 
-            - name: Use Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ matrix.node-version }}
+  #         # Runs a set of commands using the runners shell
+  #         - name: build
+  #           run: |
+  #               npm install typescript mocha ts-node @types/node@${{ matrix.node-version }} npm@8 -g
+  #               npm install
+  #               npm run build
+  #               npm run test
+  build-legacy_16:
+    # The type of runner that the job will run on
+    strategy:
+      matrix:
+        node-version: [16.x]
+        os: [
+            # ubuntu-18.04,
+            ubuntu-22.04,
+            ubuntu-latest,
+            macos-latest,
+            windows-latest,
+          ]
+    runs-on: ${{ matrix.os }}
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: checkout
+        uses: actions/checkout@v4
 
-            - name: openssl
-              run: openssl version
-            - name: nodejs
-              run: node --version
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
 
-            # Runs a set of commands using the runners shell
-            - name: build
-              run: |
-                  npm install typescript mocha ts-node @types/node@${{ matrix.node-version }} npm@9 -g
-                  npm install 
-                  npm run build
-                  npm run test
+      - name: openssl
+        run: openssl version
+      - name: nodejs
+        run: node --version
+
+      # Runs a set of commands using the runners shell
+      - name: build
+        run: |
+          npm install typescript mocha ts-node @types/node@${{ matrix.node-version }} npm@9 -g
+          npm install 
+          npm run build
+          npm run test
