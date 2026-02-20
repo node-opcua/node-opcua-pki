@@ -1,17 +1,15 @@
 Error.stackTraceLimit = Infinity;
+
 // tslint:disable: no-console
 // tslint:disable:variable-name
 // tslint:disable:no-shadowed-variable
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import "should";
 import { readCertificate } from "node-opcua-crypto";
-
+import { CertificateManager, type CertificateStatus, type Filename, g_config, makePath, quote } from "../lib";
+import { dumpCertificate, executeOpensslAsync, generateStaticConfig, processAltNames } from "../lib/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
-
-import { CertificateStatus, Filename, g_config, makePath, quote, CertificateManager } from "../lib";
-
-import { dumpCertificate, generateStaticConfig, processAltNames, executeOpensslAsync } from "../lib/toolbox/with_openssl";
 
 const q = quote;
 const n = makePath;
@@ -23,7 +21,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
 
     it("should create a certificateManager", async () => {
         const options = {
-            location: path.join(testData.tmpFolder, "PKI"),
+            location: path.join(testData.tmpFolder, "PKI")
         };
 
         const cm = new CertificateManager(options);
@@ -49,7 +47,6 @@ describe("CertificateManager", function (this: Mocha.Suite) {
     });
 
     it("should create its own self-signed certificate", async () => {
-        
         function get_days(date1: Date, date2: Date): number {
             const ms_in_one_day = 24 * 3600000;
             const diff = date1.getTime() - date2.getTime();
@@ -57,7 +54,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         }
 
         const options = {
-            location: path.join(testData.tmpFolder, "PKI1"),
+            location: path.join(testData.tmpFolder, "PKI1")
         };
 
         const cm = new CertificateManager(options);
@@ -77,7 +74,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
             // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
             validity: duration,
 
-            startDate: now,
+            startDate: now
         };
 
         await cm.createSelfSignedCertificate(params);
@@ -85,9 +82,9 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
         fs.existsSync(expectedCertificate).should.eql(true, "self-signed certificate must exist");
 
-        const data = await dumpCertificate(expectedCertificate)!;
+        const data = await dumpCertificate(expectedCertificate) as string;
 
-        await fs.promises.writeFile(path.join(testData.tmpFolder, "dump_cert1.txt"), data!);
+        await fs.promises.writeFile(path.join(testData.tmpFolder, "dump_cert1.txt"), data as string);
 
         grep(data, /URI/).should.match(/URI:MY:APPLICATION:URI/);
         grep(data, /DNS/).should.match(/DNS:some.other.domain.com/);
@@ -109,8 +106,8 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         grep(data, /CRL Sign/).should.eql("");
 
         const y = new Date().getFullYear();
-        grep(data, /Not Before/).should.match(new RegExp(y.toString() + " GMT"));
-        grep(data, /Not After/).should.match(new RegExp((y + 7).toString() + " GMT"));
+        grep(data, /Not Before/).should.match(new RegExp(`${y.toString()} GMT`));
+        grep(data, /Not After/).should.match(new RegExp(`${(y + 7).toString()} GMT`));
 
         await cm.dispose();
     });
@@ -149,7 +146,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
 
     before(async () => {
         const options = {
-            location: path.join(testData.tmpFolder, "PKI2"),
+            location: path.join(testData.tmpFolder, "PKI2")
         };
         cm = new CertificateManager(options);
 
@@ -165,7 +162,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     it("Q1 - CertificateManager#_getCertificateStatus should return 'unknown' if the certificate is first seen", async () => {
         const certificate: Buffer = fs.readFileSync(sample_certificate1_der);
         certificate.should.be.instanceOf(Buffer);
-        await executeOpensslAsync("x509 -inform der -in " + q(n(sample_certificate1_der)) + " " + "-fingerprint -noout ", {});
+        await executeOpensslAsync(`x509 -inform der -in ${q(n(sample_certificate1_der))} -fingerprint -noout `, {});
         const status: CertificateStatus = await cm._checkRejectedOrTrusted(certificate);
         status.should.eql("unknown");
     });
@@ -267,7 +264,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
 
     it("Q8A - Disposing while initializing ", async () => {
         const options = {
-            location: path.join(testData.tmpFolder, "PKI_aa"),
+            location: path.join(testData.tmpFolder, "PKI_aa")
         };
         const cm = new CertificateManager(options);
         await cm.initialize();
@@ -276,7 +273,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     });
     it("Q8B - Disposing while initializing ", async () => {
         const options = {
-            location: path.join(testData.tmpFolder, "PKI_aa"),
+            location: path.join(testData.tmpFolder, "PKI_aa")
         };
         const cm = new CertificateManager(options);
 

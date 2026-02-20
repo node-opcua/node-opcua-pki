@@ -1,4 +1,4 @@
-import path from "path";
+import path from "node:path";
 import "should";
 import { CertificateManager } from "../lib";
 import { beforeTest } from "./helpers";
@@ -11,12 +11,12 @@ describe("Concurrency", function (this: Mocha.Suite) {
 
         const workWithCertificateManager = async (n: number) => {
             const cm1 = new CertificateManager({
-                location,
+                location
             });
             console.log("starting ", n);
             await cm1.initialize();
             const now = new Date();
-            const endDate = new Date(now.getFullYear() + 7, 10, 10);
+            const _endDate = new Date(now.getFullYear() + 7, 10, 10);
             const duration = 10000;
 
             const params = {
@@ -26,7 +26,7 @@ describe("Concurrency", function (this: Mocha.Suite) {
                 subject: "/CN=MyCommonName",
                 // can only be TODAY due to openssl limitation : startDate: new Date(2010,2,2),
                 validity: duration,
-                startDate: now,
+                startDate: now
             };
             await cm1.createSelfSignedCertificate(params);
 
@@ -37,7 +37,7 @@ describe("Concurrency", function (this: Mocha.Suite) {
             workWithCertificateManager(1),
             workWithCertificateManager(2),
             workWithCertificateManager(3),
-            workWithCertificateManager(4),
+            workWithCertificateManager(4)
         ];
         await Promise.all(promises);
     });

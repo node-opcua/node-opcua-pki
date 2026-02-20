@@ -27,10 +27,10 @@ import { warningLog } from "./debug";
 // istanbul ignore next
 export function displayChapter(str: string) {
     const l = "                                                                                               ";
-    warningLog(chalk.bgWhite(l) + " ");
-    str = ("        " + str + l).substring(0, l.length);
+    warningLog(`${chalk.bgWhite(l)} `);
+    str = `        ${str}${l}`.substring(0, l.length);
     warningLog(chalk.bgWhite.cyan(str));
-    warningLog(chalk.bgWhite(l) + " ");
+    warningLog(`${chalk.bgWhite(l)} `);
 }
 
 export function displayTitle(str: string) {
@@ -46,13 +46,13 @@ export function displaySubtitle(str: string) {
     // istanbul ignore next
     if (!g_config.silent) {
         warningLog("");
-        warningLog("    " + chalk.yellowBright(str));
-        warningLog("    " + chalk.white(new Array(str.length + 1).join("-")), "\n");
+        warningLog(`    ${chalk.yellowBright(str)}`);
+        warningLog(`    ${chalk.white(new Array(str.length + 1).join("-"))}`, "\n");
     }
 }
 export function display(str: string) {
     // istanbul ignore next
     if (!g_config.silent) {
-        warningLog("       " + str);
+        warningLog(`       ${str}`);
     }
 }

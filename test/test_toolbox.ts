@@ -1,11 +1,11 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import "should";
 
+import { generatePrivateKeyFile } from "node-opcua-crypto";
 import { mkdirRecursiveSync, warningLog } from "../lib";
 import { getPublicKeyFromCertificate, getPublicKeyFromPrivateKey } from "../lib/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
-import { generatePrivateKeyFile } from "node-opcua-crypto";
 
 describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
     this.timeout(400000);
@@ -14,7 +14,6 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
 
     let privateKey: string;
     before(async () => {
-        
         privateKey = path.join(testData.tmpFolder, "some_private_key");
         mkdirRecursiveSync(testData.tmpFolder);
 
@@ -25,9 +24,7 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
     });
 
     it("should getPublicKeyFromPrivateKey", async () => {
-        
         const publicKey = path.join(testData.tmpFolder, "some_public_key");
-
 
         warningLog("get public public key from private key");
         await getPublicKeyFromPrivateKey(privateKey, publicKey);
@@ -38,10 +35,9 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
 
         data.should.match(/-----BEGIN PUBLIC KEY-----/);
         data.should.match(/-----END PUBLIC KEY-----/);
-
     });
 
-    it("should getPublicKeyFromCertificate",async () => {
+    it("should getPublicKeyFromCertificate", async () => {
         const sampleCertificate = path.join(__dirname, "fixtures/sample_self_signed_certificate.pem");
         const publicKey = path.join(testData.tmpFolder, "some_public_key2");
 
@@ -54,6 +50,5 @@ describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {
 
         data.should.match(/-----BEGIN CERTIFICATE-----/);
         data.should.match(/-----END CERTIFICATE-----/);
-
     });
 });

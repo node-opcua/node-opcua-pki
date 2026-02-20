@@ -20,20 +20,21 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import fs from "fs";
-import path from "path";
+
+import fs from "node:fs";
+import path from "node:path";
 import chalk from "chalk";
 import { g_config } from "./config";
-import assert = require("assert");
+
+import assert = require("node:assert");
+
 import { debugLog, warningLog } from "./debug";
 
 export function certificateFileExist(certificateFile: string): boolean {
     // istanbul ignore next
     if (fs.existsSync(certificateFile) && !g_config.force) {
         warningLog(
-            chalk.yellow("        certificate ") +
-                chalk.cyan(certificateFile) +
-                chalk.yellow(" already exists => do not overwrite"),
+            chalk.yellow("        certificate ") + chalk.cyan(certificateFile) + chalk.yellow(" already exists => do not overwrite")
         );
         return false;
     }
@@ -44,12 +45,12 @@ export function mkdirRecursiveSync(folder: string): void {
     if (!fs.existsSync(folder)) {
         // istanbul ignore next
         debugLog(chalk.white(" .. constructing "), folder);
-        fs.mkdirSync(folder, {recursive: true});
+        fs.mkdirSync(folder, { recursive: true });
     }
 }
 
 export function makePath(folderName: string, filename?: string): string {
-    let s;
+    let s: string;
     if (filename) {
         s = path.join(path.normalize(folderName), filename);
     } else {

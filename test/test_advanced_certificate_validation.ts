@@ -1,11 +1,11 @@
-import path from "path";
-import fs from "fs";
+import fs from "node:fs";
+import path from "node:path";
 import sinon from "sinon";
 import "should";
 
-import { CertificateManager, CertificateManagerOptions } from "../lib";
-import { beforeTest, grep } from "./helpers";
 import { readCertificate } from "node-opcua-crypto";
+import { CertificateManager, type CertificateManagerOptions } from "../lib";
+import { beforeTest } from "./helpers";
 
 describe("Check Validate Certificate", function () {
     const testData = beforeTest(this);
@@ -14,7 +14,7 @@ describe("Check Validate Certificate", function () {
     before(() => {
         clock = sinon.useFakeTimers({
             shouldAdvanceTime: true,
-            now: new Date(2020, 1, 12).getTime(),
+            now: new Date(2020, 1, 12).getTime()
         });
     });
     after(() => {
@@ -22,7 +22,7 @@ describe("Check Validate Certificate", function () {
     });
     it("should verifyCertificateAsync", async () => {
         const options: CertificateManagerOptions = {
-            location: path.join(testData.tmpFolder, "PKI"),
+            location: path.join(testData.tmpFolder, "PKI")
         };
         const certificateManager = new CertificateManager(options);
         await certificateManager.initialize();
@@ -34,7 +34,7 @@ describe("Check Validate Certificate", function () {
         const cert2Filename = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_appTR.der");
 
         // installing the CA certificate
-        const caCert =  readCertificate(caCertificateFilename);
+        const caCert = readCertificate(caCertificateFilename);
         let caCertStatus = await certificateManager.verifyCertificate(caCert);
         caCertStatus.should.eql("BadCertificateUntrusted");
 
@@ -68,8 +68,8 @@ describe("Check Validate Certificate", function () {
 
             const cert1Status1 = await certificateManager.verifyCertificate(cert1, {});
             cert1Status1.should.eql("BadCertificateRevocationUnknown");
-            
-            const cert1Status2 = await certificateManager.verifyCertificate(cert1, { ignoreMissingRevocationList: true});
+
+            const cert1Status2 = await certificateManager.verifyCertificate(cert1, { ignoreMissingRevocationList: true });
             cert1Status2.should.eql("Good");
         }
         //

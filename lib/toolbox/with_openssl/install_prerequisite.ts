@@ -23,16 +23,16 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import fs from "fs";
-import os from "os";
-import path from "path";
-import url from "url";
+import child_process from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { Readable } from "node:stream";
+import url from "node:url";
 import byline from "byline";
 import chalk from "chalk";
-import child_process from "child_process";
 import ProgressBar from "progress";
 import yauzl from "yauzl";
-import { Readable } from "stream";
 import { warningLog } from "../debug";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
@@ -42,7 +42,7 @@ declare interface ProxyOptions {
     port: number;
     localAddress?: string;
     proxyAuth?: string;
-    headers?: { [key: string]: any };
+    headers?: Record<string, string>;
     protocol: string; // "https" | "http"
 }
 declare interface WgetOptions {
@@ -51,7 +51,7 @@ declare interface WgetOptions {
 }
 
 declare interface WgetInterface {
-    download(url: string, outputFilename: string, options: WgetOptions): any;
+    download(url: string, outputFilename: string, options: WgetOptions): NodeJS.EventEmitter;
 }
 
 // tslint:disable-next-line:no-var-requires
@@ -68,15 +68,15 @@ function makeOptions(): WgetOptions {
         process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
     if (proxy) {
         const a = new url.URL(proxy);
-        const auth = a.username ? a.username + ":" + a.password : undefined;
+        const auth = a.username ? `${a.username}:${a.password}` : undefined;
 
         const options: WgetOptions = {
             proxy: {
                 port: a.port ? parseInt(a.port, 10) : 80,
                 protocol: a.protocol.replace(":", ""),
                 host: a.hostname ?? "",
-                proxyAuth: auth,
-            },
+                proxyAuth: auth
+            }
         };
         warningLog(chalk.green("- using proxy "), proxy);
         warningLog(options);
@@ -91,7 +91,7 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
     // xx cwd = cwd ? {cwd: cwd} : {};
     const options = {
         cwd,
-        windowsHide: true,
+        windowsHide: true
     };
 
     return await new Promise<ExecuteResult>((resolve, reject) => {
@@ -99,27 +99,27 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
             cmd,
             options,
             (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
-                const exitCode = err === null ? 0 : err!.code!;
+                const exitCode = err === null ? 0 : (err.code || 1);
                 if (err) reject(err);
                 else {
                     resolve({ exitCode, output });
                 }
-            },
+            }
         );
 
-        const stream1 = byline(child.stdout!);
+        const stream1 = byline(child.stdout as Readable);
         stream1.on("data", (line: string) => {
-            output += line + "\n";
+            output += `${line}\n`;
             // istanbul ignore next
             if (doDebug) {
-                process.stdout.write("        stdout " + chalk.yellow(line) + "\n");
+                process.stdout.write(`        stdout ${chalk.yellow(line)}\n`);
             }
         });
     });
 }
 
 function quote(str: string): string {
-    return '"' + str.replace(/\\/g, "/") + '"';
+    return `"${str.replace(/\\/g, "/")}"`;
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
@@ -135,8 +135,8 @@ async function getopensslExecPath(): Promise<string> {
         throw new Error("Cannot find openssl");
     }
 
-    const exitCode = result1!.exitCode;
-    const output = result1!.output;
+    const exitCode = result1?.exitCode;
+    const output = result1?.output;
 
     if (exitCode !== 0) {
         warningLog(chalk.yellow(" it seems that ") + chalk.cyan("openssl") + chalk.yellow(" is not installed on your computer "));
@@ -154,13 +154,13 @@ export async function check_system_openssl_version(): Promise<string> {
 
     // istanbul ignore next
     if (doDebug) {
-        warningLog("              OpenSSL found in : " + chalk.yellow(opensslExecPath));
+        warningLog(`              OpenSSL found in : ${chalk.yellow(opensslExecPath)}`);
     }
     // ------------------------ now verify that openssl version is the correct one
-    const result = await execute(q_opensslExecPath + " version");
+    const result = await execute(`${q_opensslExecPath} version`);
 
-    const exitCode = result!.exitCode;
-    const output = result!.output;
+    const exitCode = result?.exitCode;
+    const output = result?.output;
 
     const version = output.trim();
 
@@ -210,14 +210,14 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             warningLog(chalk.red(" cannot find file ") + opensslExecPath);
             return {
                 opensslOk: false,
-                version: "cannot find file " + opensslExecPath,
+                version: `cannot find file ${opensslExecPath}`
             };
         } else {
             // tslint:disable-next-line:variable-name
             const q_openssl_exe_path = quote(opensslExecPath);
             const cwd = ".";
 
-            const { exitCode, output } = await execute(q_openssl_exe_path + " version", cwd);
+            const { exitCode, output } = await execute(`${q_openssl_exe_path} version`, cwd);
             const version = output.trim();
             // istanbul ignore next
 
@@ -226,7 +226,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             }
             return {
                 opensslOk: exitCode === 0 && is_expected_openssl_version(version),
-                version,
+                version
             };
         }
     }
@@ -265,7 +265,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
         // the zip file
         const outputFilename = path.join(downloadFolder, path.basename(url));
 
-        warningLog("downloading " + chalk.yellow(url) + " to " + outputFilename);
+        warningLog(`downloading ${chalk.yellow(url)} to ${outputFilename}`);
 
         if (fs.existsSync(outputFilename)) {
             return { downloadedFile: outputFilename };
@@ -275,7 +275,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             complete: "=",
             incomplete: " ",
             total: 100,
-            width: 100,
+            width: 100
         });
 
         return await new Promise((resolve, reject) => {
@@ -294,7 +294,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                 // warningLog("done ...");
                 resolve({ downloadedFile: outputFilename });
             });
-            download.on("progress", (progress: any) => {
+            download.on("progress", (progress: number) => {
                 bar.update(progress);
             });
         });
@@ -308,7 +308,11 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                 if (err) {
                     reject(err);
                 } else {
-                    resolve(zipfile!);
+                    if (!zipfile) {
+                        reject(new Error("zipfile is null"));
+                    } else {
+                        resolve(zipfile);
+                    }
                 }
             });
         });
@@ -327,7 +331,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                     } else {
                         resolve();
                     }
-              });
+                });
             });
 
             zipFile.on("entry", (entry: yauzl.Entry) => {
@@ -345,7 +349,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
 
                     const writeStream = fs.createWriteStream(file, "binary");
                     // ensure parent directory exists
-                    readStream!.pipe(writeStream);
+                    readStream?.pipe(writeStream);
 
                     writeStream.on("close", () => {
                         zipFile.readEntry();
@@ -366,7 +370,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
         fs.mkdirSync(opensslFolder);
     }
 
-    const { opensslOk, version } = await check_openssl_win32();
+    const { opensslOk, version: _version } = await check_openssl_win32();
 
     if (!opensslOk) {
         warningLog(chalk.yellow("openssl seems to be missing and need to be installed"));
@@ -374,7 +378,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
 
         // istanbul ignore next
         if (doDebug) {
-            warningLog("deflating ", chalk.yellow(downloadedFile!));
+            warningLog("deflating ", chalk.yellow(downloadedFile));
         }
         await unzip_openssl(downloadedFile);
 
@@ -385,7 +389,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             warningLog("verifying ", opensslExists, opensslExists ? chalk.green("OK ") : chalk.red(" Error"), opensslExecPath);
         }
 
-        const opensslExecPath2 = await check_openssl_win32();
+        const _opensslExecPath2 = await check_openssl_win32();
         return opensslExecPath;
     } else {
         // istanbul ignore next
@@ -412,8 +416,8 @@ export async function install_prerequisite(): Promise<string> {
 export async function get_openssl_exec_path(): Promise<string> {
     if (process.platform === "win32") {
         const opensslExecPath = await install_prerequisite();
-        if (!fs.existsSync(opensslExecPath!)) {
-            throw new Error("internal error cannot find " + opensslExecPath);
+        if (!fs.existsSync(opensslExecPath)) {
+            throw new Error(`internal error cannot find ${opensslExecPath}`);
         }
         return opensslExecPath;
     } else {

@@ -1,26 +1,23 @@
 {
-  "src": {
-    "tagName": "v%s"
-  },
-  "dist": {
-    "base": "dist"
-  },
-  "git": {
-    "requireBranch": "master",
-    "commitMessage": "chore: release v${version}"
-  },
-  "hooks": {
-    "before:init": [
-      "git fetch --prune --prune-tags origin",
-      "npm run build"
-    ],
-    "after:bump": "npx auto-changelog -p"
-  },
-  "github": {
-    "release": true
-  },
-  "npm": {
-    "publish": false
-  },
-  "increment": "minor"
+    "src": {
+        "tagName": "v%s"
+    },
+    "dist": {
+        "base": "dist"
+    },
+    "git": {
+        "requireBranch": "master",
+        "commitMessage": "chore: release v${version}"
+    },
+    "hooks": {
+        "before:init": ["git fetch --prune --prune-tags origin", "npm run build"],
+        "after:bump": "npx auto-changelog -p"
+    },
+    "github": {
+        "release": true
+    },
+    "npm": {
+        "publish": false
+    },
+    "increment": "minor"
 }

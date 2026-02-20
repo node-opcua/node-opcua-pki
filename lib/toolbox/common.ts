@@ -20,20 +20,20 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import assert = require("assert");
+import assert = require("node:assert");
 
 export type KeySize = 1024 | 2048 | 3072 | 4096;
 export type Thumbprint = string;
 export type Filename = string;
 export type CertificateStatus = "unknown" | "trusted" | "rejected";
 
-import { SubjectOptions } from "../misc/subject";
-import { CertificatePurpose } from "node-opcua-crypto";
+import type { CertificatePurpose } from "node-opcua-crypto";
+import type { SubjectOptions } from "../misc/subject";
 
 export type KeyLength = 1024 | 2048 | 3072 | 4096;
 
 export function quote(str?: string): string {
-    return '"' + (str || "") + '"';
+    return `"${str || ""}"`;
 }
 
 export interface ProcessAltNamesParam {
@@ -110,6 +110,6 @@ export function adjustDate(params: StartDateEndDateParam) {
 export function adjustApplicationUri(params: Params) {
     const applicationUri = params.applicationUri || "";
     if (applicationUri.length > 200) {
-        throw new Error("Openssl doesn't support urn with length greater than 200" + applicationUri);
+        throw new Error(`Openssl doesn't support urn with length greater than 200${applicationUri}`);
     }
 }

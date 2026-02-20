@@ -19,11 +19,10 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import assert from "assert";
-import fs from "fs";
-import { CreateCertificateSigningRequestWithConfigOptions } from "../common";
-import { Subject, pemToPrivateKey } from "node-opcua-crypto";
-import { createCertificateSigningRequest } from "node-opcua-crypto";
+import assert from "node:assert";
+import fs from "node:fs";
+import { createCertificateSigningRequest, pemToPrivateKey, Subject } from "node-opcua-crypto";
+import type { CreateCertificateSigningRequestWithConfigOptions } from "../common";
 import { display, displaySubtitle } from "../display";
 
 /**
@@ -31,14 +30,14 @@ import { display, displaySubtitle } from "../display";
  */
 export async function createCertificateSigningRequestAsync(
     certificateSigningRequestFilename: string,
-    params: CreateCertificateSigningRequestWithConfigOptions,
+    params: CreateCertificateSigningRequestWithConfigOptions
 ): Promise<void> {
     assert(params);
     assert(params.rootDir);
     assert(params.configFile);
     assert(params.privateKey);
     assert(typeof params.privateKey === "string");
-    assert(fs.existsSync(params.privateKey), "Private key must exist" + params.privateKey);
+    assert(fs.existsSync(params.privateKey), `Private key must exist${params.privateKey}`);
 
     //  assert(fs.existsSync(params.configFile), "config file must exist " + params.configFile);
     assert(fs.existsSync(params.rootDir), "RootDir key must exist");
@@ -56,12 +55,12 @@ export async function createCertificateSigningRequestAsync(
         ip: params.ip,
         subject,
         applicationUri: params.applicationUri,
-        purpose: params.purpose,
+        purpose: params.purpose
     });
     await fs.promises.writeFile(certificateSigningRequestFilename, csr, "utf-8");
 
-    display("- privateKey " + params.privateKey);
-    display("- certificateSigningRequestFilename " + certificateSigningRequestFilename);
+    display(`- privateKey ${params.privateKey}`);
+    display(`- certificateSigningRequestFilename ${certificateSigningRequestFilename}`);
 
     // to verify that the CSR is correct:
     // openssl  req -in ./tmp/without_openssl.csr -noout -verify

@@ -20,8 +20,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import assert from "assert";
-import { createHash } from "crypto";
+import assert from "node:assert";
+import { createHash } from "node:crypto";
 
 export function makeApplicationUrn(hostname: string, suffix: string): string {
     // beware : Openssl doesn't support urn with length greater than 64 !!
@@ -35,7 +35,7 @@ export function makeApplicationUrn(hostname: string, suffix: string): string {
         hostnameHash = createHash("md5").update(hostname).digest("hex").substring(0, 16);
     }
 
-    const applicationUrn = "urn:" + hostnameHash + ":" + suffix;
+    const applicationUrn = `urn:${hostnameHash}:${suffix}`;
     assert(applicationUrn.length <= 64);
     return applicationUrn;
 }

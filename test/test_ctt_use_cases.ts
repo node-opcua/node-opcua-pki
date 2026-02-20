@@ -1,14 +1,14 @@
-import path from "path";
-import fs from "fs";
-import { promisify } from "util";
-import sinon from "sinon";
-import dir from "node-dir";
+import fs from "node:fs";
+import path from "node:path";
+import { promisify } from "node:util";
 import chalk from "chalk";
+import dir from "node-dir";
+import sinon from "sinon";
 import "should";
 
-import { readCertificate, split_der, makeSHA1Thumbprint } from "node-opcua-crypto";
-import { beforeTest } from "./helpers";
+import { makeSHA1Thumbprint, readCertificate, split_der } from "node-opcua-crypto";
 import { CertificateManager, VerificationStatus } from "../lib";
+import { beforeTest } from "./helpers";
 
 async function copyFiles(sourceFolder: string, destinationFolder: string) {
     const files: string[] = await (promisify(dir.files)(sourceFolder) as Promise<string[]>);
@@ -41,16 +41,16 @@ async function getCertificateList(): Promise<string[]> {
     return files;
 }
 enum RSAFlags {
-    "UNKNOWN",
-    "Sha1_1024",
-    "Sha1_2048",
-    "Sha256_2048",
-    "Sha256_4096",
+    UNKNOWN,
+    Sha1_1024,
+    Sha1_2048,
+    Sha256_2048,
+    Sha256_4096
 }
 enum TimeValidity {
     expired,
     not_yet_valid,
-    ok,
+    ok
 }
 interface CertFlags {
     trusted?: boolean;
@@ -78,25 +78,25 @@ function getFlags(filename: string): Status {
 
     const m = basename.match(/(Sha1_1024|Sha1_2048|Sha256_2048|Sha256_4096)/);
     const rsa = !m ? "" : m[1];
-    const rsaFlag = (RSAFlags as any)[rsa] || RSAFlags.UNKNOWN;
+    const rsaFlag = (RSAFlags as unknown as Record<string, RSAFlags>)[rsa] || RSAFlags.UNKNOWN;
 
     const certFlags: CertFlags = {
-        trusted: !!n.match("T") ? true : n.match("U") ? false : undefined,
+        trusted: n.match("T") ? true : n.match("U") ? false : undefined,
         validity: n.match("E") ? TimeValidity.expired : n.match("V") ? TimeValidity.not_yet_valid : TimeValidity.ok,
         manipulated: !!n.match("S") && !!filename.match("incorrect"),
         wrongCert: !!n.match("S") && !filename.match("incorrect"),
-        revoked: !!n.match("R"),
+        revoked: !!n.match("R")
     };
     function extractCaFlags(pattern: string): CAFlags | undefined {
-        const ca1str = basename.match(pattern + "([IUTC]+)");
+        const ca1str = basename.match(`${pattern}([IUTC]+)`);
         if (!ca1str) {
             return undefined;
         }
         const c = ca1str[1];
         return {
             trusted: c.match("T") ? true : c.match("U") ? false : undefined,
-            revocationListUnknown: c.match("C") ? true : false,
-            isIssuer: c.match("I") ? true : false,
+            revocationListUnknown: !!c.match("C"),
+            isIssuer: !!c.match("I")
         };
     }
     const ca1 = extractCaFlags("_ca1");
@@ -127,7 +127,7 @@ function legend() {
         return ss;
     }
     const str1: string[] = [];
-    const p = " ".padEnd(11) + " ";
+    const p = `${" ".padEnd(11)} `;
     str1.push("issuer certificate");
     str1.push(caFlagToString({ trusted: false, revocationListUnknown: true, isIssuer: false }));
     str1.push(caFlagToString({ trusted: true, revocationListUnknown: true, isIssuer: false }));
@@ -148,15 +148,15 @@ const pad = "---";
 const pa0 = "   ";
 function flagsHeader() {
     const str1: string[] = [];
-    str1.push("Root CA -------" + pad + "----------------------+"); //
-    str1.push("Sub CA1 -------" + pad + "-----------------+    |"); // 🟢👍⛔🟢
-    str1.push("Manipulated----" + pad + "------------+    |    |"); // 🗱😈
-    str1.push("Revoked -------" + pad + "---------+  |    |    |"); // ⌛⏰🔜
-    str1.push("Validity-------" + pad + "------+  |  |    |    |"); // ⌛⏰🔜
-    str1.push("Trusted--------" + pad + "---+  |  |  |    |    |"); // ? | U | T
-    str1.push("               " + pa0 + "   v  v  v  v |  v  | v "); // 👍⛔🟢
+    str1.push(`Root CA -------${pad}----------------------+`); //
+    str1.push(`Sub CA1 -------${pad}-----------------+    |`); // 🟢👍⛔🟢
+    str1.push(`Manipulated----${pad}------------+    |    |`); // 🗱😈
+    str1.push(`Revoked -------${pad}---------+  |    |    |`); // ⌛⏰🔜
+    str1.push(`Validity-------${pad}------+  |  |    |    |`); // ⌛⏰🔜
+    str1.push(`Trusted--------${pad}---+  |  |  |    |    |`); // ? | U | T
+    str1.push(`               ${pa0}   v  v  v  v |  v  | v `); // 👍⛔🟢
 
-    const p = " ".padEnd(11) + " ";
+    const p = `${" ".padEnd(11)} `;
     return str1.map((a) => p + a).join("\n");
 }
 
@@ -178,14 +178,14 @@ function flagsToString(s: Status) {
         s.certFlags.validity === TimeValidity.expired
             ? chalk.red("E")
             : s.certFlags.validity === TimeValidity.not_yet_valid
-            ? chalk.redBright("V")
-            : chalk.green("√");
+                ? chalk.redBright("V")
+                : chalk.green("√");
     const r = s.certFlags.revoked ? chalk.magenta("R") : " ";
     const m = s.certFlags.manipulated ? chalk.red("$") : s.certFlags.wrongCert ? chalk.cyan("w") : " ";
 
     const ca1 = caFlag(s.ca1);
     const ca2 = caFlag(s.ca2);
-    const x = "  " + pa0 + `   ${t}  ${v}  ${r}  ${m} | ${ca1} | ${ca2} `; // 👍⛔🟢
+    const x = `  ${pa0}   ${t}  ${v}  ${r}  ${m} | ${ca1} | ${ca2} `; // 👍⛔🟢
     return x;
 }
 /**
@@ -218,8 +218,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         clock = sinon.useFakeTimers({
             now: new Date(2020, 4, 11),
             shouldAdvanceTime: true,
-            advanceTimeDelta: 20,
-           
+            advanceTimeDelta: 20
         });
     });
     afterEach(() => {
@@ -228,13 +227,12 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
     before(async () => {
         fs.mkdirSync(path.join(testData.tmpFolder, "ctt"));
         const applicationPKI = new CertificateManager({
-            location: path.join(testData.tmpFolder, "ctt/applicationPKI"),
+            location: path.join(testData.tmpFolder, "ctt/applicationPKI")
         });
         await applicationPKI.initialize();
 
-        
         const x509userIdentityPKI = new CertificateManager({
-            location: path.join(testData.tmpFolder, "ctt/userIdentityPKI"),
+            location: path.join(testData.tmpFolder, "ctt/userIdentityPKI")
         });
         await x509userIdentityPKI.initialize();
 
@@ -262,7 +260,6 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
 
         await applicationPKI.dispose();
         await x509userIdentityPKI.dispose();
-
     });
 
     async function test_verify(certFilename: string, certificateManager: CertificateManager) {
@@ -299,13 +296,13 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         let applicationPKI: CertificateManager;
         before(async () => {
             applicationPKI = new CertificateManager({
-                location: path.join(testData.tmpFolder, "ctt/applicationPKI"),
+                location: path.join(testData.tmpFolder, "ctt/applicationPKI")
             });
             await applicationPKI.initialize();
         });
-        
-        after(async ()=>{
-            await applicationPKI.dispose();    
+
+        after(async () => {
+            await applicationPKI.dispose();
         });
 
         it("A1: ctt_ca1TC_ca2I_appT : trusted X509 user certificate of a ca not trusted but known should be OK", async () => {
@@ -342,12 +339,12 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         let x509userIdentityPKI: CertificateManager;
         before(async () => {
             x509userIdentityPKI = new CertificateManager({
-                location: path.join(testData.tmpFolder, "ctt/userIdentityPKI"),
+                location: path.join(testData.tmpFolder, "ctt/userIdentityPKI")
             });
             await x509userIdentityPKI.initialize();
         });
 
-        after(async()=>{
+        after(async () => {
             await x509userIdentityPKI.dispose();
         });
 
@@ -388,13 +385,13 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
     it("XGXG3 should check for revoked certificates", async () => {
         // ctt_ca1I_ca2T_usrTR.der
         const applicationPKI = new CertificateManager({
-            location: path.join(testData.tmpFolder, "ctt/applicationPKI"),
+            location: path.join(testData.tmpFolder, "ctt/applicationPKI")
         });
         await applicationPKI.initialize();
 
         const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_ca2T_appU.der");
         const file2R = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_ca2T_usrTR.der");
-        const file3 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1TC_ca2I_appT.der");
+        const _file3 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1TC_ca2I_appT.der");
 
         const cert1 = await readCertificate(file1);
         (await applicationPKI.isCertificateRevoked(cert1)).should.eql("Good");
@@ -404,11 +401,10 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         isRevoked2.should.eql(VerificationStatus.BadCertificateRevoked);
 
         await applicationPKI.dispose();
-
     });
     it("XGXG4 debug", async () => {
         const applicationPKI = new CertificateManager({
-            location: path.join(testData.tmpFolder, "ctt/applicationPKI"),
+            location: path.join(testData.tmpFolder, "ctt/applicationPKI")
         });
         await applicationPKI.initialize();
 
@@ -420,11 +416,10 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         status.should.eql(VerificationStatus.BadCertificateIssuerRevocationUnknown);
 
         await applicationPKI.dispose();
-
     });
     it("XGXG5 debug", async () => {
         const userPKI = new CertificateManager({
-            location: path.join(testData.tmpFolder, "ctt/userIdentityPKI"),
+            location: path.join(testData.tmpFolder, "ctt/userIdentityPKI")
         });
         await userPKI.initialize();
 
@@ -435,8 +430,6 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         const status = await userPKI.verifyCertificate(certificate);
         status.should.eql(VerificationStatus.BadCertificateUntrusted); //
 
-
         await userPKI.dispose();
-        
     });
 });

@@ -1,9 +1,9 @@
 /**
  * @module node-opcua-hostname
  */
-import dns from "dns";
-import os from "os";
-import { promisify } from "util";
+import dns from "node:dns";
+import os from "node:os";
+import { promisify } from "node:util";
 
 function trim(str: string, length?: number): string {
     if (!length) {
@@ -43,7 +43,7 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
         // http://serverfault.com/a/73643/251863
         const env = process.env;
         _fullyQualifiedDomainNameInCache =
-            env.COMPUTERNAME + (env.USERDNSDOMAIN && env.USERDNSDOMAIN!.length > 0 ? "." + env.USERDNSDOMAIN! : "");
+            env.COMPUTERNAME + (env.USERDNSDOMAIN && env.USERDNSDOMAIN?.length > 0 ? `.${env.USERDNSDOMAIN as string}` : "");
     } else {
         try {
             _fullyQualifiedDomainNameInCache = await promisify(fqdn)();
@@ -53,12 +53,12 @@ export async function extractFullyQualifiedDomainName(): Promise<string> {
             if (/sethostname/.test(_fullyQualifiedDomainNameInCache as string)) {
                 throw new Error("Detecting fqdn  on windows !!!");
             }
-        } catch (err) {
+        } catch (_err) {
             // fall back to old method
             _fullyQualifiedDomainNameInCache = os.hostname();
         }
     }
-    return _fullyQualifiedDomainNameInCache!;
+    return _fullyQualifiedDomainNameInCache as string;
 }
 
 export async function prepareFQDN() {

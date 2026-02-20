@@ -24,23 +24,23 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import assert from "assert";
+import assert from "node:assert";
 
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
-import { Filename } from "../common";
+import type { Filename } from "../common";
 import { quote } from "../common";
 import { makePath } from "../common2";
 import { g_config } from "../config";
-import { ExecuteOptions, execute_openssl } from "./execute_openssl";
-import { getEnvironmentVarNames, getEnv } from "./_env";
+import { getEnv, getEnvironmentVarNames } from "./_env";
+import { type ExecuteOptions, execute_openssl } from "./execute_openssl";
 
 function openssl_require2DigitYearInDate() {
     // istanbul ignore next
     if (!g_config.opensslVersion) {
         throw new Error(
-            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed()",
+            "openssl_require2DigitYearInDate : openssl version is not known:" + "  please call ensure_openssl_installed()"
         );
     }
     return g_config.opensslVersion.match(/OpenSSL 0\.9/);
@@ -48,18 +48,20 @@ function openssl_require2DigitYearInDate() {
 
 g_config.opensslVersion = "";
 
+let _counter = 0;
+
 export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
-    const prePath = (options && options.cwd) || "";
+    const prePath = options?.cwd || "";
 
     const originalFilename = !path.isAbsolute(configPath) ? path.join(prePath, configPath) : configPath;
     let staticConfig = fs.readFileSync(originalFilename, { encoding: "utf8" });
     for (const envVar of getEnvironmentVarNames()) {
         staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), getEnv(envVar.key));
     }
-    const staticConfigPath = configPath + ".tmp";
+    const staticConfigPath = `${configPath}.${process.pid}-${_counter++}.tmp`;
     const temporaryConfigPath = !path.isAbsolute(configPath) ? path.join(prePath, staticConfigPath) : staticConfigPath;
     fs.writeFileSync(temporaryConfigPath, staticConfig);
-    if (options && options.cwd) {
+    if (options?.cwd) {
         return path.relative(options.cwd, temporaryConfigPath);
     } else {
         return temporaryConfigPath;
@@ -79,7 +81,7 @@ const n = makePath;
  */
 export async function getPublicKeyFromPrivateKey(privateKeyFilename: string, publicKeyFilename: string): Promise<void> {
     assert(fs.existsSync(privateKeyFilename));
-    await execute_openssl("rsa -pubout -in " + q(n(privateKeyFilename)) + " -out " + q(n(publicKeyFilename)), {});
+    await execute_openssl(`rsa -pubout -in ${q(n(privateKeyFilename))} -out ${q(n(publicKeyFilename))}`, {});
 }
 
 /**
@@ -92,7 +94,7 @@ export async function getPublicKeyFromPrivateKey(privateKeyFilename: string, pub
  */
 export async function getPublicKeyFromCertificate(certificateFilename: string, publicKeyFilename: string) {
     assert(fs.existsSync(certificateFilename));
-    await execute_openssl("x509 -pubkey -in " + q(n(certificateFilename)) + " > " + q(n(publicKeyFilename)), {});
+    await execute_openssl(`x509 -pubkey -in ${q(n(certificateFilename))} > ${q(n(publicKeyFilename))}`, {});
 }
 export function x509Date(date?: Date): string {
     date = date || new Date();
@@ -104,15 +106,15 @@ export function x509Date(date?: Date): string {
     const s = date.getUTCSeconds();
 
     function w(s: string | number, l: number): string {
-        return ("" + s).padStart(l, "0");
+        return `${s}`.padStart(l, "0");
     }
 
     if (openssl_require2DigitYearInDate()) {
         // for example: on MacOS , where openssl 0.98 is installed by default
-        return w(Y, 2) + w(M, 2) + w(D, 2) + w(h, 2) + w(m, 2) + w(s, 2) + "Z";
+        return `${w(Y, 2) + w(M, 2) + w(D, 2) + w(h, 2) + w(m, 2) + w(s, 2)}Z`;
     } else {
         // for instance when openssl version is greater than 1.0.0
-        return w(Y, 4) + w(M, 2) + w(D, 2) + w(h, 2) + w(m, 2) + w(s, 2) + "Z";
+        return `${w(Y, 4) + w(M, 2) + w(D, 2) + w(h, 2) + w(m, 2) + w(s, 2)}Z`;
     }
 }
 
@@ -121,17 +123,17 @@ export function x509Date(date?: Date): string {
  */
 export async function dumpCertificate(certificate: Filename): Promise<string> {
     assert(fs.existsSync(certificate));
-    return await execute_openssl("x509 " + " -in " + q(n(certificate)) + " -text " + " -noout", {});
+    return await execute_openssl(`x509  -in ${q(n(certificate))} -text  -noout`, {});
 }
 
 export async function toDer(certificatePem: string): Promise<string> {
     assert(fs.existsSync(certificatePem));
     const certificateDer = certificatePem.replace(".pem", ".der");
-    return await execute_openssl("x509  " + " -outform der " + " -in " + certificatePem + " -out " + certificateDer, {});
+    return await execute_openssl(`x509   -outform der  -in ${certificatePem} -out ${certificateDer}`, {});
 }
 
 export async function fingerprint(certificatePem: string): Promise<string> {
     // openssl x509 -in my_certificate.pem -hash -dates -noout -fingerprint
     assert(fs.existsSync(certificatePem));
-    return await execute_openssl("x509  " + " -fingerprint " + " -noout " + " -in " + certificatePem, {});
+    return await execute_openssl(`x509   -fingerprint  -noout  -in ${certificatePem}`, {});
 }

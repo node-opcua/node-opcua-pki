@@ -20,16 +20,16 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import { ProcessAltNamesParam } from "../common";
+import type { ProcessAltNamesParam } from "../common";
 import { g_config } from "../config";
 import { warningLog } from "../debug";
 
-export const exportedEnvVars: any = {};
+export const exportedEnvVars: Record<string, string> = {};
 
 export function setEnv(varName: string, value: string): void {
     // istanbul ignore next
     if (!g_config.silent) {
-        warningLog("          set " + varName + "=" + value);
+        warningLog(`          set ${varName}=${value}`);
     }
     exportedEnvVars[varName] = value;
 
@@ -48,9 +48,9 @@ export function getEnv(varName: string): string {
     return exportedEnvVars[varName];
 }
 
-export function getEnvironmentVarNames(): any[] {
+export function getEnvironmentVarNames(): { key: string; pattern: string }[] {
     return Object.keys(exportedEnvVars).map((varName: string) => {
-        return { key: varName, pattern: "\\$ENV\\:\\:" + varName };
+        return { key: varName, pattern: `\\$ENV\\:\\:${varName}` };
     });
 }
 
@@ -60,14 +60,14 @@ export function processAltNames(params: ProcessAltNamesParam) {
 
     // construct subjectAtlName
     let subjectAltName: string[] = [];
-    subjectAltName.push("URI:" + params.applicationUri);
+    subjectAltName.push(`URI:${params.applicationUri}`);
     subjectAltName = ([] as string[]).concat(
         subjectAltName,
-        params.dns.map((d: string) => "DNS:" + d),
+        params.dns.map((d: string) => `DNS:${d}`)
     );
     subjectAltName = ([] as string[]).concat(
         subjectAltName,
-        params.ip.map((d: string) => "IP:" + d),
+        params.ip.map((d: string) => `IP:${d}`)
     );
     const subjectAltNameString = subjectAltName.join(", ");
     setEnv("ALTNAME", subjectAltNameString);

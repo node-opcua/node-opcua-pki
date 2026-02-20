@@ -19,21 +19,21 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import assert = require("assert");
-import fs = require("fs");
+import assert = require("node:assert");
+import fs = require("node:fs");
+
 import {
     CertificatePurpose,
     createSelfSignedCertificate as createSelfSignedCertificate1,
-    pemToPrivateKey,
+    pemToPrivateKey
 } from "node-opcua-crypto";
-
-import { CreateSelfSignCertificateWithConfigParam, adjustDate } from "../common";
 import { Subject } from "../../misc/subject";
+import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common";
 import { displayTitle } from "../display";
 
 export async function createSelfSignedCertificateAsync(
     certificate: string,
-    params: CreateSelfSignCertificateWithConfigParam,
+    params: CreateSelfSignCertificateWithConfigParam
 ): Promise<void> {
     params.purpose = params.purpose || CertificatePurpose.ForApplication;
     assert(params.purpose, "Please provide a Certificate Purpose");
@@ -50,7 +50,7 @@ export async function createSelfSignedCertificateAsync(
     }
 
     assert(typeof params.applicationUri === "string");
-    assert(params.dns instanceof Array);
+    assert(Array.isArray(params.dns));
 
     // xx no key size in self-signed assert(params.keySize == 2048 || params.keySize == 4096);
 
@@ -78,14 +78,14 @@ export async function createSelfSignedCertificateAsync(
         ip: params.ip,
         subject,
         applicationUri: params.applicationUri,
-        purpose,
+        purpose
     });
     await fs.promises.writeFile(certificate, cert, "utf-8");
 }
 
 export async function createSelfSignedCertificate(
     certificate: string,
-    params: CreateSelfSignCertificateWithConfigParam,
+    params: CreateSelfSignCertificateWithConfigParam
 ): Promise<void> {
     await createSelfSignedCertificateAsync(certificate, params);
 }

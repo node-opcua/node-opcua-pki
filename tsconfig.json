@@ -15,7 +15,7 @@
         "lib": [],
         "types": ["node", "mocha", "should"]
     },
-    "include": ["lib/**/*.ts", "lib/**/**/*.ts",  "lib/*.ts", "test/*.ts"],
+    "include": ["lib/**/*.ts", "lib/**/**/*.ts", "lib/*.ts", "test/*.ts"],
     "exclude": ["node_modules", "dist"],
     "files": ["lib/index.ts", "lib/ca/crypto_create_CA.ts"]
 }

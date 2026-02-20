@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 "use strict";
 
-// note: we remove use of update-notifier as it is  ESM now and 
+// note: we remove use of update-notifier as it is  ESM now and
 //       old version have reported vulnerabilities
 //xx const updateNotifier = require("update-notifier");
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

@@ -24,12 +24,12 @@ export const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 export const displayError = true;
 export const displayDebug = !!process.env.NODEOPCUAPKIDEBUG || false;
 // tslint:disable-next-line:no-empty
-export function debugLog(...args: [any?, ...any[]]) {
+export function debugLog(...args: unknown[]) {
     // istanbul ignore next
     if (displayDebug) {
         console.log.apply(null, args);
     }
 }
-export function warningLog(...args: [any?, ...any[]]) {
+export function warningLog(...args: unknown[]) {
     console.log.apply(null, args);
 }

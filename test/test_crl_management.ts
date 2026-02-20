@@ -1,10 +1,10 @@
-import path from "path";
-import fs from "fs";
+import fs from "node:fs";
+import path from "node:path";
 import "should";
 
-import { CertificateManager, CertificateManagerOptions } from "../lib";
+import { readCertificate } from "node-opcua-crypto";
+import { CertificateManager, type CertificateManagerOptions } from "../lib";
 import { beforeTest } from "./helpers";
-import { readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
 
 describe("CRL Management - addRevocationList target and clearRevocationLists", function () {
     const testData = beforeTest(this);
@@ -15,7 +15,7 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
     const crlFilename = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/crl/ctt_ca1I.crl");
 
     beforeEach(async () => {
-        const location = path.join(testData.tmpFolder, "CRL_test_" + Date.now());
+        const location = path.join(testData.tmpFolder, `CRL_test_${Date.now()}`);
         const options: CertificateManagerOptions = { location };
         certificateManager = new CertificateManager(options);
         await certificateManager.initialize();
@@ -36,12 +36,12 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
 
         // Verify file exists in issuers/crl
         const issuersCrlFiles = fs.readdirSync(certificateManager.issuersCrlFolder);
-        const crlFiles = issuersCrlFiles.filter(f => f.startsWith("crl_"));
+        const crlFiles = issuersCrlFiles.filter((f) => f.startsWith("crl_"));
         crlFiles.length.should.be.greaterThan(0, "CRL file should exist in issuers/crl");
 
         // Verify trusted/crl is empty
         const trustedCrlFiles = fs.readdirSync(certificateManager.crlFolder);
-        const trustedCrlOnly = trustedCrlFiles.filter(f => f.startsWith("crl_"));
+        const trustedCrlOnly = trustedCrlFiles.filter((f) => f.startsWith("crl_"));
         trustedCrlOnly.length.should.eql(0, "trusted/crl should be empty");
     });
 
@@ -51,7 +51,7 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
         status.should.eql("Good");
 
         const issuersCrlFiles = fs.readdirSync(certificateManager.issuersCrlFolder);
-        const crlFiles = issuersCrlFiles.filter(f => f.startsWith("crl_"));
+        const crlFiles = issuersCrlFiles.filter((f) => f.startsWith("crl_"));
         crlFiles.length.should.be.greaterThan(0, "CRL file should exist in issuers/crl");
     });
 
@@ -62,12 +62,12 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
 
         // Verify file exists in trusted/crl
         const trustedCrlFiles = fs.readdirSync(certificateManager.crlFolder);
-        const crlFiles = trustedCrlFiles.filter(f => f.startsWith("crl_"));
+        const crlFiles = trustedCrlFiles.filter((f) => f.startsWith("crl_"));
         crlFiles.length.should.be.greaterThan(0, "CRL file should exist in trusted/crl");
 
         // Verify issuers/crl is empty
         const issuersCrlFiles = fs.readdirSync(certificateManager.issuersCrlFolder);
-        const issuerCrlOnly = issuersCrlFiles.filter(f => f.startsWith("crl_"));
+        const issuerCrlOnly = issuersCrlFiles.filter((f) => f.startsWith("crl_"));
         issuerCrlOnly.length.should.eql(0, "issuers/crl should be empty");
     });
 
@@ -79,10 +79,8 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
         await certificateManager.addRevocationList(crl, "trusted");
 
         // Verify both folders have files
-        const issuersBefore = fs.readdirSync(certificateManager.issuersCrlFolder)
-            .filter(f => f.startsWith("crl_"));
-        const trustedBefore = fs.readdirSync(certificateManager.crlFolder)
-            .filter(f => f.startsWith("crl_"));
+        const issuersBefore = fs.readdirSync(certificateManager.issuersCrlFolder).filter((f) => f.startsWith("crl_"));
+        const trustedBefore = fs.readdirSync(certificateManager.crlFolder).filter((f) => f.startsWith("crl_"));
         issuersBefore.length.should.be.greaterThan(0);
         trustedBefore.length.should.be.greaterThan(0);
 
@@ -90,13 +88,11 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
         await certificateManager.clearRevocationLists("issuers");
 
         // issuers/crl should be empty
-        const issuersAfter = fs.readdirSync(certificateManager.issuersCrlFolder)
-            .filter(f => f.startsWith("crl_"));
+        const issuersAfter = fs.readdirSync(certificateManager.issuersCrlFolder).filter((f) => f.startsWith("crl_"));
         issuersAfter.length.should.eql(0, "issuers/crl should be empty after clear");
 
         // trusted/crl should still have files
-        const trustedAfter = fs.readdirSync(certificateManager.crlFolder)
-            .filter(f => f.startsWith("crl_"));
+        const trustedAfter = fs.readdirSync(certificateManager.crlFolder).filter((f) => f.startsWith("crl_"));
         trustedAfter.length.should.be.greaterThan(0, "trusted/crl should still have files");
     });
 
@@ -109,13 +105,11 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
         await certificateManager.clearRevocationLists("trusted");
 
         // trusted/crl should be empty
-        const trustedAfter = fs.readdirSync(certificateManager.crlFolder)
-            .filter(f => f.startsWith("crl_"));
+        const trustedAfter = fs.readdirSync(certificateManager.crlFolder).filter((f) => f.startsWith("crl_"));
         trustedAfter.length.should.eql(0, "trusted/crl should be empty after clear");
 
         // issuers/crl should still have files
-        const issuersAfter = fs.readdirSync(certificateManager.issuersCrlFolder)
-            .filter(f => f.startsWith("crl_"));
+        const issuersAfter = fs.readdirSync(certificateManager.issuersCrlFolder).filter((f) => f.startsWith("crl_"));
         issuersAfter.length.should.be.greaterThan(0, "issuers/crl should still have files");
     });
 
@@ -127,10 +121,8 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
 
         await certificateManager.clearRevocationLists("all");
 
-        const issuersAfter = fs.readdirSync(certificateManager.issuersCrlFolder)
-            .filter(f => f.startsWith("crl_"));
-        const trustedAfter = fs.readdirSync(certificateManager.crlFolder)
-            .filter(f => f.startsWith("crl_"));
+        const issuersAfter = fs.readdirSync(certificateManager.issuersCrlFolder).filter((f) => f.startsWith("crl_"));
+        const trustedAfter = fs.readdirSync(certificateManager.crlFolder).filter((f) => f.startsWith("crl_"));
 
         issuersAfter.length.should.eql(0, "issuers/crl should be empty");
         trustedAfter.length.should.eql(0, "trusted/crl should be empty");

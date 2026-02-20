@@ -24,20 +24,18 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import assert from "assert";
-
+import assert from "node:assert";
+import child_process from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import byline from "byline";
 import chalk from "chalk";
-import child_process from "child_process";
-import fs from "fs";
-import os from "os";
-
-import { get_openssl_exec_path } from "./install_prerequisite";
 import { quote } from "../common";
+import { makePath } from "../common2";
 import { g_config } from "../config";
 import { debugLog, displayError, doDebug, warningLog } from "../debug";
 import { setEnv } from "./_env";
-import { makePath } from "../common2";
+import { get_openssl_exec_path } from "./install_prerequisite";
 
 // tslint:disable-next-line:variable-name
 
@@ -67,7 +65,7 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
             cmd,
             {
                 cwd: options.cwd,
-                windowsHide: true,
+                windowsHide: true
             },
             (err: child_process.ExecException | null) => {
                 // istanbul ignore next
@@ -75,7 +73,7 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
                     if (!options.hideErrorMessage) {
                         const fence = "###########################################";
                         console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
-                        console.error(chalk.bgWhiteBright.redBright("CWD = " + options.cwd));
+                        console.error(chalk.bgWhiteBright.redBright(`CWD = ${options.cwd}`));
                         console.error(chalk.bgWhiteBright.redBright(err.message));
                         console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
 
@@ -85,19 +83,19 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
                     return;
                 }
                 resolve(outputs.join(""));
-            },
+            }
         );
 
         if (child.stdout) {
             const stream2 = byline(child.stdout);
             stream2.on("data", (line: string) => {
-                outputs.push(line + "\n");
+                outputs.push(`${line}\n`);
             });
             if (!g_config.silent) {
                 stream2.on("data", (line: string) => {
                     line = line.toString();
                     if (doDebug) {
-                        process.stdout.write(chalk.white("        stdout ") + chalk.whiteBright(line) + "\n");
+                        process.stdout.write(`${chalk.white("        stdout ") + chalk.whiteBright(line)}\n`);
                     }
                 });
             }
@@ -110,7 +108,7 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
                 stream1.on("data", (line: string) => {
                     line = line.toString();
                     if (displayError) {
-                        process.stdout.write(chalk.white("        stderr ") + chalk.red(line) + "\n");
+                        process.stdout.write(`${chalk.white("        stderr ") + chalk.red(line)}\n`);
                     }
                 });
             }
@@ -174,5 +172,5 @@ export async function execute_openssl(cmd: string, options: ExecuteOpenSSLOption
         warningLog(chalk.cyan("                  CMD         openssl "), chalk.cyanBright(cmd));
     }
     await ensure_openssl_installed();
-    return await execute(quote(opensslPath) + " " + cmd, options);
+    return await execute(`${quote(opensslPath)} ${cmd}`, options);
 }

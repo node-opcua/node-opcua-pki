@@ -20,10 +20,10 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import exp = require("constants");
+import exp = require("node:constants");
 
+export * from "./_env";
+export * from "./create_certificate_signing_request";
+export * from "./execute_openssl";
 export * from "./install_prerequisite";
 export * from "./toolbox";
-export * from "./_env";
-export * from "./execute_openssl";
-export * from "./create_certificate_signing_request";

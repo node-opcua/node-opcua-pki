@@ -1,13 +1,6 @@
 {
-   "extends": "@istanbuljs/nyc-config-typescript",
+    "extends": "@istanbuljs/nyc-config-typescript",
 
-   "exclude": [
-       "lib/misc/install*",
-       "lib/misc/hostname.ts*",
-       "test/**/*.ts",
-       "test/**/*.js",
-       "bin/",
-       "tmp/"
-   ],
+    "exclude": ["lib/misc/install*", "lib/misc/hostname.ts*", "test/**/*.ts", "test/**/*.js", "bin/", "tmp/"],
     "check-coverage": false
 }

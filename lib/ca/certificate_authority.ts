@@ -21,45 +21,44 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 // tslint:disable:no-shadowed-variable
-import assert from "assert";
+import assert from "node:assert";
+import fs from "node:fs";
+import path from "node:path";
 import chalk from "chalk";
-import fs from "fs";
-import path from "path";
-
 import {
-    Subject,
-    SubjectOptions,
     exploreCertificateSigningRequest,
-    readCertificateSigningRequest,
     generatePrivateKeyFile,
+    readCertificateSigningRequest,
+    Subject,
+    type SubjectOptions
 } from "node-opcua-crypto";
 
 import {
-    Filename,
-    KeySize,
-    certificateFileExist,
-    makePath,
-    mkdirRecursiveSync,
-    debugLog,
     adjustApplicationUri,
     adjustDate,
+    certificateFileExist,
+    debugLog,
     displaySubtitle,
     displayTitle,
-    Params,
-    ProcessAltNamesParam,
-    quote,
+    type Filename,
+    type KeySize,
+    makePath,
+    mkdirRecursiveSync,
+    type Params,
+    type ProcessAltNamesParam,
+    quote
 } from "../toolbox";
 
 import {
-    setEnv,
+    type ExecuteOpenSSLOptions,
+    type ExecuteOptions,
+    ensure_openssl_installed,
+    execute_openssl,
+    execute_openssl_no_failure,
     generateStaticConfig,
     processAltNames,
-    ensure_openssl_installed,
-    x509Date,
-    execute_openssl_no_failure,
-    ExecuteOptions,
-    execute_openssl,
-    ExecuteOpenSSLOptions,
+    setEnv,
+    x509Date
 } from "../toolbox/with_openssl";
 
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
@@ -72,7 +71,7 @@ export const configurationFileTemplate: string = _ca_config_template;
 const config = {
     certificateDir: "INVALID",
     forceCA: false,
-    pkiDir: "INVALID",
+    pkiDir: "INVALID"
 };
 
 const n = makePath;
@@ -161,7 +160,6 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     }
 
     const caConfigFile = certificateAuthority.configFile;
-    // eslint-disable-next-line no-constant-condition
     if (1 || !fs.existsSync(caConfigFile)) {
         let data = configurationFileTemplate; // inlineText(configurationFile);
         data = makePath(data.replace(/%%ROOT_FOLDER%%/, caRootDir));
@@ -170,19 +168,19 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     }
 
     // http://www.akadia.com/services/ssh_test_certificate.html
-    const subjectOpt = ' -subj "' + subject.toString() + '" ';
+    const subjectOpt = ` -subj "${subject.toString()}" `;
     processAltNames({} as Params);
 
     const options = { cwd: caRootDir };
     const configFile = generateStaticConfig("conf/caconfig.cnf", options);
-    const configOption = " -config " + q(n(configFile));
+    const configOption = ` -config ${q(n(configFile))}`;
 
     const keySize = certificateAuthority.keySize;
 
     const privateKeyFilename = path.join(caRootDir, "private/cakey.pem");
     const csrFilename = path.join(caRootDir, "private/cakey.csr");
 
-    displayTitle("Generate the CA private Key - " + keySize);
+    displayTitle(`Generate the CA private Key - ${keySize}`);
     // The first step is to create your RSA Private Key.
     // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
     // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
@@ -204,7 +202,7 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
         q(n(csrFilename)) +
         " " +
         subjectOpt,
-        options,
+        options
     );
 
     // xx // Step 3: Remove Passphrase from Key
@@ -222,21 +220,21 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
         " -signkey " +
         q(n(privateKeyFilename)) +
         " -out public/cacert.pem",
-        options,
+        options
     );
     displaySubtitle("generate initial CRL (Certificate Revocation List)");
-    await regenerateCrl(certificateAuthority.revocationList, configOption, options),
-        displayTitle("Create Certificate Authority (CA) ---> DONE");
+    await regenerateCrl(certificateAuthority.revocationList, configOption, options);
+    displayTitle("Create Certificate Authority (CA) ---> DONE");
 }
 
 async function regenerateCrl(revocationList: string, configOption: string, options: ExecuteOpenSSLOptions) {
     // produce a CRL in PEM format
     displaySubtitle("regenerate CRL (Certificate Revocation List)");
-    await execute_openssl("ca -gencrl " + configOption + " -out crl/revocation_list.crl", options);
+    await execute_openssl(`ca -gencrl ${configOption} -out crl/revocation_list.crl`, options);
     await execute_openssl("crl " + " -in  crl/revocation_list.crl -out  crl/revocation_list.der " + " -outform der", options);
 
     displaySubtitle("Display (Certificate Revocation List)");
-    await execute_openssl("crl " + " -in " + q(n(revocationList)) + " -text " + " -noout", options);
+    await execute_openssl(`crl  -in ${q(n(revocationList))} -text  -noout`, options);
 }
 
 export interface CertificateAuthorityOptions {
@@ -246,7 +244,6 @@ export interface CertificateAuthorityOptions {
 }
 
 export class CertificateAuthority {
-
     public readonly keySize: KeySize;
     public readonly location: string;
     public readonly subject: Subject;
@@ -307,7 +304,7 @@ export class CertificateAuthority {
         if (fs.existsSync(this.revocationList)) {
             await fs.promises.writeFile(
                 cacertWithCRL,
-                fs.readFileSync(this.caCertificate, "utf8") + fs.readFileSync(this.revocationList, "utf8"),
+                fs.readFileSync(this.caCertificate, "utf8") + fs.readFileSync(this.revocationList, "utf8")
             );
         } else {
             // there is no revocation list yet
@@ -323,7 +320,7 @@ export class CertificateAuthority {
         // append
         await fs.promises.writeFile(
             certificate,
-            (await fs.promises.readFile(certificate, "utf8")) + (await fs.promises.readFile(this.caCertificate, "utf8")),
+            (await fs.promises.readFile(certificate, "utf8")) + (await fs.promises.readFile(this.caCertificate, "utf8"))
             //   + fs.readFileSync(this.revocationList)
         );
     }
@@ -340,19 +337,19 @@ export class CertificateAuthority {
         adjustApplicationUri(params);
         processAltNames(params);
 
-        const csrFile = certificateFile + "_csr";
+        const csrFile = `${certificateFile}_csr`;
         assert(csrFile);
         const configFile = generateStaticConfig(this.configFile, { cwd: this.rootDir });
 
         const options = {
             cwd: this.rootDir,
-            openssl_conf: makePath(configFile),
+            openssl_conf: makePath(configFile)
         };
 
         const configOption = "";
 
-        const subject = params.subject ? new Subject(params.subject!).toString() : "";
-        const subjectOptions = subject && subject.length > 1 ? " -subj " + subject + " " : "";
+        const subject = params.subject ? new Subject(params.subject).toString() : "";
+        const subjectOptions = subject && subject.length > 1 ? ` -subj ${subject} ` : "";
 
         displaySubtitle("- the certificate signing request");
         await execute_openssl(
@@ -364,7 +361,7 @@ export class CertificateAuthority {
             q(n(privateKey)) +
             " -out " +
             q(n(csrFile)),
-            options,
+            options
         );
 
         displaySubtitle("- creating the self-signed certificate");
@@ -381,15 +378,15 @@ export class CertificateAuthority {
             q(n(certificateFile)) +
             " -in " +
             q(n(csrFile)),
-            options,
+            options
         );
 
         displaySubtitle("- dump the certificate for a check");
 
-        await execute_openssl("x509 -in " + q(n(certificateFile)) + "  -dates -fingerprint -purpose -noout", {});
+        await execute_openssl(`x509 -in ${q(n(certificateFile))}  -dates -fingerprint -purpose -noout`, {});
 
         displaySubtitle("- verify self-signed certificate");
-        await execute_openssl_no_failure("verify -verbose -CAfile " + q(n(certificateFile)) + " " + q(n(certificateFile)), options);
+        await execute_openssl_no_failure(`verify -verbose -CAfile ${q(n(certificateFile))} ${q(n(certificateFile))}`, options);
 
         await fs.promises.unlink(csrFile);
     }
@@ -412,14 +409,14 @@ export class CertificateAuthority {
             "superseded",
             "cessationOfOperation",
             "certificateHold",
-            "removeFromCRL",
+            "removeFromCRL"
         ];
 
         const configFile = generateStaticConfig("conf/caconfig.cnf", { cwd: this.rootDir });
 
         const options = {
             cwd: this.rootDir,
-            openssl_conf: makePath(configFile),
+            openssl_conf: makePath(configFile)
         };
 
         setEnv("ALTNAME", "");
@@ -431,19 +428,16 @@ export class CertificateAuthority {
         //     throw new Error("Cannot find OPENSSL_CONF");
         // }
 
-        const configOption = " -config " + q(n(configFile));
+        const configOption = ` -config ${q(n(configFile))}`;
 
         const reason = params.reason || "keyCompromise";
         assert(crlReasons.indexOf(reason) >= 0);
 
-        displayTitle("Revoking certificate  " + certificate);
+        displayTitle(`Revoking certificate  ${certificate}`);
 
         displaySubtitle("Revoke certificate");
 
-        await execute_openssl_no_failure(
-            "ca -verbose " + configOption + " -revoke " + q(certificate) + " -crl_reason " + reason,
-            options,
-        );
+        await execute_openssl_no_failure(`ca -verbose ${configOption} -revoke ${q(certificate)} -crl_reason ${reason}`, options);
         // regenerate CRL (Certificate Revocation List)
         await regenerateCrl(this.revocationList, configOption, options);
 
@@ -458,22 +452,16 @@ export class CertificateAuthority {
             q(n(this.caCertificate)) +
             " -crl_check " +
             q(n(certificate)),
-            options,
+            options
         );
 
         // produce CRL in DER format
         displaySubtitle("Produce CRL in DER form ");
-        await execute_openssl(
-            "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.der " + " -outform der",
-            options,
-        );
+        await execute_openssl(`crl  -in ${q(n(this.revocationList))} -out crl/revocation_list.der  -outform der`, options);
         // produce CRL in PEM format with text
         displaySubtitle("Produce CRL in PEM form ");
 
-        await execute_openssl(
-            "crl " + " -in " + q(n(this.revocationList)) + " -out " + "crl/revocation_list.pem " + " -outform pem" + " -text ",
-            options,
-        );
+        await execute_openssl(`crl  -in ${q(n(this.revocationList))} -out crl/revocation_list.pem  -outform pem -text `, options);
     }
 
     /**
@@ -488,7 +476,7 @@ export class CertificateAuthority {
     public async signCertificateRequest(
         certificate: Filename,
         certificateSigningRequestFilename: Filename,
-        params1: Params,
+        params1: Params
     ): Promise<Filename> {
         await ensure_openssl_installed();
         assert(fs.existsSync(certificateSigningRequestFilename));
@@ -500,7 +488,7 @@ export class CertificateAuthority {
         processAltNames(params1);
 
         const options: ExecuteOptions = { cwd: this.rootDir };
-        let configFile: string;
+
 
         // note :
         // subjectAltName is not copied across
@@ -508,7 +496,9 @@ export class CertificateAuthority {
         const csr = await readCertificateSigningRequest(certificateSigningRequestFilename);
         const csrInfo = exploreCertificateSigningRequest(csr);
 
-        const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier ? csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0] : undefined;
+        const applicationUri = csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier
+            ? csrInfo.extensionRequest.subjectAltName.uniformResourceIdentifier[0]
+            : undefined;
         if (typeof applicationUri !== "string") {
             throw new Error("Cannot find applicationUri in CSR");
         }
@@ -520,16 +510,16 @@ export class CertificateAuthority {
         const params: ProcessAltNamesParam = {
             applicationUri,
             dns,
-            ip,
+            ip
         };
 
         processAltNames(params);
 
-        configFile = generateStaticConfig("conf/caconfig.cnf", options);
+        const configFile = generateStaticConfig("conf/caconfig.cnf", options);
 
         displaySubtitle("- then we ask the authority to sign the certificate signing request");
 
-        const configOption = " -config " + configFile;
+        const configOption = ` -config ${configFile}`;
         await execute_openssl(
             "ca " +
             configOption +
@@ -541,11 +531,11 @@ export class CertificateAuthority {
             q(n(certificate)) +
             " -in " +
             q(n(certificateSigningRequestFilename)),
-            options,
+            options
         );
 
         displaySubtitle("- dump the certificate for a check");
-        await execute_openssl("x509 -in " + q(n(certificate)) + "  -dates -fingerprint -purpose -noout", options);
+        await execute_openssl(`x509 -in ${q(n(certificate))}  -dates -fingerprint -purpose -noout`, options);
 
         displaySubtitle("- construct CA certificate with CRL");
         await this.constructCACertificateWithCRL();
@@ -572,11 +562,11 @@ export class CertificateAuthority {
             const configFile = generateStaticConfig("conf/caconfig.cnf", options);
 
             setEnv("OPENSSL_CONF", makePath(configFile));
-            const configOption = " -config " + configFile;
-            configOption;
+            const _configOption = ` -config ${configFile}`;
+            _configOption;
             await execute_openssl_no_failure(
-                "verify -verbose " + " -CAfile " + q(n(this.caCertificateWithCrl)) + " " + q(n(certificate)),
-                options,
+                `verify -verbose  -CAfile ${q(n(this.caCertificateWithCrl))} ${q(n(certificate))}`,
+                options
             );
         }
     }

@@ -1,11 +1,11 @@
-import path from "path";
+import path from "node:path";
 import rimraf from "rimraf";
 
 import { g_config, mkdirRecursiveSync, warningLog } from "../lib/index";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 
-g_config.silent = !(process.env as any).VERBOSE;
+g_config.silent = !process.env.VERBOSE;
 
 export function grep(data: string, regExp: RegExp): string {
     return data
@@ -24,7 +24,7 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
     self.timeout("5 minutes");
 
     const testData: TestData = {
-        tmpFolder,
+        tmpFolder
     };
 
     before(async () => {
@@ -48,7 +48,7 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
             warningLog("    .....  folder cleaned");
             mkdirRecursiveSync(tmpFolder);
             warningLog("    .....  creating empty folder", tmpFolder);
-            }
+        }
         await next();
     });
     return testData;

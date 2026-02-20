@@ -1,12 +1,11 @@
-import path from "path";
-import fs from "fs";
-import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "../lib/toolbox/without_openssl";
-import { createCertificateSigningRequestWithOpenSSL } from "../lib/toolbox/with_openssl/create_certificate_signing_request";
-import { CertificateManager } from "../lib/pki/certificate_manager";
-import { mkdirSync } from "fs";
+import fs, { mkdirSync } from "node:fs";
+import path from "node:path";
 import { CertificatePurpose } from "node-opcua-crypto";
-import { beforeTest } from "./helpers";
 import { CertificateAuthority } from "../lib/ca";
+import { CertificateManager } from "../lib/pki/certificate_manager";
+import { createCertificateSigningRequestWithOpenSSL } from "../lib/toolbox/with_openssl/create_certificate_signing_request";
+import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "../lib/toolbox/without_openssl";
+import { beforeTest } from "./helpers";
 
 describe("comparing two implementations of createCertificateSigningRequestAsync", function () {
     const rootDir = path.join(__dirname, "../tmp/certificates/PKI-2");
@@ -14,9 +13,9 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
     const privateKey = path.join(rootDir, "own/private/private_key.pem");
     before(async () => {
         const options = {
-            location: rootDir,
+            location: rootDir
         };
-        
+
         mkdirSync(rootDir, { recursive: true });
 
         const cm = new CertificateManager(options);
@@ -40,7 +39,7 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
             dns,
             ip,
             subject,
-            purpose: CertificatePurpose.ForApplication,
+            purpose: CertificatePurpose.ForApplication
         });
 
         await createCertificateSigningRequestWithOpenSSL(csr2, {
@@ -51,28 +50,23 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
             dns,
             ip,
             subject,
-            purpose: CertificatePurpose.ForApplication,
+            purpose: CertificatePurpose.ForApplication
         });
 
         //  openssl req -text -noout -verify -in server.csr
     });
 
-
-
     describe("createCertificateSigningRequestAsync", () => {
-
         let theCertificateAuthority: CertificateAuthority;
-        before(async()=>{
-                const testData = beforeTest(this);
-             theCertificateAuthority = new CertificateAuthority({
+        before(async () => {
+            const testData = beforeTest(this);
+            theCertificateAuthority = new CertificateAuthority({
                 keySize: 2048,
-                location: path.join(testData.tmpFolder, "CA"),
+                location: path.join(testData.tmpFolder, "CA")
             });
             await theCertificateAuthority.initialize();
-
-        })
+        });
         it("should be possible to create a certificate from a createCertificateSigningRequestAsync  created without openssl )", async () => {
-        
             const applicationUri = "urn:localhost:MyProduct";
             const dns = ["localhost", "my.domain.com"];
             const ip = ["192.168.1.1"];
@@ -88,13 +82,13 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
                 dns,
                 ip,
                 subject,
-                purpose: CertificatePurpose.ForApplication,
+                purpose: CertificatePurpose.ForApplication
             });
 
             const params = {
                 applicationUri: "BAD SHOULD BE IN REQUEST",
                 startDate: new Date(2011, 25, 12),
-                validity: 10 * 365,
+                validity: 10 * 365
             };
 
             const certificateFilename = path.join(rootDir, "cert1.pem");
@@ -104,5 +98,4 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
             await theCertificateAuthority.signCertificateRequest(certificateFilename, certificateSigningRequestFilename, params);
         });
     });
-   
 });

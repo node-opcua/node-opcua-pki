@@ -20,11 +20,12 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import path from "path";
-import fs from "fs";
-import { g_config } from "../config";
-import { ExecuteOptions, execute_openssl } from "./execute_openssl";
+
+import fs from "node:fs";
+import path from "node:path";
 import { quote } from "../common";
+import { g_config } from "../config";
+import { type ExecuteOptions, execute_openssl } from "./execute_openssl";
 
 const q = quote;
 
@@ -33,7 +34,7 @@ export async function createRandomFile(randomFile: string, options: ExecuteOptio
     if (!useRandFile()) {
         return;
     }
-    await execute_openssl("rand " + " -out " + q(randomFile) + " -hex 256", options);
+    await execute_openssl(`rand  -out ${q(randomFile)} -hex 256`, options);
 }
 
 export async function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions): Promise<void> {

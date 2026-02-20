@@ -1,9 +1,9 @@
 // tslint:disable:no-console
-import child_process from "child_process";
-import fs from "fs";
-import path from "path";
+import child_process from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import "should";
-import { Filename, makePath } from "../lib";
+import { type Filename, makePath } from "../lib";
 import { dumpCertificate } from "../lib/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 
@@ -15,22 +15,20 @@ async function create_demo_certificates(cwd: Filename) {
 
 async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
     if (!fs.existsSync(cwd)) {
-        throw new Error(" current folder shall exist " + cwd);
+        throw new Error(` current folder shall exist ${cwd}`);
     }
 
     const rootFolder = process.cwd();
     const cmd = "node";
 
-    const args1: string = n(path.join(rootFolder, "./bin/crypto_create_CA.cjs")) + " " + cmdArguments;
+    const args1: string = `${n(path.join(rootFolder, "./bin/crypto_create_CA.cjs"))} ${cmdArguments}`;
     const args = args1.replace("  ", " ").split(" ");
 
     const options = {
-        cwd,
+        cwd
     };
 
-
     await new Promise<void>((resolve) => {
-        
         const child = child_process.spawn(cmd, args, options);
 
         if (process.env.DEBUG) {
@@ -57,7 +55,7 @@ async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
         child.stderr.pipe(process.stderr);
         child.on("exit", (code: number) => {
             if (process.env.DEBUG) {
-                console.log("done ... (" + code + ")");
+                console.log(`done ... (${code})`);
             }
             resolve();
         });
@@ -67,7 +65,7 @@ async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
 describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
     this.timeout(2300000);
 
-    const testData = beforeTest(this);
+    const _testData = beforeTest(this);
 
     it("should create a PKI with demo certificates", async () => {
         console.log("    .... be patient ... demo certificates are being created ...");
@@ -83,7 +81,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
         await create_demo_certificates(cwd);
 
-        fs.existsSync(certificate_file).should.eql(true, "certificate " + certificate_file + " must exist");
+        fs.existsSync(certificate_file).should.eql(true, `certificate ${certificate_file} must exist`);
 
         // running a second time should be faster
         const date2 = new Date();
@@ -98,7 +96,6 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             timeToConstructDemoCertificateSecondTime,
             "it should take less time the second pass"
         );
-
     });
 
     describe("self-signed certificates", () => {
@@ -109,12 +106,9 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             const csrFile = path.join(cwd, "my_certificate.pem.csr");
             const certificateFile = path.join(cwd, "my_certificate.pem");
             await call_crypto_create_CA("certificate --selfSigned --silent=false", cwd);
-            fs.existsSync(certificateFile).should.eql(true, "file " + certificateFile + " should exist");
+            fs.existsSync(certificateFile).should.eql(true, `file ${certificateFile} should exist`);
 
-            fs.existsSync(csrFile).should.eql(
-                false,
-                "useless signing request shall be automatically removed (" + csrFile + ")"
-            );
+            fs.existsSync(csrFile).should.eql(false, `useless signing request shall be automatically removed (${csrFile})`);
         });
 
         it("should create a self-signed certificate - variation 2 - --output ", async () => {
@@ -130,11 +124,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             );
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data!, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
             // XX grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
             // XX grep(data,/DNS/).should.match(/DNS:localhost/);
             // XX grep(data,/DNS/).should.match(/DNS:my.domain.com/);
-
         });
 
         it("should create a self-signed certificate - variation 3 - --applicationUrI", async () => {
@@ -151,11 +144,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             );
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data!, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            grep(data!, /URI/).should.match(/urn:MYSERVER:APPLICATION/);
+            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data as string, /URI/).should.match(/urn:MYSERVER:APPLICATION/);
             // XX grep(data,/DNS/).should.match(/DNS:localhost/);
             // XX grep(data,/DNS/).should.match(/DNS:my.domain.com/);
-
         });
 
         function daysBetween(date1: Date, date2: Date): number {
@@ -181,7 +173,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             const expectedCertificate = path.join(cwd, "mycert.pem");
             const validity = 10; // days
 
-            await call_crypto_create_CA("certificate -v " + validity + " --selfSigned -o mycert.pem", cwd);
+            await call_crypto_create_CA(`certificate -v ${validity} --selfSigned -o mycert.pem`, cwd);
             fs.existsSync(expectedCertificate).should.eql(true);
             fs.existsSync(path.join(cwd, "mycert.pem.csr")).should.eql(
                 false,
@@ -189,20 +181,19 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             );
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data!, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            const _startDate = grep(data!, /Not Before/)
-                .match(/Not Before:(.*)/)![1]
+            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            const _startDate = grep(data as string, /Not Before/)
+                .match(/Not Before:(.*)/)?.[1]
                 .trim();
-            const _endDate = grep(data!, /Not After/)
-                .match(/Not After :(.*)/)![1]
+            const _endDate = grep(data as string, /Not After/)
+                .match(/Not After :(.*)/)?.[1]
                 .trim();
-            const startDate = new Date(Date.parse(_startDate));
-            const endDate = new Date(Date.parse(_endDate));
+            const startDate = new Date(Date.parse(_startDate as string));
+            const endDate = new Date(Date.parse(_endDate as string));
 
             const validityCheck = daysBetween(startDate, endDate);
 
             validityCheck.should.eql(validity);
-
         });
         it("should create a self-signed certificate - variation 5 - --dns", async () => {
             const cwd = path.join(__dirname, "../tmp/zzz5");
@@ -211,13 +202,13 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             const expectedCertificate = path.join(cwd, "mycert.pem");
             const validity = 10; // days
 
-            await call_crypto_create_CA("certificate -v " + validity + " --dns HOST1,HOST2 --selfSigned -o mycert.pem", cwd);
-            fs.existsSync(expectedCertificate).should.eql(true, "should find certificate " + expectedCertificate);
+            await call_crypto_create_CA(`certificate -v ${validity} --dns HOST1,HOST2 --selfSigned -o mycert.pem`, cwd);
+            fs.existsSync(expectedCertificate).should.eql(true, `should find certificate ${expectedCertificate}`);
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data!, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            grep(data!, /DNS/).should.match(/DNS:HOST1/);
-            grep(data!, /DNS/).should.match(/DNS:HOST2/);
+            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data as string, /DNS/).should.match(/DNS:HOST1/);
+            grep(data as string, /DNS/).should.match(/DNS:HOST2/);
         });
 
         it("should create a self-signed certificate - variation 6 - --ip", async () => {
@@ -228,8 +219,9 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             const validity = 10; // days
 
             await call_crypto_create_CA(
-                "certificate -v " + validity + " --ip 128.12.13.13,128.128.128.128 --selfSigned -o mycert.pem",
-                cwd);
+                `certificate -v ${validity} --ip 128.12.13.13,128.128.128.128 --selfSigned -o mycert.pem`,
+                cwd
+            );
 
             fs.existsSync(expectedCertificate).should.eql(true);
 
@@ -237,10 +229,9 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(data!, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            grep(data!, /IP/).should.match(/IP Address:128.12.13.13/);
-            grep(data!, /IP/).should.match(/IP Address:128.128.128.128/);
-
+            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data as string, /IP/).should.match(/IP Address:128.12.13.13/);
+            grep(data as string, /IP/).should.match(/IP Address:128.128.128.128/);
         });
 
         it("should create a self-signed certificate - variation 7 - --subject", async () => {
@@ -254,7 +245,8 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
                 "certificate -v " +
                 validity +
                 " --subject='C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello' --selfSigned -o mycert.pem",
-                cwd);
+                cwd
+            );
 
             fs.existsSync(expectedCertificate).should.eql(true);
 
@@ -262,11 +254,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(
-                data!,
-                /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
-            ).should.match(/SomeOrganization/, "should have SomeOrganization " + data);
-
+            grep(data as string, /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/).should.match(
+                /SomeOrganization/,
+                `should have SomeOrganization ${data}`
+            );
         });
     });
 
@@ -280,14 +271,13 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             await call_crypto_create_CA("createPKI --keySize 4096", cwd);
             const pkiPrivateKey = path.join(__dirname, "../tmp/tmp4096/certificates/PKI/own/private/private_key.pem");
             fs.existsSync(pkiPrivateKey).should.eql(true);
-
         });
         it("@2 should create a CA with a customer subject", async () => {
             const cwd = path.join(__dirname, "../tmp/tmpCAcustomSubject");
             fs.mkdirSync(cwd);
             await call_crypto_create_CA("createCA --keySize 4096 --subject CN=Toto/C=FR/O=MyOrganization", cwd);
             const caPrivateKey = path.join(__dirname, "../tmp/tmpCAcustomSubject/certificates/CA/private/cakey.pem");
-            fs.existsSync(caPrivateKey).should.eql(true, "caPrivateKey shall exist : " + caPrivateKey);
+            fs.existsSync(caPrivateKey).should.eql(true, `caPrivateKey shall exist : ${caPrivateKey}`);
         });
     });
 
@@ -316,19 +306,18 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             const validity = 10; // days
 
             await call_crypto_create_CA(
-                "certificate -v " + validity + " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello -o mycert.pem",
-                cwd);
+                `certificate -v ${validity} --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello -o mycert.pem`,
+                cwd
+            );
             fs.existsSync(expectedCertificate).should.eql(true);
 
             const data = await dumpCertificate(expectedCertificate);
             if (false) {
                 console.log(data);
             }
-            grep(
-                data!,
-                /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
-            ).should.match(/SomeOrganization/);
-
+            grep(data as string, /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/).should.match(
+                /SomeOrganization/
+            );
         });
     });
 });

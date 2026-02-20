@@ -2,14 +2,15 @@
 // tslint:disable:no-shadowed-variable
 
 Error.stackTraceLimit = Infinity;
-import fs from "fs";
-import path from "path";
+
+import fs from "node:fs";
+import path from "node:path";
 import "should";
 
-import { Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
+import { type Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
 
-import { CertificateManager, Filename, KeySize, Params } from "../lib/";
-import { CertificateAuthority, CertificateAuthorityOptions } from "../lib/ca";
+import { CertificateManager, type Filename, type KeySize, type Params } from "../lib/";
+import { CertificateAuthority, type CertificateAuthorityOptions } from "../lib/ca";
 
 import { beforeTest } from "./helpers";
 
@@ -47,7 +48,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         // create a signing request
         const theCertificateRequest = await certificateManager.createCertificateRequest(params);
 
-        fs.existsSync(certificate).should.eql(false, certificate + " should not exist");
+        fs.existsSync(certificate).should.eql(false, `${certificate} should not exist`);
         fs.existsSync(theCertificateRequest).should.eql(true);
 
         // ask the Certificate Authority to sign the certificate
@@ -60,7 +61,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
     before(async () => {
         const optionsCA: CertificateAuthorityOptions = {
             keySize: 2048 as KeySize,
-            location: path.join(testData.tmpFolder, "TEST_CA"),
+            location: path.join(testData.tmpFolder, "TEST_CA")
         };
         certificateAuthority = new CertificateAuthority(optionsCA);
         await certificateAuthority.initialize();
@@ -68,7 +69,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         // create an other certificate authority
         otherCertificateAuthority = new CertificateAuthority({
             keySize: 2048,
-            location: path.join(testData.tmpFolder, "OTHER_CA"),
+            location: path.join(testData.tmpFolder, "OTHER_CA")
         });
         await otherCertificateAuthority.initialize();
 
@@ -83,7 +84,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             locality: "Paris",
             organization: "whateverCorp",
             state: "Mainland",
-            domainComponent: "aaa",
+            domainComponent: "aaa"
         };
         certificate_out_of_date = path.join(testData.tmpFolder, "certificate_out_of_date.pem");
         await createSignedCertificate(
@@ -161,7 +162,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         });
 
         it("should detect null certificate", async () => {
-            const status = await localCertificateManager.verifyCertificate(null! as Buffer);
+            const status = await localCertificateManager.verifyCertificate(null as unknown as Buffer);
             status.toString().should.eql("BadSecurityChecksFailed");
         });
 
@@ -198,7 +199,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             if (!issuerCertificate) {
                 throw new Error("Cannot find issuer certificate");
             }
-            issuerCertificate!.toString("hex").should.eql(caCertificateBuf.toString("hex"));
+            issuerCertificate?.toString("hex").should.eql(caCertificateBuf.toString("hex"));
         });
     });
 });

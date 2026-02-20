@@ -24,19 +24,16 @@
 // tslint:disable:no-console
 // tslint:disable:no-shadowed-variable
 
-import assert from "assert";
-import fs from "fs";
-
+import assert from "node:assert";
+import fs from "node:fs";
+import { CertificatePurpose } from "node-opcua-crypto";
 import { Subject } from "../../misc/subject";
-import { quote } from "../common";
-import { CreateSelfSignCertificateWithConfigParam, adjustDate } from "../common";
+import { adjustDate, type CreateSelfSignCertificateWithConfigParam, quote } from "../common";
+import { makePath } from "../common2";
 import { displayTitle } from "../display";
+import { processAltNames } from "./_env";
 import { ensure_openssl_installed, execute_openssl } from "./execute_openssl";
 import { generateStaticConfig } from "./toolbox";
-import { processAltNames } from "./_env";
-
-import { makePath } from "../common2";
-import { CertificatePurpose } from "node-opcua-crypto";
 
 const q = quote;
 const n = makePath;
@@ -61,7 +58,7 @@ export async function createSelfSignedCertificate(certificate: string, params: C
         throw new Error("Missing subject");
     }
     assert(typeof params.applicationUri === "string");
-    assert(params.dns instanceof Array);
+    assert(Array.isArray(params.dns));
 
     // xx no key size in self-signed assert(params.keySize == 2048 || params.keySize == 4096);
 
@@ -73,10 +70,10 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     let subject: Subject | string = new Subject(params.subject);
     subject = subject.toString();
 
-    const certificateRequestFilename = certificate + ".csr";
+    const certificateRequestFilename = `${certificate}.csr`;
 
     const configFile = generateStaticConfig(params.configFile);
-    const configOption = " -config " + q(n(configFile));
+    const configOption = ` -config ${q(n(configFile))}`;
 
     let extension: string;
     switch (params.purpose) {
@@ -86,7 +83,6 @@ export async function createSelfSignedCertificate(certificate: string, params: C
         case CertificatePurpose.ForCertificateAuthority:
             extension = "v3_ca";
             break;
-        case CertificatePurpose.ForUserAuthentication:
         default:
             extension = "v3_selfsigned";
     }
@@ -99,20 +95,20 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     // The second option is to self-sign the CSR, which will be demonstrated in the next section
     await execute_openssl(
         "req -new" +
-            " -sha256 " +
-            " -text " +
-            " -extensions " +
-            extension +
-            " " +
-            configOption +
-            " -key " +
-            q(n(params.privateKey)) +
-            " -out " +
-            q(n(certificateRequestFilename)) +
-            ' -subj "' +
-            subject +
-            '"',
-        {},
+        " -sha256 " +
+        " -text " +
+        " -extensions " +
+        extension +
+        " " +
+        configOption +
+        " -key " +
+        q(n(params.privateKey)) +
+        " -out " +
+        q(n(certificateRequestFilename)) +
+        ' -subj "' +
+        subject +
+        '"',
+        {}
     );
 
     // Xx // Step 3: Remove Passphrase from Key
@@ -123,22 +119,22 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     displayTitle("Generate Certificate (self-signed)");
     await execute_openssl(
         " x509 -req " +
-            " -days " +
-            params.validity +
-            " -extensions " +
-            extension +
-            " " +
-            " -extfile " +
-            q(n(configFile)) +
-            " -in " +
-            q(n(certificateRequestFilename)) +
-            " -signkey " +
-            q(n(params.privateKey)) +
-            " -text " +
-            " -out " +
-            q(certificate) +
-            " -text ",
-        {},
+        " -days " +
+        params.validity +
+        " -extensions " +
+        extension +
+        " " +
+        " -extfile " +
+        q(n(configFile)) +
+        " -in " +
+        q(n(certificateRequestFilename)) +
+        " -signkey " +
+        q(n(params.privateKey)) +
+        " -text " +
+        " -out " +
+        q(certificate) +
+        " -text ",
+        {}
     );
     // remove unnecessary certificate request file
 
