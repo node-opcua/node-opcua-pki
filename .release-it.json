@@ -20,7 +20,7 @@
     "release": true
   },
   "npm": {
-    "publish": true
+    "publish": false
   },
   "increment": "minor"
 }

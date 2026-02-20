@@ -3,40 +3,52 @@ name: publish
 # Controls when the workflow will run
 on:
   push:
-    branches: [master]
+    tags:
+      - "v*"
   workflow_dispatch:
-
+    inputs:
+      dist-tag:
+        description: "dist-tag"
+        required: true
+        default: "latest"
+        type: choice
+        options:
+          - latest
+          - next
+          - rc
+          - beta
+          - alpha
+          - 0.0.0-hack
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4.1.0
+        uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 24.x
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: Build
         run: npm run build
 
-      - name: Set up Git user
+      - name: Publish to npm
         run: |
-            git config user.name "${{ github.actor }}"
-            git config user.email "${{ github.actor}}@users.noreply.github.com"
-
-      - name: "Setup npm" # Add our registry to npm config
-        run: | # Custom action
-          npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
-      - name: Run release-it
-        run: npx release-it  --ci --increment=minor
+          DIST_TAG="${{ github.event.inputs.dist-tag || 'latest' }}"
+          npm publish --tag $DIST_TAG
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
