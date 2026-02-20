@@ -1,7 +1,0 @@
-# Ignore all .map files, wherever they are
-**/*.map
-**/**/*.map
-**/**/**/*.map
-
-# You can also ignore other build artifacts
-*.tsbuildinfo
