@@ -41,7 +41,7 @@ jobs:
       - name: Publish to npm
         run: |
           DIST_TAG="${{ github.event.inputs.dist-tag || 'latest' }}"
-          npm publish --tag $DIST_TAG
+          npm publish -w packages/node-opcua-pki --tag $DIST_TAG
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

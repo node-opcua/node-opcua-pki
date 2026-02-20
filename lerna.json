@@ -1,0 +1,14 @@
+{
+    "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+    "version": "5.7.0",
+    "npmClient": "npm",
+    "command": {
+        "version": {
+            "message": "chore: release v%s",
+            "allowBranch": "master"
+        },
+        "publish": {
+            "message": "chore: publish v%s"
+        }
+    }
+}
