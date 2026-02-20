@@ -1254,14 +1254,39 @@ export class CertificateManager {
         }
         this._readCertificatesCalled = true;
 
+        // Chokidar configuration choices:
+        //
+        // usePolling: false (default)
+        //   Use native OS file-system events (inotify on Linux,
+        //   FSEvents on macOS, ReadDirectoryChangesW on Windows)
+        //   for near-real-time detection of cert/CRL additions
+        //   and removals. This is significantly faster than
+        //   polling (milliseconds vs seconds).
+        //
+        //   Set OPCUA_PKI_USE_POLLING=true to revert to polling
+        //   for environments where native events are unreliable
+        //   (NFS, CIFS, Docker volumes, or other remote/virtual
+        //   file systems).
+        //
+        // persistent: false
+        //   Watchers do NOT keep the Node.js event loop alive.
+        //   This prevents the process from hanging if the
+        //   CertificateManager is not properly disposed. The
+        //   trade-off is that watchers stop receiving events if
+        //   there are no other active handles — acceptable since
+        //   CertificateManager always runs alongside a server.
+        //
+        // awaitWriteFinish: not set
+        //   Certificate and CRL files are small (typically < 5 KB)
+        //   and written atomically (fs.writeFile). No need to
+        //   wait for write stabilization, which would add a 2s+
+        //   delay before the in-memory index is updated.
+        //
+        const usePolling = process.env.OPCUA_PKI_USE_POLLING === "true";
         const options = {
-            usePolling: true,
-            interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)),
-            persistent: false,
-            awaitWriteFinish: {
-                stabilityThreshold: 2000,
-                pollInterval: 600
-            }
+            usePolling,
+            ...(usePolling ? { interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)) } : {}),
+            persistent: false
         };
         async function _walkCRLFiles(this: CertificateManager, folder: string, index: { [key: string]: CRLData }) {
             await new Promise<void>((resolve, _reject) => {
