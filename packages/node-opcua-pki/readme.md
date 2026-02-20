@@ -213,13 +213,16 @@ await cm.createSelfSignedCertificate({
 
 #### Certificate Trust
 
-| Method                                 | Description                                                                                |
-| -------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `trustCertificate(cert)`               | Add a certificate to the trusted store                                                     |
-| `rejectCertificate(cert)`              | Move a certificate to the rejected store                                                   |
-| `getCertificateStatus(cert)`           | Returns `"trusted"`, `"rejected"`, or `"unknown"`                                          |
-| `removeTrustedCertificate(thumbprint)` | Remove a trusted certificate by SHA-1 thumbprint. Returns the certificate buffer or `null` |
-| `verifyCertificate(cert, options?)`    | Full certificate chain validation                                                          |
+| Method                                          | Description                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `trustCertificate(cert)`                        | Add a certificate to the trusted store                                                     |
+| `rejectCertificate(cert)`                       | Move a certificate to the rejected store                                                   |
+| `getCertificateStatus(cert)`                    | Returns `"trusted"`, `"rejected"`, or `"unknown"`                                          |
+| `removeTrustedCertificate(thumbprint)`          | Remove a trusted certificate by SHA-1 thumbprint. Returns the certificate buffer or `null` |
+| `addTrustedCertificateFromChain(certChain)`     | Validate and trust the leaf certificate from a DER chain                                   |
+| `isIssuerInUseByTrustedCertificate(issuerCert)` | Check if any trusted cert was signed by this issuer                                        |
+| `verifyCertificate(cert, options?)`             | Full certificate chain validation                                                          |
+| `reloadCertificates()`                          | Force a full re-scan of all PKI folders                                                    |
 
 #### Issuer (CA) Certificates
 
@@ -249,6 +252,20 @@ await cm.createSelfSignedCertificate({
 | `issuersCertFolder` | `{location}/issuers/certs` |
 | `issuersCrlFolder`  | `{location}/issuers/crl`   |
 | `rootDir`           | `{location}`               |
+
+### File Watching
+
+`CertificateManager` uses [chokidar](https://github.com/paulmillr/chokidar) to watch the PKI folders for changes. By default, it uses **native OS events** (inotify, FSEvents, ReadDirectoryChangesW) for near-real-time detection.
+
+If the PKI folders are on a network file system (NFS, CIFS) or inside a Docker volume where native events don't propagate, set the environment variable:
+
+```bash
+OPCUA_PKI_USE_POLLING=true
+```
+
+This falls back to filesystem polling, which is slower but works on all file systems.
+
+> **Note:** If external processes modify the PKI folders directly (e.g., CLI tools, OPC UA `WriteTrustList`), call `reloadCertificates()` to force an immediate re-scan of the folder state.
 
 ## References
 
