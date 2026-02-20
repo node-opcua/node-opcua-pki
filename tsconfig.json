@@ -19,6 +19,9 @@
         ],
         "baseUrl": ".",
         "paths": {
+            "node-opcua-pki": [
+                "packages/node-opcua-pki/lib/index.ts"
+            ],
             "node-opcua-pki-priv/*": [
                 "packages/node-opcua-pki/lib/*"
             ]
