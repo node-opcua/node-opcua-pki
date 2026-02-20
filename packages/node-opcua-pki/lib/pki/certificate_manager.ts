@@ -317,30 +317,53 @@ export class CertificateManager {
         return status;
     }
 
+    /**
+     * Move a certificate to the rejected store.
+     * If the certificate was previously trusted, it will be moved.
+     * @param certificate - the DER-encoded certificate
+     */
     public async rejectCertificate(certificate: Certificate): Promise<void> {
         await this._moveCertificate(certificate, "rejected");
     }
 
+    /**
+     * Move a certificate to the trusted store.
+     * If the certificate was previously rejected, it will be moved.
+     * @param certificate - the DER-encoded certificate
+     */
     public async trustCertificate(certificate: Certificate): Promise<void> {
         await this._moveCertificate(certificate, "trusted");
     }
 
+    /** Path to the rejected certificates folder. */
     public get rejectedFolder(): string {
         return path.join(this.rootDir, "rejected");
     }
+    /** Path to the trusted certificates folder. */
     public get trustedFolder(): string {
         return path.join(this.rootDir, "trusted/certs");
     }
+    /** Path to the trusted CRL folder. */
     public get crlFolder(): string {
         return path.join(this.rootDir, "trusted/crl");
     }
+    /** Path to the issuer (CA) certificates folder. */
     public get issuersCertFolder(): string {
         return path.join(this.rootDir, "issuers/certs");
     }
+    /** Path to the issuer CRL folder. */
     public get issuersCrlFolder(): string {
         return path.join(this.rootDir, "issuers/crl");
     }
 
+    /**
+     * Check if a certificate is in the trusted store.
+     * If the certificate is unknown and `untrustUnknownCertificate` is set,
+     * it will be written to the rejected folder.
+     * @param certificate - the DER-encoded certificate
+     * @returns `"Good"` if trusted, `"BadCertificateUntrusted"` if rejected/unknown,
+     *   or `"BadCertificateInvalid"` if the certificate cannot be parsed.
+     */
     public async isCertificateTrusted(certificate: Certificate): Promise<string> {
         const fingerprint = makeFingerprint(certificate) as Thumbprint;
         const certificateInTrust = this._thumbs.trusted[fingerprint]?.certificate;
@@ -632,6 +655,11 @@ export class CertificateManager {
         }
     }
 
+    /**
+     * Dispose of the CertificateManager, releasing file watchers
+     * and other resources. The instance should not be used after
+     * calling this method.
+     */
     public async dispose(): Promise<void> {
         if (this.state === CertificateManagerState.Disposing) {
             throw new Error("Already disposing");
@@ -714,6 +742,14 @@ export class CertificateManager {
         });
     }
 
+    /**
+     * Add a CA (issuer) certificate to the issuers store.
+     * If the certificate is already present, this is a no-op.
+     * @param certificate - the DER-encoded CA certificate
+     * @param validate - if `true`, verify the certificate before adding
+     * @param addInTrustList - if `true`, also add to the trusted store
+     * @returns `VerificationStatus.Good` on success
+     */
     public async addIssuer(certificate: DER, validate = false, addInTrustList = false): Promise<VerificationStatus> {
         if (validate) {
             const status = await this.verifyCertificate(certificate);
@@ -810,6 +846,182 @@ export class CertificateManager {
         if (target === "trusted" || target === "all") {
             await clearFolder(this.crlFolder, this._thumbs.crl);
         }
+    }
+
+    /**
+     * Check whether an issuer certificate with the given thumbprint
+     * is already registered.
+     * @param thumbprint - hex-encoded SHA-1 thumbprint (lowercase)
+     */
+    public async hasIssuer(thumbprint: string): Promise<boolean> {
+        await this._readCertificates();
+        const normalized = thumbprint.toLowerCase();
+        return Object.prototype.hasOwnProperty.call(this._thumbs.issuers.certs, normalized);
+    }
+
+    /**
+     * Remove a trusted certificate identified by its SHA-1 thumbprint.
+     * Deletes the file on disk and removes the entry from the
+     * in-memory index.
+     * @param thumbprint - hex-encoded SHA-1 thumbprint (lowercase)
+     * @returns the removed certificate buffer, or `null` if not found
+     */
+    public async removeTrustedCertificate(thumbprint: string): Promise<Certificate | null> {
+        await this._readCertificates();
+        const normalized = thumbprint.toLowerCase();
+        const entry = this._thumbs.trusted[normalized];
+        if (!entry) {
+            return null;
+        }
+        try {
+            await fs.promises.unlink(entry.filename);
+        } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+                throw err;
+            }
+        }
+        delete this._thumbs.trusted[normalized];
+        return entry.certificate;
+    }
+
+    /**
+     * Remove an issuer certificate identified by its SHA-1 thumbprint.
+     * Deletes the file on disk and removes the entry from the
+     * in-memory index.
+     * @param thumbprint - hex-encoded SHA-1 thumbprint (lowercase)
+     * @returns the removed certificate buffer, or `null` if not found
+     */
+    public async removeIssuer(thumbprint: string): Promise<Certificate | null> {
+        await this._readCertificates();
+        const normalized = thumbprint.toLowerCase();
+        const entry = this._thumbs.issuers.certs[normalized];
+        if (!entry) {
+            return null;
+        }
+        try {
+            await fs.promises.unlink(entry.filename);
+        } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+                throw err;
+            }
+        }
+        delete this._thumbs.issuers.certs[normalized];
+        return entry.certificate;
+    }
+
+    /**
+     * Remove all CRL files that were issued by the given CA certificate
+     * from the specified folder (or both).
+     * @param issuerCertificate - the CA certificate whose CRLs to remove
+     * @param target - "issuers", "trusted", or "all" (default "all")
+     */
+    public async removeRevocationListsForIssuer(
+        issuerCertificate: Certificate,
+        target: "issuers" | "trusted" | "all" = "all"
+    ): Promise<void> {
+        const issuerInfo = exploreCertificate(issuerCertificate);
+        const issuerFingerprint = issuerInfo.tbsCertificate.subjectFingerPrint;
+
+        const processIndex = async (index: { [key: string]: CRLData }) => {
+            const crlData = index[issuerFingerprint];
+            if (!crlData) return;
+            for (const crlEntry of crlData.crls) {
+                try {
+                    await fs.promises.unlink(crlEntry.filename);
+                } catch (err: unknown) {
+                    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+                        throw err;
+                    }
+                }
+            }
+            delete index[issuerFingerprint];
+        };
+
+        if (target === "issuers" || target === "all") {
+            await processIndex(this._thumbs.issuersCrl);
+        }
+        if (target === "trusted" || target === "all") {
+            await processIndex(this._thumbs.crl);
+        }
+    }
+
+    /**
+     * Validate a certificate (optionally with its chain) and add
+     * the leaf certificate to the trusted store.
+     *
+     * The certificate buffer may contain a single certificate or a
+     * full chain (leaf + issuer certificates concatenated in DER).
+     * Only the leaf certificate is added to the trusted store.
+     *
+     * When the chain contains issuer certificates, this method
+     * verifies that each issuer is already registered via
+     * {@link addIssuer} before trusting the leaf.
+     *
+     * @param certificateChain - DER-encoded certificate or chain
+     * @returns `VerificationStatus.Good` on success, or an error
+     *  status indicating why the certificate was rejected.
+     */
+    public async addTrustedCertificateFromChain(certificateChain: Certificate): Promise<VerificationStatus> {
+        const certificates = split_der(certificateChain);
+        const leafCertificate = certificates[0];
+
+        // Structural validation — can we parse it?
+        try {
+            exploreCertificate(leafCertificate);
+        } catch (_err) {
+            return VerificationStatus.BadCertificateInvalid;
+        }
+
+        // Full chain validation using this CertificateManager's
+        // trust store, issuer store, and CRL data
+        const status = await this.verifyCertificate(leafCertificate, {
+            ignoreMissingRevocationList: true
+        });
+        if (status !== VerificationStatus.Good && status !== VerificationStatus.BadCertificateUntrusted) {
+            return status;
+        }
+
+        // If a chain was provided, verify that every issuer in the
+        // chain is already registered in the issuers store
+        if (certificates.length > 1) {
+            for (const issuerCert of certificates.slice(1)) {
+                const thumbprint = makeFingerprint(issuerCert);
+                if (!Object.prototype.hasOwnProperty.call(this._thumbs.issuers.certs, thumbprint)) {
+                    return VerificationStatus.BadCertificateChainIncomplete;
+                }
+            }
+        }
+
+        // All checks passed — trust the leaf certificate
+        await this.trustCertificate(leafCertificate);
+        return VerificationStatus.Good;
+    }
+
+    /**
+     * Check whether an issuer certificate is still needed by any
+     * certificate in the trusted store.
+     *
+     * This is used before removing an issuer to ensure that
+     * doing so would not break the chain of any trusted
+     * certificate.
+     *
+     * @param issuerCertificate - the CA certificate to check
+     * @returns `true` if at least one trusted certificate was
+     *   signed by this issuer.
+     */
+    public async isIssuerInUseByTrustedCertificate(issuerCertificate: Certificate): Promise<boolean> {
+        await this._readCertificates();
+        for (const entry of Object.values(this._thumbs.trusted)) {
+            if (!entry.certificate) continue;
+            try {
+                if (verifyCertificateSignature(entry.certificate, issuerCertificate)) {
+                    return true;
+                }
+            } catch (_err) {
+                // Skip certificates that can't be verified
+            }
+        }
+        return false;
     }
 
     /**

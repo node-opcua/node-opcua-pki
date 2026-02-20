@@ -192,24 +192,63 @@ pki demo [--dev] [--silent] [--clean]
 ```typescript
 import { CertificateManager } from "node-opcua-pki";
 
-const certManager = new CertificateManager({
-    rootFolder: "./my_pki",
+const cm = new CertificateManager({
+    location: "./my_pki",
     keySize: 2048,
-    name: "PKI",
 });
 
-await certManager.initialize();
+await cm.initialize();
 
 // Create a self-signed certificate
-await certManager.createSelfSignedCertificate({
+await cm.createSelfSignedCertificate({
     applicationUri: "urn:my-server:application",
     subject: "/CN=My Server/O=My Organization",
     dns: ["localhost"],
-    ip: ["127.0.0.1"],
+    startDate: new Date(),
     validity: 365,
-    outputFile: "my_certificate.pem",
 });
 ```
+
+### CertificateManager API
+
+#### Certificate Trust
+
+| Method                                 | Description                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `trustCertificate(cert)`               | Add a certificate to the trusted store                                                     |
+| `rejectCertificate(cert)`              | Move a certificate to the rejected store                                                   |
+| `getCertificateStatus(cert)`           | Returns `"trusted"`, `"rejected"`, or `"unknown"`                                          |
+| `removeTrustedCertificate(thumbprint)` | Remove a trusted certificate by SHA-1 thumbprint. Returns the certificate buffer or `null` |
+| `verifyCertificate(cert, options?)`    | Full certificate chain validation                                                          |
+
+#### Issuer (CA) Certificates
+
+| Method                                        | Description                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `addIssuer(cert, validate?, addInTrustList?)` | Add a CA certificate to the issuers store                                |
+| `hasIssuer(thumbprint)`                       | Check if an issuer exists by SHA-1 thumbprint                            |
+| `removeIssuer(thumbprint)`                    | Remove an issuer by thumbprint. Returns the certificate buffer or `null` |
+| `findIssuerCertificate(cert)`                 | Find the issuer certificate for a given certificate                      |
+
+#### Certificate Revocation Lists (CRLs)
+
+| Method                                          | Description                                                                                   |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `addRevocationList(crl, target?)`               | Add a CRL. `target` is `"issuers"` (default) or `"trusted"`                                   |
+| `clearRevocationLists(target)`                  | Remove all CRLs from `"issuers"`, `"trusted"`, or `"all"`                                     |
+| `removeRevocationListsForIssuer(cert, target?)` | Remove CRLs issued by a specific CA. `target`: `"issuers"`, `"trusted"`, or `"all"` (default) |
+| `isCertificateRevoked(cert, issuerCert?)`       | Check if a certificate has been revoked                                                       |
+
+#### Folder Accessors
+
+| Getter              | Path                       |
+| ------------------- | -------------------------- |
+| `trustedFolder`     | `{location}/trusted/certs` |
+| `rejectedFolder`    | `{location}/rejected`      |
+| `crlFolder`         | `{location}/trusted/crl`   |
+| `issuersCertFolder` | `{location}/issuers/certs` |
+| `issuersCrlFolder`  | `{location}/issuers/crl`   |
+| `rootDir`           | `{location}`               |
 
 ## References
 
