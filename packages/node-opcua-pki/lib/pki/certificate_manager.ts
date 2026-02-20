@@ -531,8 +531,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                "  not before date =" +
-                certificateInfo.notBefore
+                    "  not before date =" +
+                    certificateInfo.notBefore
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -1134,8 +1134,8 @@ export class CertificateManager {
                 newStatus === "rejected"
                     ? this._thumbs.rejected
                     : newStatus === "trusted"
-                        ? this._thumbs.trusted
-                        : this._thumbs.rejected;
+                      ? this._thumbs.trusted
+                      : this._thumbs.rejected;
             indexDest[fingerprint] = {
                 certificate,
                 filename: certificateDest

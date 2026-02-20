@@ -342,7 +342,7 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 subject: "CN=NoSideEffect",
                 dns: ["localhost"],
                 startDate: new Date(),
-                validity: 365,
+                validity: 365
             });
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
             const ownCert = readCertificate(ownCertFile);
@@ -354,9 +354,7 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             (await cm.hasIssuer(caThumbprint)).should.be.true("issuer should still exist after");
 
             // Rejected folder should be empty — no side effects
-            const rejectedFiles = fs.readdirSync(cm.rejectedFolder).filter(
-                (f) => f.endsWith(".pem") || f.endsWith(".der")
-            );
+            const rejectedFiles = fs.readdirSync(cm.rejectedFolder).filter((f) => f.endsWith(".pem") || f.endsWith(".der"));
             rejectedFiles.length.should.eql(0, "rejected folder should be empty");
         });
     });
