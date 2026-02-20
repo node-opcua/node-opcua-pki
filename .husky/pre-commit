@@ -1,0 +1,2 @@
+npx biome format --write --staged
+npx biome check --staged
