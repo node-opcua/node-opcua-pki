@@ -61,9 +61,10 @@ jobs:
           git stash
       - name: Run lerna publish
         run: |
+          DIST_TAG="${{ github.event.inputs.dist-tag || 'latest' }}"
           npx lerna publish from-package \
             --yes \
-            --dist-tag ${{ github.event.inputs.dist-tag }} \
+            --dist-tag "$DIST_TAG" \
             --concurrency 1
         env:
           NPM_CONFIG_PROVENANCE: true
