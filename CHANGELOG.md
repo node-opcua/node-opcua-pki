@@ -1,3 +1,31 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+
+# [6.0.0](https://github.com/node-opcua/node-opcua-pki/compare/v1.1.0...v6.0.0) (2026-02-20)
+
+
+### Bug Fixes
+
+* package.json & package-lock.json to reduce vulnerabilities ([41fbd50](https://github.com/node-opcua/node-opcua-pki/commit/41fbd50a8decc5033b65df2cf6c63f474499a8a9))
+* resolve test failures after monorepo restructuring ([747fc75](https://github.com/node-opcua/node-opcua-pki/commit/747fc75c8be09104fb43cc37fc3d9803dc8788e2))
+* subject argument ([95b6cce](https://github.com/node-opcua/node-opcua-pki/commit/95b6cce02f57f0c968b6f57da8592db3e2042201))
+* update test imports for monorepo structure ([5cc9ebe](https://github.com/node-opcua/node-opcua-pki/commit/5cc9ebe90ca39b0c45163597c2aed500f07d5431))
+* upgrade rimraf from 4.0.0 to 4.4.1 ([b57703a](https://github.com/node-opcua/node-opcua-pki/commit/b57703a0d64df5e9eea51b3524b30c54619d5bfb))
+* use windowsHide in exec ([#23](https://github.com/node-opcua/node-opcua-pki/issues/23)) ([50ae307](https://github.com/node-opcua/node-opcua-pki/commit/50ae307362bb03aa4f9c8c1d5334620e4ace8501))
+
+
+### Features
+
+* **CertificateManager:** extend addRevocationList ([ca2d4ad](https://github.com/node-opcua/node-opcua-pki/commit/ca2d4adb6de3d73ffc7f85d5487be456ee864f2c))
+* improve subjetName ([05ad36f](https://github.com/node-opcua/node-opcua-pki/commit/05ad36fb3c2b84ab544b8f5e9b222086bf1f7561))
+* support dual CJS and ESM exports ([82d3244](https://github.com/node-opcua/node-opcua-pki/commit/82d32448b5a2352342c99acb0b81ee4b899d9a7b))
+
+
+
+
+
 ### Changelog
 
 All notable changes to this project will be documented in this file. Dates are displayed in UTC.
