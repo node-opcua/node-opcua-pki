@@ -46,6 +46,7 @@
     "@types/sinon": "^21.0.0",
     "@types/yauzl": "^2.10.3",
     "husky": "^9.1.7",
+    "lint-staged": "^16.1.0",
     "mocha": "^11.7.5",
     "node-dir": "^0.1.17",
     "should": "^13.2.3",
@@ -55,5 +56,11 @@
     "tsconfig-paths": "^4.2.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "*.{ts,js,json,md}": [
+      "biome format --write",
+      "biome check --write"
+    ]
   }
 }
