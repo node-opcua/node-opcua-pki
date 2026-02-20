@@ -37,7 +37,8 @@
             "!**/dist_esm",
             "!**/dist-cjs",
             "!**/dist-esm",
-            "!**/build"
+            "!**/build",
+            "!package-lock.json"
         ]
     },
     "javascript": {

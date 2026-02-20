@@ -33,9 +33,7 @@ import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
 import { CertificatePurpose, generatePrivateKeyFile, Subject, type SubjectOptions } from "node-opcua-crypto";
-import rimraf from "rimraf";
-// see https://github.com/yargs/yargs/issues/781
-import commands from "yargs";
+import { rimraf } from "rimraf";
 
 import { makeApplicationUrn } from "../misc/applicationurn";
 import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "../misc/hostname";
@@ -63,11 +61,6 @@ import {
     toDer
 } from "../toolbox/with_openssl";
 import { CertificateAuthority, defaultSubject } from "./certificate_authority";
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { hideBin } = require("yargs/helpers");
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const argv = require("yargs/yargs")(hideBin(process.argv));
 
 const epilog = "Copyright (c) sterfive - node-opcua - 2017-2025";
 
@@ -170,7 +163,7 @@ function default_template_content(): string {
 
         // warningLog("___filename", __filename);
         // warningLog("__dirname", __dirname);
-        // warningLog("process.pkg.entrypoint", (process as any).pkg.entrypoint);
+        // warningLog("process.pkg.entrypoint", (process as unknown as IReadConfigurationOpts).pkg.entrypoint);
         const a = fs.readFileSync(path.join(__dirname, "../../bin/crypto_create_CA_config.example.js"), "utf8");
         return a;
     }
@@ -224,20 +217,6 @@ interface IReadConfigurationOpts {
     ip?: string;
     keySize?: KeySize;
     validity?: number;
-}
-interface IReadConfigurationOpts2 extends IReadConfigurationOpts {
-    clean: boolean;
-    dev: boolean;
-}
-interface IReadConfigurationOpts3 extends IReadConfigurationOpts {
-    subject: string;
-}
-interface IReadConfigurationOpts4 extends IReadConfigurationOpts {
-    selfSigned: boolean;
-}
-
-interface IReadConfigurationOpts5 extends IReadConfigurationOpts {
-    certificateFile: string;
 }
 
 /* eslint complexity:off, max-statements:off */
@@ -363,69 +342,6 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
     }
     // xx displayConfig(g_config);
     // ------------------------------------------------------------------------------------------------------------
-}
-
-interface OptionMap {
-    [key: string]: commands.Options;
-}
-
-function add_standard_option(options: OptionMap, optionName: string) {
-    switch (optionName) {
-        case "root":
-            options.root = {
-                alias: "r",
-                type: "string",
-                default: "{CWD}/certificates",
-                describe: "the location of the Certificate folder"
-            };
-            break;
-
-        case "CAFolder":
-            options.CAFolder = {
-                alias: "c",
-                type: "string",
-                default: "{root}/CA",
-                describe: "the location of the Certificate Authority folder"
-            };
-            break;
-
-        case "PKIFolder":
-            options.PKIFolder = {
-                type: "string",
-                default: "{root}/PKI",
-                describe: "the location of the Public Key Infrastructure"
-            };
-            break;
-
-        case "silent":
-            options.silent = {
-                alias: "s",
-                type: "boolean",
-                default: false,
-                describe: "minimize output"
-            };
-            break;
-
-        case "privateKey":
-            options.privateKey = {
-                alias: "p",
-                type: "string",
-                default: "{PKIFolder}/own/private_key.pem",
-                describe: "the private key to use to generate certificate"
-            };
-            break;
-
-        case "keySize":
-            options.keySize = {
-                alias: ["k", "keyLength"],
-                type: "number",
-                default: 2048,
-                describe: "the private key size in bits (1024|2048|3072|4096)"
-            };
-            break;
-        default:
-            throw Error(`Unknown option  ${optionName}`);
-    }
 }
 
 async function createDefaultCertificate(
@@ -629,451 +545,474 @@ async function createDefaultCertificates(dev: boolean) {
     await create_default_certificates(dev);
 }
 
-argv
-    .strict()
-    .wrap(132)
-    .command(
-        "demo",
-        "create default certificate for node-opcua demos",
-        (yargs: commands.Argv) => {
-            const options: { [key: string]: commands.Options } = {};
-            options.dev = {
-                type: "boolean",
-                describe: "create all sort of fancy certificates for dev testing purposes"
-            };
-            options.clean = {
-                type: "boolean",
-                describe: "Purge existing directory [use with care!]"
-            };
+import commandLineArgs from "command-line-args";
+import commandLineUsage from "command-line-usage";
 
-            add_standard_option(options, "silent");
-            add_standard_option(options, "root");
+const commonOptions = [
+    {
+        name: "root",
+        alias: "r",
+        type: String,
+        defaultValue: "{CWD}/certificates",
+        description: "the location of the Certificate folder"
+    },
+    {
+        name: "CAFolder",
+        alias: "c",
+        type: String,
+        defaultValue: "{root}/CA",
+        description: "the location of the Certificate Authority folder"
+    },
+    { name: "PKIFolder", type: String, defaultValue: "{root}/PKI", description: "the location of the Public Key Infrastructure" },
+    { name: "silent", alias: "s", type: Boolean, defaultValue: false, description: "minimize output" },
+    {
+        name: "privateKey",
+        alias: "p",
+        type: String,
+        defaultValue: "{PKIFolder}/own/private_key.pem",
+        description: "the private key to use to generate certificate"
+    },
+    {
+        name: "keySize",
+        alias: "k",
+        type: Number,
+        defaultValue: 2048,
+        description: "the private key size in bits (1024|2048|3072|4096)"
+    },
+    { name: "help", alias: "h", type: Boolean, description: "display this help" }
+];
 
-            const local_argv = yargs
-                .strict()
-                .wrap(132)
-                .options(options)
-                .usage("$0  demo [--dev] [--silent] [--clean]")
-                .example("$0  demo --dev", "create a set of demo certificates")
-                .help("help").argv;
+function getOptions(names: string[]) {
+    return commonOptions.filter((o) => names.includes(o.name) || o.name === "help" || o.name === "silent");
+}
 
-            return local_argv;
+function showHelp(command: string, description: string, options: Record<string, unknown>[], usage?: string) {
+    const sections = [
+        {
+            header: `Command: ${command}`,
+            content: description
         },
-        (local_argv: IReadConfigurationOpts2) => {
-            wrap(async () => {
-                await ensure_openssl_installed();
-                displayChapter("Create Demo certificates");
-                displayTitle("reading configuration");
-                await readConfiguration(local_argv);
-                if (local_argv.clean) {
-                    displayTitle("Cleaning old certificates");
-                    assert(gLocalConfig);
-                    const certificateDir = gLocalConfig.certificateDir || "";
-                    await rimraf(`${certificateDir}/*.pem*`);
-                    await rimraf(`${certificateDir}/*.pub*`);
-                    mkdirRecursiveSync(certificateDir);
-                }
-                displayTitle("create certificates");
-                await createDefaultCertificates(local_argv.dev);
-                displayChapter("Demo certificates  CREATED");
-            });
-        }
-    )
-
-    .command(
-        "createCA",
-        "create a Certificate Authority",
-        /* builder*/(yargs: commands.Argv) => {
-            const options: OptionMap = {
-                subject: {
-                    default: defaultSubject,
-                    type: "string",
-                    describe: "the CA certificate subject"
-                }
-            };
-
-            add_standard_option(options, "root");
-            add_standard_option(options, "CAFolder");
-            add_standard_option(options, "keySize");
-            add_standard_option(options, "silent");
-
-            const local_argv = yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-            return local_argv;
+        {
+            header: "Usage",
+            content: usage || `$0 ${command} [options]`
         },
-        /*handler*/(local_argv: IReadConfigurationOpts3) => {
-            wrap(async () => {
-                await ensure_openssl_installed();
-                await readConfiguration(local_argv);
-                await construct_CertificateAuthority(local_argv.subject);
-            });
+        {
+            header: "Options",
+            optionList: options
         }
-    )
-    .command(
-        "createPKI",
-        "create a Public Key Infrastructure",
-        (yargs: commands.Argv) => {
-            const options = {};
-
-            add_standard_option(options, "root");
-            add_standard_option(options, "PKIFolder");
-            add_standard_option(options, "keySize");
-            add_standard_option(options, "silent");
-
-            return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-        },
-        (local_argv: IReadConfigurationOpts) => {
-            wrap(async () => {
-                await readConfiguration(local_argv);
-                await construct_CertificateManager();
-            });
-        }
-    )
-
-    // ----------------------------------------------- certificate
-    .command(
-        "certificate",
-        "create a new certificate",
-        (yargs: commands.Argv) => {
-            const options: OptionMap = {
-                applicationUri: {
-                    alias: "a",
-                    demand: true,
-                    describe: "the application URI",
-                    default: "urn:{hostname}:Node-OPCUA-Server",
-                    type: "string"
-                },
-                output: {
-                    default: "my_certificate.pem",
-                    alias: "o",
-                    demand: true,
-                    describe: "the name of the generated certificate =>",
-                    type: "string"
-                },
-                selfSigned: {
-                    alias: "s",
-                    default: false,
-                    type: "boolean",
-                    describe: "if true, certificate will be self-signed"
-                },
-                validity: {
-                    alias: "v",
-                    default: null,
-                    type: "number",
-                    describe: "the certificate validity in days"
-                },
-                dns: {
-                    default: "{hostname}",
-                    type: "string",
-                    describe: "the list of valid domain name (comma separated)"
-                },
-                ip: {
-                    default: "",
-                    type: "string",
-                    describe: "the list of valid IPs (comma separated)"
-                },
-                subject: {
-                    default: "",
-                    type: "string",
-                    describe: "the certificate subject ( for instance C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )"
-                }
-            };
-            add_standard_option(options, "silent");
-            add_standard_option(options, "root");
-            add_standard_option(options, "CAFolder");
-            add_standard_option(options, "PKIFolder");
-            add_standard_option(options, "privateKey");
-
-            return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-        },
-        (local_argv: IReadConfigurationOpts4) => {
-            async function command_certificate(local_argv: IReadConfigurationOpts4) {
-                const selfSigned = !!local_argv.selfSigned;
-                if (!selfSigned) {
-                    await command_full_certificate(local_argv);
-                } else {
-                    await command_selfsigned_certificate(local_argv);
-                }
-            }
-
-            async function command_selfsigned_certificate(local_argv: IReadConfigurationOpts) {
-                const _fqdn = await extractFullyQualifiedDomainName();
-                await readConfiguration(local_argv);
-                await construct_CertificateManager();
-
-                displaySubtitle(` create self signed Certificate ${gLocalConfig.outputFile}`);
-                let subject =
-                    local_argv.subject && local_argv.subject.length > 1
-                        ? new Subject(local_argv.subject)
-                        : gLocalConfig.subject || "";
-
-                subject = JSON.parse(JSON.stringify(subject));
-
-                const params: CreateSelfSignCertificateParam1 = {
-                    applicationUri: gLocalConfig.applicationUri || "",
-                    dns: gLocalConfig.dns || [],
-                    ip: gLocalConfig.ip || [],
-                    outputFile: gLocalConfig.outputFile || "self_signed_certificate.pem",
-                    startDate: gLocalConfig.startDate || new Date(),
-                    subject,
-                    validity: gLocalConfig.validity || 365
-                };
-
-                await certificateManager.createSelfSignedCertificate(params);
-            }
-
-            async function command_full_certificate(local_argv: IReadConfigurationOpts) {
-                await readConfiguration(local_argv);
-                await construct_CertificateManager();
-                await construct_CertificateAuthority("");
-                assert(fs.existsSync(gLocalConfig.CAFolder || ""), " CA folder must exist");
-                gLocalConfig.privateKey = undefined; // use PKI private key
-                // create a Certificate Request from the certificate Manager
-
-                gLocalConfig.subject =
-                    local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
-
-                const csr_file = await certificateManager.createCertificateRequest(gLocalConfig);
-                if (!csr_file) {
-                    return;
-                }
-                warningLog(" csr_file = ", csr_file);
-                const certificate = csr_file.replace(".csr", ".pem");
-
-                if (fs.existsSync(certificate)) {
-                    throw new Error(` File ${certificate} already exist`);
-                }
-                await g_certificateAuthority.signCertificateRequest(certificate, csr_file, gLocalConfig);
-
-                assert(typeof gLocalConfig.outputFile === "string");
-                fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
-            }
-
-            wrap(async () => await command_certificate(local_argv));
-        }
-    )
-
-    // ----------------------------------------------- revoke
-    .command(
-        "revoke <certificateFile>",
-        "revoke a existing certificate",
-        (yargs: commands.Argv) => {
-            const options: OptionMap = {};
-            add_standard_option(options, "root");
-            add_standard_option(options, "CAFolder");
-
-            yargs.strict().wrap(132).help("help").usage("$0 revoke  my_certificate.pem").options(options).epilog(epilog);
-            return yargs;
-        },
-        (local_argv: IReadConfigurationOpts5) => {
-            async function revoke_certificate(certificate: Filename) {
-                await g_certificateAuthority.revokeCertificate(certificate, {});
-            }
-
-            wrap(async () => {
-                // example : node bin\crypto_create_CA.js revoke my_certificate.pem
-                const certificate = path.resolve(local_argv.certificateFile);
-                warningLog(chalk.yellow(" Certificate to revoke : "), chalk.cyan(certificate));
-                if (!fs.existsSync(certificate)) {
-                    throw new Error(`cannot find certificate to revoke ${certificate}`);
-                }
-                await readConfiguration(local_argv);
-                await construct_CertificateAuthority("");
-                await revoke_certificate(certificate);
-                warningLog("done ... ");
-                warningLog("  crl = ", g_certificateAuthority.revocationList);
-                warningLog("\nyou should now publish the new Certificate Revocation List");
-            });
-        }
-    )
-
-    .command(
-        "csr",
-        "create a certificate signing request",
-        (yargs: commands.Argv) => {
-            const options: OptionMap = {
-                applicationUri: {
-                    alias: "a",
-                    // demand: true,
-                    describe: "the application URI",
-                    default: "urn:{hostname}:Node-OPCUA-Server",
-                    type: "string"
-                },
-                output: {
-                    default: "my_certificate_signing_request.csr",
-                    alias: "o",
-                    // demand: true,
-                    describe: "the name of the generated signing_request",
-                    type: "string"
-                },
-                dns: {
-                    default: "{hostname}",
-                    type: "string",
-                    describe: "the list of valid domain name (comma separated)"
-                },
-                ip: {
-                    default: "",
-                    type: "string",
-                    describe: "the list of valid IPs (comma separated)"
-                },
-                subject: {
-                    default: "/CN=Certificate",
-                    type: "string",
-                    describe: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )"
-                }
-            };
-            add_standard_option(options, "silent");
-            add_standard_option(options, "root");
-            add_standard_option(options, "PKIFolder");
-            add_standard_option(options, "privateKey");
-
-            return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-        },
-        (local_argv: IReadConfigurationOpts) => {
-            wrap(async () => {
-                await readConfiguration(local_argv);
-                if (!fs.existsSync(gLocalConfig.PKIFolder || "")) {
-                    warningLog("PKI folder must exist");
-                }
-                await construct_CertificateManager();
-                if (!gLocalConfig.outputFile || fs.existsSync(gLocalConfig.outputFile)) {
-                    throw new Error(` File ${gLocalConfig.outputFile} already exist`);
-                }
-                gLocalConfig.privateKey = undefined; // use PKI private key
-                // create a Certificate Request from the certificate Manager
-
-                gLocalConfig.subject =
-                    local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
-
-                const internal_csr_file = await certificateManager.createCertificateRequest(gLocalConfig);
-                if (!internal_csr_file) {
-                    return;
-                }
-                if (!gLocalConfig.outputFile) {
-                    warningLog("please specify a output file");
-                    return;
-                }
-                const csr = await fs.promises.readFile(internal_csr_file, "utf-8");
-                fs.writeFileSync(gLocalConfig.outputFile || "", csr, "utf-8");
-
-                warningLog("Subject        = ", gLocalConfig.subject);
-                warningLog("applicationUri = ", gLocalConfig.applicationUri);
-                warningLog("altNames       = ", gLocalConfig.altNames);
-                warningLog("dns            = ", gLocalConfig.dns);
-                warningLog("ip             = ", gLocalConfig.ip);
-
-                warningLog("CSR file = ", gLocalConfig.outputFile);
-            });
-        }
-    )
-    .command(
-        "sign",
-        "validate a certificate signing request and generate a certificate",
-        (yargs: commands.Argv) => {
-            const options: OptionMap = {
-                csr: {
-                    alias: "i",
-                    default: "my_certificate_signing_request.csr",
-                    type: "string",
-                    demandOption: true,
-                    description: "the csr"
-                },
-                output: {
-                    default: "my_certificate.pem",
-                    alias: "o",
-                    demand: true,
-                    describe: "the name of the generated certificate",
-                    type: "string"
-                },
-                validity: {
-                    alias: "v",
-                    default: 365,
-                    type: "number",
-                    describe: "the certificate validity in days"
-                }
-            };
-            add_standard_option(options, "silent");
-            add_standard_option(options, "root");
-            add_standard_option(options, "CAFolder");
-            return yargs.strict().wrap(132).options(options).help("help").epilog(epilog).argv;
-        },
-        (local_argv: IReadConfigurationOpts) => {
-            wrap(async () => {
-                /** */
-                await readConfiguration(local_argv);
-                if (!fs.existsSync(gLocalConfig.CAFolder || "")) {
-                    throw new Error(`CA folder must exist:${gLocalConfig.CAFolder}`);
-                }
-                await construct_CertificateAuthority("");
-                const csr_file: string = path.resolve((local_argv as IReadConfigurationOpts & { csr?: string }).csr || "");
-                if (!fs.existsSync(csr_file)) {
-                    throw new Error(`Certificate signing request doesn't exist: ${csr_file}`);
-                }
-                const certificate = path.resolve(local_argv.output || csr_file.replace(".csr", ".pem"));
-                if (fs.existsSync(certificate)) {
-                    throw new Error(` File ${certificate} already exist`);
-                }
-
-                await g_certificateAuthority.signCertificateRequest(certificate, csr_file, gLocalConfig);
-
-                assert(typeof gLocalConfig.outputFile === "string");
-                fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
-            });
-        }
-    )
-    .command(
-        "dump <certificateFile>",
-        "display a certificate",
-        () => {
-            /** */
-        },
-        (yargs: { certificateFile: string }) => {
-            wrap(async () => {
-                const data = await dumpCertificate(yargs.certificateFile);
-                warningLog(data);
-            });
-        }
-    )
-
-    .command(
-        "toder <pemCertificate>",
-        "convert a certificate to a DER format with finger print",
-        () => {
-            /** */
-        },
-        (_yargs: { pemCertificate: string }) => {
-            wrap(async () => {
-                await toDer(argv.pemCertificate);
-            });
-        }
-    )
-
-    .command(
-        "fingerprint <certificateFile>",
-        "print the certificate fingerprint",
-        () => {
-            /** */
-        },
-        (local_argv: { certificateFile: string }) => {
-            wrap(async () => {
-                const certificate = local_argv.certificateFile;
-                const data = await fingerprint(certificate);
-                if (!data) return;
-                const s = data.split("=")[1].split(":").join("").trim();
-                warningLog(s);
-            });
-        }
-    )
-    .command("$0", "help", (yargs: commands.Argv) => {
-        warningLog("--help for help");
-        return yargs;
-    })
-    .epilog(epilog)
-    .help("help")
-    .strict().argv;
+    ];
+    console.log(commandLineUsage(sections));
+}
 
 export async function main(argumentsList: string | string[]) {
-    const g_argv = await commands.parse(argumentsList);
-    if (g_argv.help) {
-        commands.showHelp();
+    const mainDefinitions = [{ name: "command", defaultOption: true }];
+    let mainOptions: commandLineArgs.CommandLineOptions;
+    try {
+        mainOptions = commandLineArgs(mainDefinitions, { argv: argumentsList as string[], stopAtFirstUnknown: true });
+    } catch (err) {
+        console.log((err as Error).message);
+        return;
     }
+
+    const argv = mainOptions._unknown || [];
+    const command = mainOptions.command;
+
+    if (!command || command === "help") {
+        console.log(
+            commandLineUsage([
+                {
+                    header: "node-opcua-pki",
+                    content: `PKI management for node-opcua\n\n${epilog}`
+                },
+                {
+                    header: "Commands",
+                    content: [
+                        { name: "demo", summary: "create default certificate for node-opcua demos" },
+                        { name: "createCA", summary: "create a Certificate Authority" },
+                        { name: "createPKI", summary: "create a Public Key Infrastructure" },
+                        { name: "certificate", summary: "create a new certificate" },
+                        { name: "revoke <certificateFile>", summary: "revoke a existing certificate" },
+                        { name: "csr", summary: "create a certificate signing request" },
+                        { name: "sign", summary: "validate a certificate signing request and generate a certificate" },
+                        { name: "dump <certificateFile>", summary: "display a certificate" },
+                        { name: "toder <pemCertificate>", summary: "convert a certificate to a DER format with finger print" },
+                        { name: "fingerprint <certificateFile>", summary: "print the certificate fingerprint" }
+                    ]
+                }
+            ])
+        );
+        return;
+    }
+
+    if (command === "demo") {
+        const optionsDef = [
+            ...getOptions(["root", "silent"]),
+            { name: "dev", type: Boolean, description: "create all sort of fancy certificates for dev testing purposes" },
+            { name: "clean", type: Boolean, description: "Purge existing directory [use with care!]" }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help)
+            return showHelp(
+                "demo",
+                "create default certificate for node-opcua demos",
+                optionsDef,
+                "$0 demo [--dev] [--silent] [--clean]"
+            );
+
+        await wrap(async () => {
+            await ensure_openssl_installed();
+            displayChapter("Create Demo certificates");
+            displayTitle("reading configuration");
+            await readConfiguration(local_argv as unknown as IReadConfigurationOpts);
+            if (local_argv.clean) {
+                displayTitle("Cleaning old certificates");
+                assert(gLocalConfig);
+                const certificateDir = gLocalConfig.certificateDir || "";
+                await rimraf(`${certificateDir}/*.pem*`);
+                await rimraf(`${certificateDir}/*.pub*`);
+                mkdirRecursiveSync(certificateDir);
+            }
+            displayTitle("create certificates");
+            await createDefaultCertificates(local_argv.dev);
+            displayChapter("Demo certificates  CREATED");
+        });
+        return;
+    }
+
+    if (command === "createCA") {
+        const optionsDef = [
+            ...getOptions(["root", "CAFolder", "keySize", "silent"]),
+            { name: "subject", type: String, defaultValue: defaultSubject, description: "the CA certificate subject" }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help) return showHelp("createCA", "create a Certificate Authority", optionsDef);
+
+        await wrap(async () => {
+            await ensure_openssl_installed();
+            await readConfiguration(local_argv as unknown as IReadConfigurationOpts);
+            await construct_CertificateAuthority(local_argv.subject);
+        });
+        return;
+    }
+
+    if (command === "createPKI") {
+        const optionsDef = getOptions(["root", "PKIFolder", "keySize", "silent"]);
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help) return showHelp("createPKI", "create a Public Key Infrastructure", optionsDef);
+
+        await wrap(async () => {
+            await readConfiguration(local_argv as unknown as IReadConfigurationOpts);
+            await construct_CertificateManager();
+        });
+        return;
+    }
+
+    if (command === "certificate") {
+        const optionsDef = [
+            ...getOptions(["root", "CAFolder", "PKIFolder", "privateKey", "silent"]),
+            {
+                name: "applicationUri",
+                alias: "a",
+                type: String,
+                defaultValue: "urn:{hostname}:Node-OPCUA-Server",
+                description: "the application URI"
+            },
+            {
+                name: "output",
+                alias: "o",
+                type: String,
+                defaultValue: "my_certificate.pem",
+                description: "the name of the generated certificate =>"
+            },
+            {
+                name: "selfSigned",
+                alias: "s",
+                type: Boolean,
+                defaultValue: false,
+                description: "if true, certificate will be self-signed"
+            },
+            { name: "validity", alias: "v", type: Number, description: "the certificate validity in days" },
+            {
+                name: "dns",
+                type: String,
+                defaultValue: "{hostname}",
+                description: "the list of valid domain name (comma separated)"
+            },
+            { name: "ip", type: String, defaultValue: "", description: "the list of valid IPs (comma separated)" },
+            {
+                name: "subject",
+                type: String,
+                defaultValue: "",
+                description: "the certificate subject ( for instance C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )"
+            }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help || !local_argv.applicationUri || !local_argv.output)
+            return showHelp("certificate", "create a new certificate", optionsDef);
+
+        async function command_certificate(local_argv: IReadConfigurationOpts) {
+            const selfSigned = !!local_argv.selfSigned;
+            if (!selfSigned) {
+                await command_full_certificate(local_argv);
+            } else {
+                await command_selfsigned_certificate(local_argv);
+            }
+        }
+
+        async function command_selfsigned_certificate(local_argv: IReadConfigurationOpts) {
+            const _fqdn = await extractFullyQualifiedDomainName();
+            await readConfiguration(local_argv);
+            await construct_CertificateManager();
+
+            displaySubtitle(` create self signed Certificate ${gLocalConfig.outputFile}`);
+            let subject =
+                local_argv.subject && local_argv.subject.length > 1 ? new Subject(local_argv.subject) : gLocalConfig.subject || "";
+
+            subject = JSON.parse(JSON.stringify(subject));
+
+            const params: CreateSelfSignCertificateParam1 = {
+                applicationUri: gLocalConfig.applicationUri || "",
+                dns: gLocalConfig.dns || [],
+                ip: gLocalConfig.ip || [],
+                outputFile: gLocalConfig.outputFile || "self_signed_certificate.pem",
+                startDate: gLocalConfig.startDate || new Date(),
+                subject,
+                validity: gLocalConfig.validity || 365
+            };
+
+            await certificateManager.createSelfSignedCertificate(params);
+        }
+
+        async function command_full_certificate(local_argv: IReadConfigurationOpts) {
+            await readConfiguration(local_argv);
+            await construct_CertificateManager();
+            await construct_CertificateAuthority("");
+            assert(fs.existsSync(gLocalConfig.CAFolder || ""), " CA folder must exist");
+            gLocalConfig.privateKey = undefined; // use PKI private key
+            // create a Certificate Request from the certificate Manager
+
+            gLocalConfig.subject = local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
+
+            const csr_file = await certificateManager.createCertificateRequest(gLocalConfig as unknown as IReadConfigurationOpts);
+            if (!csr_file) {
+                return;
+            }
+            warningLog(" csr_file = ", csr_file);
+            const certificate = csr_file.replace(".csr", ".pem");
+
+            if (fs.existsSync(certificate)) {
+                throw new Error(` File ${certificate} already exist`);
+            }
+            await g_certificateAuthority.signCertificateRequest(
+                certificate,
+                csr_file,
+                gLocalConfig as unknown as IReadConfigurationOpts
+            );
+
+            assert(typeof gLocalConfig.outputFile === "string");
+            fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
+        }
+
+        await wrap(async () => await command_certificate(local_argv));
+        return;
+    }
+
+    if (command === "revoke") {
+        const optionsDef = [{ name: "certificateFile", type: String, defaultOption: true }, ...getOptions(["root", "CAFolder"])];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help || !local_argv.certificateFile)
+            return showHelp(
+                "revoke <certificateFile>",
+                "revoke a existing certificate",
+                optionsDef,
+                "$0 revoke my_certificate.pem"
+            );
+
+        async function revoke_certificate(certificate: Filename) {
+            await g_certificateAuthority.revokeCertificate(certificate, {});
+        }
+
+        await wrap(async () => {
+            const certificate = path.resolve(local_argv.certificateFile);
+            warningLog(chalk.yellow(" Certificate to revoke : "), chalk.cyan(certificate));
+            if (!fs.existsSync(certificate)) {
+                throw new Error(`cannot find certificate to revoke ${certificate}`);
+            }
+            await readConfiguration(local_argv as unknown as IReadConfigurationOpts);
+            await construct_CertificateAuthority("");
+            await revoke_certificate(certificate);
+            warningLog("done ... ");
+            warningLog("  crl = ", g_certificateAuthority.revocationList);
+            warningLog("\nyou should now publish the new Certificate Revocation List");
+        });
+        return;
+    }
+
+    if (command === "csr") {
+        const optionsDef = [
+            ...getOptions(["root", "PKIFolder", "privateKey", "silent"]),
+            {
+                name: "applicationUri",
+                alias: "a",
+                type: String,
+                defaultValue: "urn:{hostname}:Node-OPCUA-Server",
+                description: "the application URI"
+            },
+            {
+                name: "output",
+                alias: "o",
+                type: String,
+                defaultValue: "my_certificate_signing_request.csr",
+                description: "the name of the generated signing_request"
+            },
+            {
+                name: "dns",
+                type: String,
+                defaultValue: "{hostname}",
+                description: "the list of valid domain name (comma separated)"
+            },
+            { name: "ip", type: String, defaultValue: "", description: "the list of valid IPs (comma separated)" },
+            {
+                name: "subject",
+                type: String,
+                defaultValue: "/CN=Certificate",
+                description: "the certificate subject ( for instance /C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello )"
+            }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help) return showHelp("csr", "create a certificate signing request", optionsDef);
+
+        await wrap(async () => {
+            await readConfiguration(local_argv as unknown as IReadConfigurationOpts);
+            if (!fs.existsSync(gLocalConfig.PKIFolder || "")) {
+                warningLog("PKI folder must exist");
+            }
+            await construct_CertificateManager();
+            if (!gLocalConfig.outputFile || fs.existsSync(gLocalConfig.outputFile)) {
+                throw new Error(` File ${gLocalConfig.outputFile} already exist`);
+            }
+            gLocalConfig.privateKey = undefined; // use PKI private key
+            // create a Certificate Request from the certificate Manager
+
+            gLocalConfig.subject = local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
+
+            const internal_csr_file = await certificateManager.createCertificateRequest(
+                gLocalConfig as unknown as IReadConfigurationOpts
+            );
+            if (!internal_csr_file) {
+                return;
+            }
+            if (!gLocalConfig.outputFile) {
+                warningLog("please specify a output file");
+                return;
+            }
+            const csr = await fs.promises.readFile(internal_csr_file, "utf-8");
+            fs.writeFileSync(gLocalConfig.outputFile || "", csr, "utf-8");
+
+            warningLog("Subject        = ", gLocalConfig.subject);
+            warningLog("applicationUri = ", gLocalConfig.applicationUri);
+            warningLog("altNames       = ", gLocalConfig.altNames);
+            warningLog("dns            = ", gLocalConfig.dns);
+            warningLog("ip             = ", gLocalConfig.ip);
+
+            warningLog("CSR file = ", gLocalConfig.outputFile);
+        });
+        return;
+    }
+
+    if (command === "sign") {
+        const optionsDef = [
+            ...getOptions(["root", "CAFolder", "silent"]),
+            { name: "csr", alias: "i", type: String, defaultValue: "my_certificate_signing_request.csr", description: "the csr" },
+            {
+                name: "output",
+                alias: "o",
+                type: String,
+                defaultValue: "my_certificate.pem",
+                description: "the name of the generated certificate"
+            },
+            { name: "validity", alias: "v", type: Number, defaultValue: 365, description: "the certificate validity in days" }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help || !local_argv.csr || !local_argv.output)
+            return showHelp("sign", "validate a certificate signing request and generate a certificate", optionsDef);
+
+        await wrap(async () => {
+            await readConfiguration(local_argv as unknown as IReadConfigurationOpts);
+            if (!fs.existsSync(gLocalConfig.CAFolder || "")) {
+                throw new Error(`CA folder must exist:${gLocalConfig.CAFolder}`);
+            }
+            await construct_CertificateAuthority("");
+            const csr_file: string = path.resolve((local_argv as unknown as { csr?: string }).csr || "");
+            if (!fs.existsSync(csr_file)) {
+                throw new Error(`Certificate signing request doesn't exist: ${csr_file}`);
+            }
+            const certificate = path.resolve(local_argv.output || csr_file.replace(".csr", ".pem"));
+            if (fs.existsSync(certificate)) {
+                throw new Error(` File ${certificate} already exist`);
+            }
+
+            await g_certificateAuthority.signCertificateRequest(
+                certificate,
+                csr_file,
+                gLocalConfig as unknown as IReadConfigurationOpts
+            );
+
+            assert(typeof gLocalConfig.outputFile === "string");
+            fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
+        });
+        return;
+    }
+
+    if (command === "dump") {
+        const optionsDef = [
+            { name: "certificateFile", type: String, defaultOption: true },
+            { name: "help", alias: "h", type: Boolean }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help || !local_argv.certificateFile)
+            return showHelp("dump <certificateFile>", "display a certificate", optionsDef);
+
+        await wrap(async () => {
+            const data = await dumpCertificate(local_argv.certificateFile);
+            warningLog(data);
+        });
+        return;
+    }
+
+    if (command === "toder") {
+        const optionsDef = [
+            { name: "pemCertificate", type: String, defaultOption: true },
+            { name: "help", alias: "h", type: Boolean }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help || !local_argv.pemCertificate)
+            return showHelp("toder <pemCertificate>", "convert a certificate to a DER format with finger print", optionsDef);
+
+        await wrap(async () => {
+            await toDer(local_argv.pemCertificate);
+        });
+        return;
+    }
+
+    if (command === "fingerprint") {
+        const optionsDef = [
+            { name: "certificateFile", type: String, defaultOption: true },
+            { name: "help", alias: "h", type: Boolean }
+        ];
+        const local_argv = commandLineArgs(optionsDef, { argv });
+        if (local_argv.help || !local_argv.certificateFile)
+            return showHelp("fingerprint <certificateFile>", "print the certificate fingerprint", optionsDef);
+
+        await wrap(async () => {
+            const certificate = local_argv.certificateFile;
+            const data = await fingerprint(certificate);
+            if (!data) return;
+            const s = data.split("=")[1].split(":").join("").trim();
+            warningLog(s);
+        });
+        return;
+    }
+
+    console.log(`Unknown command: ${command}`);
 }
