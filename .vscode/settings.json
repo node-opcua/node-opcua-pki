@@ -51,6 +51,19 @@
         "writerand",
         "YYMMDDHHMMSSZ"
     ],
-    "grammarly.userWords": ["createCA", "createPKI", "opcua", "toder", "yauzl"],
-    "cmake.configureOnOpen": false
+    "grammarly.userWords": [
+        "createCA",
+        "createPKI",
+        "opcua",
+        "toder",
+        "yauzl"
+    ],
+    "cmake.configureOnOpen": false,
+    "editor.codeActionsOnSave": {
+        "source.biome": "always",
+        "source.fixAll.biome": "explicit",
+        "source.organizeImports.biome": "explicit",
+        "source.removeUnusedImports": "always"
+    },
+    "editor.defaultFormatter": "biomejs.biome"
 }
