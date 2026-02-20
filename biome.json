@@ -39,7 +39,8 @@
             "!**/dist-esm",
             "!**/build",
             "!package.json",
-            "!package-lock.json"
+            "!package-lock.json",
+            "!lerna.json"
         ]
     },
     "javascript": {
