@@ -38,6 +38,7 @@
             "!**/dist-cjs",
             "!**/dist-esm",
             "!**/build",
+            "!package.json",
             "!package-lock.json"
         ]
     },
