@@ -223,11 +223,15 @@ export enum CertificateManagerState {
 export class CertificateManager {
     public untrustUnknownCertificate = true;
     public state: CertificateManagerState = CertificateManagerState.Uninitialized;
+    /** @deprecated Use {@link folderPollingInterval} instead (typo fix). */
     public folderPoolingInterval = 5000;
 
-    /** @deprecated Use `folderPollingInterval` instead. */
-    public get folderPoolingInterval_deprecated() {
+    /** Interval in milliseconds for file-system polling (when enabled). */
+    public get folderPollingInterval(): number {
         return this.folderPoolingInterval;
+    }
+    public set folderPollingInterval(value: number) {
+        this.folderPoolingInterval = value;
     }
 
     public readonly keySize: KeySize;
@@ -235,6 +239,7 @@ export class CertificateManager {
     private readonly _watchers: fs.FSWatcher[] = [];
     private _readCertificatesCalled = false;
     private readonly _filenameToHash = new Map<string, string>();
+    private _initializingPromise?: Promise<void>;
 
     private readonly _thumbs: Thumbs = {
         rejected: new Map(),
@@ -578,7 +583,9 @@ export class CertificateManager {
             return;
         }
         this.state = CertificateManagerState.Initializing;
-        await this._initialize();
+        this._initializingPromise = this._initialize();
+        await this._initializingPromise;
+        this._initializingPromise = undefined;
         this.state = CertificateManagerState.Initialized;
     }
     private async _initialize(): Promise<void> {
@@ -644,10 +651,11 @@ export class CertificateManager {
             return;
         }
 
-        // wait for initialization to be completed
+        // Wait for initialization to complete before disposing
         if (this.state === CertificateManagerState.Initializing) {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            return await this.dispose();
+            if (this._initializingPromise) {
+                await this._initializingPromise;
+            }
         }
 
         try {
@@ -1117,32 +1125,34 @@ export class CertificateManager {
     }
 
     private async _moveCertificate(certificate: Certificate, newStatus: CertificateStatus) {
-        const fingerprint = makeFingerprint(certificate);
+        await this.withLock2(async () => {
+            const fingerprint = makeFingerprint(certificate);
 
-        const status = await this.getCertificateStatus(certificate);
-        debugLog("_moveCertificate", fingerprint.substring(0, 10), "from", status, "to", newStatus);
-        if (status !== "rejected" && status !== "trusted") {
-            throw new Error(`_moveCertificate: unexpected status '${status}' for certificate ${fingerprint.substring(0, 10)}`);
-        }
-
-        if (status !== newStatus) {
-            const indexSrc = status === "rejected" ? this._thumbs.rejected : this._thumbs.trusted;
-            const srcEntry = indexSrc.get(fingerprint);
-
-            if (!srcEntry) {
-                debugLog(" cannot find certificate ", fingerprint.substring(0, 10), " in", status);
-                throw new Error(`_moveCertificate: certificate ${fingerprint.substring(0, 10)} not found in ${status} index`);
+            const status = await this.getCertificateStatus(certificate);
+            debugLog("_moveCertificate", fingerprint.substring(0, 10), "from", status, "to", newStatus);
+            if (status !== "rejected" && status !== "trusted") {
+                throw new Error(`_moveCertificate: unexpected status '${status}' for certificate ${fingerprint.substring(0, 10)}`);
             }
-            const destFolder = newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder;
-            const certificateDest = path.join(destFolder, path.basename(srcEntry.filename));
 
-            debugLog("_moveCertificate", fingerprint.substring(0, 10), "old name", srcEntry.filename);
-            debugLog("_moveCertificate", fingerprint.substring(0, 10), "new name", certificateDest);
-            await fs.promises.rename(srcEntry.filename, certificateDest);
-            indexSrc.delete(fingerprint);
-            const indexDest = newStatus === "trusted" ? this._thumbs.trusted : this._thumbs.rejected;
-            indexDest.set(fingerprint, { certificate, filename: certificateDest });
-        }
+            if (status !== newStatus) {
+                const indexSrc = status === "rejected" ? this._thumbs.rejected : this._thumbs.trusted;
+                const srcEntry = indexSrc.get(fingerprint);
+
+                if (!srcEntry) {
+                    debugLog(" cannot find certificate ", fingerprint.substring(0, 10), " in", status);
+                    throw new Error(`_moveCertificate: certificate ${fingerprint.substring(0, 10)} not found in ${status} index`);
+                }
+                const destFolder = newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder;
+                const certificateDest = path.join(destFolder, path.basename(srcEntry.filename));
+
+                debugLog("_moveCertificate", fingerprint.substring(0, 10), "old name", srcEntry.filename);
+                debugLog("_moveCertificate", fingerprint.substring(0, 10), "new name", certificateDest);
+                await fs.promises.rename(srcEntry.filename, certificateDest);
+                indexSrc.delete(fingerprint);
+                const indexDest = newStatus === "trusted" ? this._thumbs.trusted : this._thumbs.rejected;
+                indexDest.set(fingerprint, { certificate, filename: certificateDest });
+            }
+        });
     }
     private _findAssociatedCRLs(issuerCertificate: Certificate): CRLData | null {
         const issuerCertificateInfo = exploreCertificate(issuerCertificate);
