@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.2.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.1.0...v6.2.0) (2026-02-20)
+
+
+### Bug Fixes
+
+* **ci:** fix publish workflow skipping on tag push ([4c59b2a](https://github.com/node-opcua/node-opcua-pki/commit/4c59b2af0fc7586eb30fe942cf79f5b44906cd83))
+
+
+### Features
+
+* **CertificateManager:** add certificate management and validation API ([d0c6ceb](https://github.com/node-opcua/node-opcua-pki/commit/d0c6cebb3897ae9e40f6aaeb8a619c2f7b783073))
+
+
+
+
+
 # [6.1.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.0.0...v6.1.0) (2026-02-20)
 
 
