@@ -21,7 +21,7 @@ async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
     const rootFolder = process.cwd();
     const cmd = "node";
 
-    const args1: string = `${n(path.join(rootFolder, "./dist/bin/pki.js"))} ${cmdArguments}`;
+    const args1: string = `${n(path.join(rootFolder, "./packages/node-opcua-pki/dist/bin/pki.mjs"))} ${cmdArguments}`;
     const args = args1.replace("  ", " ").split(" ");
 
     const options = {

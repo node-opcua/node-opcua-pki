@@ -29,6 +29,7 @@
 
 import assert from "node:assert";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
@@ -169,13 +170,19 @@ function default_template_content(): string {
     }
     function find_default_config_template() {
         const rootFolder = find_module_root_folder();
-        let default_config_template = path.join(rootFolder, "bin", `${path.basename(__filename, ".js")}_config.example.js`);
+
+        // Note: we use a hardcoded config filename here because after tsup bundling,
+        // __filename points to the bundle file (e.g., "index.mjs") rather than the
+        // original source file, making dynamic name construction unreliable.
+        const configName = "pki_config.example.js";
+
+        let default_config_template = path.join(rootFolder, "bin", configName);
 
         if (!fs.existsSync(default_config_template)) {
-            default_config_template = path.join(__dirname, "..", `${path.basename(__filename, ".js")}_config.example.js`);
+            default_config_template = path.join(__dirname, "..", configName);
 
             if (!fs.existsSync(default_config_template)) {
-                default_config_template = path.join(__dirname, `../bin/${path.basename(__filename, ".js")}_config.example.js`);
+                default_config_template = path.join(__dirname, `../bin/${configName}`);
             }
         }
         return default_config_template;
@@ -278,7 +285,8 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
     setEnv("RANDFILE", defaultRandomFile);
 
     /* eslint global-require: 0*/
-    gLocalConfig = require(default_config);
+    const _require = createRequire(__filename);
+    gLocalConfig = _require(default_config);
 
     gLocalConfig.subject = new Subject(gLocalConfig.subject || "");
 
