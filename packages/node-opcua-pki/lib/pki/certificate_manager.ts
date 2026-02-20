@@ -58,6 +58,16 @@ const fsWriteFile = fs.promises.writeFile;
 interface Entry {
     certificate: Certificate;
     filename: string;
+    /** Lazily cached result of `exploreCertificate(certificate)`. */
+    info?: CertificateInternals;
+}
+
+/** Return the cached `info` or compute and cache it. */
+function getOrComputeInfo(entry: Entry): CertificateInternals {
+    if (!entry.info) {
+        entry.info = exploreCertificate(entry.certificate);
+    }
+    return entry.info;
 }
 interface CRLEntry {
     crlInfo: CertificateRevocationListInfo;
@@ -160,11 +170,10 @@ function buildIdealCertificateName(certificate: Certificate): string {
     }
 }
 function findMatchingIssuerKey(entries: Entry[], wantedIssuerKey: string): Entry[] {
-    const selected = entries.filter(({ certificate }) => {
-        const info = exploreCertificate(certificate);
+    return entries.filter((entry) => {
+        const info = getOrComputeInfo(entry);
         return info.tbsCertificate.extensions && info.tbsCertificate.extensions.subjectKeyIdentifier === wantedIssuerKey;
     });
-    return selected;
 }
 
 function isSelfSigned2(info: CertificateInternals): boolean {
@@ -1321,7 +1330,7 @@ export class CertificateManager {
                     const info = exploreCertificate(certificate);
                     const fingerprint = makeFingerprint(certificate);
 
-                    index.set(fingerprint, { certificate, filename });
+                    index.set(fingerprint, { certificate, filename, info });
                     this._filenameToHash.set(filename, fingerprint);
 
                     debugLog(
@@ -1345,7 +1354,7 @@ export class CertificateManager {
                     if (oldHash && oldHash !== newFingerprint) {
                         index.delete(oldHash);
                     }
-                    index.set(newFingerprint, { certificate, filename: changedPath });
+                    index.set(newFingerprint, { certificate, filename: changedPath, info: exploreCertificate(certificate) });
                     this._filenameToHash.set(changedPath, newFingerprint);
                 } catch (err) {
                     debugLog(`change event: failed to re-read ${changedPath}`, err);
