@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.3.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.2.0...v6.3.0) (2026-02-20)
+
+
+### Bug Fixes
+
+* **CertificateManager:** use lightweight chain validation ([ec3850f](https://github.com/node-opcua/node-opcua-pki/commit/ec3850f807a387d8932dfd92ced1be9ccabd17ee))
+
+
+
+
+
 # [6.2.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.1.0...v6.2.0) (2026-02-20)
 
 
