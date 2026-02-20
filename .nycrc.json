@@ -4,8 +4,10 @@
         "packages/node-opcua-pki/lib/**/*.ts"
     ],
     "exclude": [
-        "packages/node-opcua-pki/lib/misc/install*",
+        "packages/node-opcua-pki/lib/ca/crypto_create_CA.ts",
         "packages/node-opcua-pki/lib/misc/hostname.ts",
+        "packages/node-opcua-pki/lib/misc/applicationurn.ts",
+        "packages/node-opcua-pki/lib/toolbox/with_openssl/install_prerequisite.ts",
         "packages/node-opcua-pki/bin/",
         "test/**",
         "tmp/"
