@@ -327,6 +327,38 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             const trustedStatus = await cm._checkRejectedOrTrusted(ownCert);
             trustedStatus.should.eql("trusted");
         });
+
+        it("should not modify the issuer store when trusting a leaf certificate", async () => {
+            // Pre-add the CA as an issuer
+            const caCert = readCertificate(caCertFilename);
+            await cm.addIssuer(caCert);
+
+            const caThumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+            (await cm.hasIssuer(caThumbprint)).should.be.true("issuer should exist before");
+
+            // Trust a self-signed cert via addTrustedCertificateFromChain
+            await cm.createSelfSignedCertificate({
+                applicationUri: "urn:test:no-side-effect",
+                subject: "CN=NoSideEffect",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365,
+            });
+            const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
+            const ownCert = readCertificate(ownCertFile);
+
+            const status = await cm.addTrustedCertificateFromChain(ownCert);
+            status.should.eql("Good");
+
+            // Issuer must still be present — no side effects
+            (await cm.hasIssuer(caThumbprint)).should.be.true("issuer should still exist after");
+
+            // Rejected folder should be empty — no side effects
+            const rejectedFiles = fs.readdirSync(cm.rejectedFolder).filter(
+                (f) => f.endsWith(".pem") || f.endsWith(".der")
+            );
+            rejectedFiles.length.should.eql(0, "rejected folder should be empty");
+        });
     });
 
     // ── isIssuerInUseByTrustedCertificate ────────────────────────

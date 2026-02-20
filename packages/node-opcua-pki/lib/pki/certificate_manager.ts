@@ -45,6 +45,7 @@ import {
     readCertificateRevocationList,
     split_der,
     toPem,
+    verifyCertificateChain,
     verifyCertificateSignature
 } from "node-opcua-crypto";
 
@@ -530,8 +531,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                    "  not before date =" +
-                    certificateInfo.notBefore
+                "  not before date =" +
+                certificateInfo.notBefore
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -972,13 +973,11 @@ export class CertificateManager {
             return VerificationStatus.BadCertificateInvalid;
         }
 
-        // Full chain validation using this CertificateManager's
-        // trust store, issuer store, and CRL data
-        const status = await this.verifyCertificate(leafCertificate, {
-            ignoreMissingRevocationList: true
-        });
-        if (status !== VerificationStatus.Good && status !== VerificationStatus.BadCertificateUntrusted) {
-            return status;
+        // Lightweight chain validation — verify the certificate
+        // structure and signature without trust-store side-effects
+        const result = await verifyCertificateChain([leafCertificate]);
+        if (result.status !== "Good") {
+            return VerificationStatus.BadCertificateInvalid;
         }
 
         // If a chain was provided, verify that every issuer in the
@@ -1135,8 +1134,8 @@ export class CertificateManager {
                 newStatus === "rejected"
                     ? this._thumbs.rejected
                     : newStatus === "trusted"
-                      ? this._thumbs.trusted
-                      : this._thumbs.rejected;
+                        ? this._thumbs.trusted
+                        : this._thumbs.rejected;
             indexDest[fingerprint] = {
                 certificate,
                 filename: certificateDest
