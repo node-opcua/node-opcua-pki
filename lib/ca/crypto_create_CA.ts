@@ -1071,7 +1071,7 @@ argv
     .help("help")
     .strict().argv;
 
-export async function main(argumentsList: string) {
+export async function main(argumentsList: string | string[]) {
     const g_argv = await commands.parse(argumentsList);
     if (g_argv.help) {
         commands.showHelp();
