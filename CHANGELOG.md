@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.1.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.0.0...v6.1.0) (2026-02-20)
+
+
+### Bug Fixes
+
+* align publish workflow with node-opcua-crypto ([f4cd1a6](https://github.com/node-opcua/node-opcua-pki/commit/f4cd1a6a437b171feed5bca8cba4e814ef3df343))
+
+
+
+
+
 # [6.0.0](https://github.com/node-opcua/node-opcua-pki/compare/v1.1.0...v6.0.0) (2026-02-20)
 
 

@@ -1,15 +1,15 @@
 {
-    "$schema": "node_modules/lerna/schemas/lerna-schema.json",
-    "version": "6.0.0",
-    "npmClient": "npm",
-    "command": {
-        "version": {
-            "message": "chore: release %s",
-            "allowBranch": "master",
-            "conventionalCommits": true
-        },
-        "publish": {
-            "message": "chore: publish v%s"
-        }
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "version": "6.1.0",
+  "npmClient": "npm",
+  "command": {
+    "version": {
+      "message": "chore: release %s",
+      "allowBranch": "master",
+      "conventionalCommits": true
+    },
+    "publish": {
+      "message": "chore: publish v%s"
     }
+  }
 }
