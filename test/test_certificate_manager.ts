@@ -82,7 +82,7 @@ describe("CertificateManager", function (this: Mocha.Suite) {
         const expectedCertificate = path.join(options.location, "own/certs/self_signed_certificate.pem");
         fs.existsSync(expectedCertificate).should.eql(true, "self-signed certificate must exist");
 
-        const data = await dumpCertificate(expectedCertificate) as string;
+        const data = (await dumpCertificate(expectedCertificate)) as string;
 
         await fs.promises.writeFile(path.join(testData.tmpFolder, "dump_cert1.txt"), data as string);
 
@@ -129,12 +129,12 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         //         -keyout private_key.pem -outform der -out certificate.der"
         await executeOpensslAsync(
             "req " +
-            "-x509 -days 365 -nodes -newkey rsa:1024 " +
-            "-batch -keyout private_key.pem " +
-            "-outform der -out " +
-            q(n(certificate)) +
-            " -config " +
-            q(n(defaultOpensslConf)),
+                "-x509 -days 365 -nodes -newkey rsa:1024 " +
+                "-batch -keyout private_key.pem " +
+                "-outform der -out " +
+                q(n(certificate)) +
+                " -config " +
+                q(n(defaultOpensslConf)),
             {}
         );
     }

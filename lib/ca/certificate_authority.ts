@@ -192,16 +192,16 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // The second option is to self-sign the CSR, which will be demonstrated in the next section
     await execute_openssl(
         "req -new" +
-        " -sha256 " +
-        " -text " +
-        " -extensions v3_ca" +
-        configOption +
-        " -key " +
-        q(n(privateKeyFilename)) +
-        " -out " +
-        q(n(csrFilename)) +
-        " " +
-        subjectOpt,
+            " -sha256 " +
+            " -text " +
+            " -extensions v3_ca" +
+            configOption +
+            " -key " +
+            q(n(privateKeyFilename)) +
+            " -out " +
+            q(n(csrFilename)) +
+            " " +
+            subjectOpt,
         options
     );
 
@@ -212,14 +212,14 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     displayTitle("Generate CA Certificate (self-signed)");
     await execute_openssl(
         " x509 -sha256 -req -days 3650 " +
-        " -text " +
-        " -extensions v3_ca" +
-        " -extfile " +
-        q(n(configFile)) +
-        " -in private/cakey.csr " +
-        " -signkey " +
-        q(n(privateKeyFilename)) +
-        " -out public/cacert.pem",
+            " -text " +
+            " -extensions v3_ca" +
+            " -extfile " +
+            q(n(configFile)) +
+            " -in private/cakey.csr " +
+            " -signkey " +
+            q(n(privateKeyFilename)) +
+            " -out public/cacert.pem",
         options
     );
     displaySubtitle("generate initial CRL (Certificate Revocation List)");
@@ -354,30 +354,30 @@ export class CertificateAuthority {
         displaySubtitle("- the certificate signing request");
         await execute_openssl(
             "req " +
-            " -new -sha256 -text " +
-            configOption +
-            subjectOptions +
-            " -batch -key " +
-            q(n(privateKey)) +
-            " -out " +
-            q(n(csrFile)),
+                " -new -sha256 -text " +
+                configOption +
+                subjectOptions +
+                " -batch -key " +
+                q(n(privateKey)) +
+                " -out " +
+                q(n(csrFile)),
             options
         );
 
         displaySubtitle("- creating the self-signed certificate");
         await execute_openssl(
             "ca " +
-            " -selfsign " +
-            " -keyfile " +
-            q(n(privateKey)) +
-            " -startdate " +
-            x509Date(params.startDate) +
-            " -enddate " +
-            x509Date(params.endDate) +
-            " -batch -out " +
-            q(n(certificateFile)) +
-            " -in " +
-            q(n(csrFile)),
+                " -selfsign " +
+                " -keyfile " +
+                q(n(privateKey)) +
+                " -startdate " +
+                x509Date(params.startDate) +
+                " -enddate " +
+                x509Date(params.endDate) +
+                " -batch -out " +
+                q(n(certificateFile)) +
+                " -in " +
+                q(n(csrFile)),
             options
         );
 
@@ -445,13 +445,13 @@ export class CertificateAuthority {
 
         await execute_openssl_no_failure(
             "verify -verbose" +
-            // configOption +
-            " -CRLfile " +
-            q(n(this.revocationList)) +
-            " -CAfile " +
-            q(n(this.caCertificate)) +
-            " -crl_check " +
-            q(n(certificate)),
+                // configOption +
+                " -CRLfile " +
+                q(n(this.revocationList)) +
+                " -CAfile " +
+                q(n(this.caCertificate)) +
+                " -crl_check " +
+                q(n(certificate)),
             options
         );
 
@@ -489,7 +489,6 @@ export class CertificateAuthority {
 
         const options: ExecuteOptions = { cwd: this.rootDir };
 
-
         // note :
         // subjectAltName is not copied across
         //  see https://github.com/openssl/openssl/issues/10458
@@ -522,15 +521,15 @@ export class CertificateAuthority {
         const configOption = ` -config ${configFile}`;
         await execute_openssl(
             "ca " +
-            configOption +
-            " -startdate " +
-            x509Date(params1.startDate) +
-            " -enddate " +
-            x509Date(params1.endDate) +
-            " -batch -out " +
-            q(n(certificate)) +
-            " -in " +
-            q(n(certificateSigningRequestFilename)),
+                configOption +
+                " -startdate " +
+                x509Date(params1.startDate) +
+                " -enddate " +
+                x509Date(params1.endDate) +
+                " -batch -out " +
+                q(n(certificate)) +
+                " -in " +
+                q(n(certificateSigningRequestFilename)),
             options
         );
 

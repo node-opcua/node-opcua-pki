@@ -507,8 +507,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                "  not before date =" +
-                certificateInfo.notBefore
+                    "  not before date =" +
+                    certificateInfo.notBefore
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -651,7 +651,9 @@ export class CertificateManager {
         try {
             this.state = CertificateManagerState.Disposing;
             await Promise.all(this._watchers.map((w) => w.close()));
-            this._watchers.forEach((w) => { w.removeAllListeners(); });
+            this._watchers.forEach((w) => {
+                w.removeAllListeners();
+            });
             this._watchers.splice(0);
         } finally {
             this.state = CertificateManagerState.Disposed;
@@ -917,7 +919,12 @@ export class CertificateManager {
             debugLog("_moveCertificate1", fingerprint.substring(0, 10), "new name", certificateDest);
             await fs.promises.rename(certificateSrc, certificateDest);
             delete indexSrc[fingerprint];
-            const indexDest = newStatus === "rejected" ? this._thumbs.rejected : newStatus === "trusted" ? this._thumbs.trusted : this._thumbs.rejected;
+            const indexDest =
+                newStatus === "rejected"
+                    ? this._thumbs.rejected
+                    : newStatus === "trusted"
+                      ? this._thumbs.trusted
+                      : this._thumbs.rejected;
             indexDest[fingerprint] = {
                 certificate,
                 filename: certificateDest
@@ -965,7 +972,7 @@ export class CertificateManager {
 
     private _pending_crl_to_process = 0;
     private _on_crl_process?: () => void;
-    private queue: { index: { [key: string]: CRLData }, filename: string }[] = [];
+    private queue: { index: { [key: string]: CRLData }; filename: string }[] = [];
     private _on_crl_file_added(index: { [key: string]: CRLData }, filename: string) {
         this.queue.push({ index, filename });
         this._pending_crl_to_process += 1;

@@ -95,19 +95,19 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     // The second option is to self-sign the CSR, which will be demonstrated in the next section
     await execute_openssl(
         "req -new" +
-        " -sha256 " +
-        " -text " +
-        " -extensions " +
-        extension +
-        " " +
-        configOption +
-        " -key " +
-        q(n(params.privateKey)) +
-        " -out " +
-        q(n(certificateRequestFilename)) +
-        ' -subj "' +
-        subject +
-        '"',
+            " -sha256 " +
+            " -text " +
+            " -extensions " +
+            extension +
+            " " +
+            configOption +
+            " -key " +
+            q(n(params.privateKey)) +
+            " -out " +
+            q(n(certificateRequestFilename)) +
+            ' -subj "' +
+            subject +
+            '"',
         {}
     );
 
@@ -119,21 +119,21 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     displayTitle("Generate Certificate (self-signed)");
     await execute_openssl(
         " x509 -req " +
-        " -days " +
-        params.validity +
-        " -extensions " +
-        extension +
-        " " +
-        " -extfile " +
-        q(n(configFile)) +
-        " -in " +
-        q(n(certificateRequestFilename)) +
-        " -signkey " +
-        q(n(params.privateKey)) +
-        " -text " +
-        " -out " +
-        q(certificate) +
-        " -text ",
+            " -days " +
+            params.validity +
+            " -extensions " +
+            extension +
+            " " +
+            " -extfile " +
+            q(n(configFile)) +
+            " -in " +
+            q(n(certificateRequestFilename)) +
+            " -signkey " +
+            q(n(params.privateKey)) +
+            " -text " +
+            " -out " +
+            q(certificate) +
+            " -text ",
         {}
     );
     // remove unnecessary certificate request file

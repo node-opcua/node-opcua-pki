@@ -62,7 +62,7 @@ import {
 } from "../toolbox/with_openssl";
 import { CertificateAuthority, defaultSubject } from "./certificate_authority";
 
-const epilog = "Copyright (c) sterfive - node-opcua - 2017-2025";
+const epilog = "Copyright (c) sterfive - node-opcua - 2017-2026";
 
 // ------------------------------------------------- some useful dates
 function get_offset_date(date: Date, nbDays: number): Date {
@@ -164,7 +164,7 @@ function default_template_content(): string {
         // warningLog("___filename", __filename);
         // warningLog("__dirname", __dirname);
         // warningLog("process.pkg.entrypoint", (process as unknown as IReadConfigurationOpts).pkg.entrypoint);
-        const a = fs.readFileSync(path.join(__dirname, "../../bin/crypto_create_CA_config.example.js"), "utf8");
+        const a = fs.readFileSync(path.join(__dirname, "../../bin/pki_config.example.js"), "utf8");
         return a;
     }
     function find_default_config_template() {
@@ -564,7 +564,7 @@ const commonOptions = [
         description: "the location of the Certificate Authority folder"
     },
     { name: "PKIFolder", type: String, defaultValue: "{root}/PKI", description: "the location of the Public Key Infrastructure" },
-    { name: "silent", alias: "s", type: Boolean, defaultValue: false, description: "minimize output" },
+    { name: "silent", type: Boolean, defaultValue: false, description: "minimize output" },
     {
         name: "privateKey",
         alias: "p",
@@ -636,11 +636,23 @@ export async function main(argumentsList: string | string[]) {
                         { name: "sign", summary: "validate a certificate signing request and generate a certificate" },
                         { name: "dump <certificateFile>", summary: "display a certificate" },
                         { name: "toder <pemCertificate>", summary: "convert a certificate to a DER format with finger print" },
-                        { name: "fingerprint <certificateFile>", summary: "print the certificate fingerprint" }
+                        { name: "fingerprint <certificateFile>", summary: "print the certificate fingerprint" },
+                        { name: "version", summary: "display the version number" }
                     ]
                 }
             ])
         );
+        return;
+    }
+
+    if (command === "version") {
+        const rootFolder = find_module_root_folder();
+        const pkg = JSON.parse(
+            fs.readFileSync(
+                path.join(rootFolder, "package.json"), "utf-8"
+            )
+        );
+        console.log(pkg.version);
         return;
     }
 
@@ -751,7 +763,7 @@ export async function main(argumentsList: string | string[]) {
             return showHelp("certificate", "create a new certificate", optionsDef);
 
         async function command_certificate(local_argv: IReadConfigurationOpts) {
-            const selfSigned = !!local_argv.selfSigned;
+            const selfSigned = !!(local_argv as unknown as { selfSigned?: boolean }).selfSigned;
             if (!selfSigned) {
                 await command_full_certificate(local_argv);
             } else {
@@ -793,7 +805,7 @@ export async function main(argumentsList: string | string[]) {
 
             gLocalConfig.subject = local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
-            const csr_file = await certificateManager.createCertificateRequest(gLocalConfig as unknown as IReadConfigurationOpts);
+            const csr_file = await certificateManager.createCertificateRequest(gLocalConfig as Parameters<typeof certificateManager.createCertificateRequest>[0]);
             if (!csr_file) {
                 return;
             }
@@ -806,14 +818,14 @@ export async function main(argumentsList: string | string[]) {
             await g_certificateAuthority.signCertificateRequest(
                 certificate,
                 csr_file,
-                gLocalConfig as unknown as IReadConfigurationOpts
+                gLocalConfig as Parameters<typeof g_certificateAuthority.signCertificateRequest>[2]
             );
 
             assert(typeof gLocalConfig.outputFile === "string");
             fs.writeFileSync(gLocalConfig.outputFile || "", fs.readFileSync(certificate, "ascii"));
         }
 
-        await wrap(async () => await command_certificate(local_argv));
+        await wrap(async () => await command_certificate(local_argv as unknown as IReadConfigurationOpts));
         return;
     }
 
@@ -897,7 +909,7 @@ export async function main(argumentsList: string | string[]) {
             gLocalConfig.subject = local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
             const internal_csr_file = await certificateManager.createCertificateRequest(
-                gLocalConfig as unknown as IReadConfigurationOpts
+                gLocalConfig as Parameters<typeof certificateManager.createCertificateRequest>[0]
             );
             if (!internal_csr_file) {
                 return;
@@ -955,7 +967,7 @@ export async function main(argumentsList: string | string[]) {
             await g_certificateAuthority.signCertificateRequest(
                 certificate,
                 csr_file,
-                gLocalConfig as unknown as IReadConfigurationOpts
+                gLocalConfig as Parameters<typeof g_certificateAuthority.signCertificateRequest>[2]
             );
 
             assert(typeof gLocalConfig.outputFile === "string");

@@ -27,7 +27,7 @@
     "release:major": "npx release-it major",
     "ncu": "npx npm-check-updates -u -x chokidar,rimraf,env-paths,chalk,update-notifier,@types/node",
     "ncu2": "npx npm-check-updates -u -f chokidar,rimraf,env-paths,chalk,update-notifier,@types/node -t minor",
-    "pkg": "npx pkg -o pkg/pki dist/crypto_create_CA.js",
+    "pkg": "npx pkg -o pkg/pki dist/bin/pki.js",
     "lint": "biome lint",
     "format": "biome format --write",
     "postinstall2": "opencollective-postinstall",
@@ -91,6 +91,6 @@
     "typescript": "^5.9.3"
   },
   "bin": {
-    "pki": "./dist/crypto_create_CA.js"
+    "pki": "./dist/bin/pki.mjs"
   }
 }

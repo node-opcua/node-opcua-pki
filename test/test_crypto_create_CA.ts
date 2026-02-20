@@ -21,7 +21,7 @@ async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
     const rootFolder = process.cwd();
     const cmd = "node";
 
-    const args1: string = `${n(path.join(rootFolder, "./dist/crypto_create_CA.js"))} ${cmdArguments}`;
+    const args1: string = `${n(path.join(rootFolder, "./dist/bin/pki.js"))} ${cmdArguments}`;
     const args = args1.replace("  ", " ").split(" ");
 
     const options = {
@@ -44,7 +44,7 @@ async function call_crypto_create_CA(cmdArguments: string, cwd: Filename) {
             }
         });
 
-        const doLog = false;
+        const doLog = true;
         if (doLog) {
             const logFile = path.join(__dirname, "../tmp/log.txt");
             const logStream = fs.createWriteStream(logFile);
@@ -105,7 +105,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
             const csrFile = path.join(cwd, "my_certificate.pem.csr");
             const certificateFile = path.join(cwd, "my_certificate.pem");
-            await call_crypto_create_CA("certificate --selfSigned --silent=false", cwd);
+            await call_crypto_create_CA("certificate --selfSigned", cwd);
             fs.existsSync(certificateFile).should.eql(true, `file ${certificateFile} should exist`);
 
             fs.existsSync(csrFile).should.eql(false, `useless signing request shall be automatically removed (${csrFile})`);
@@ -124,7 +124,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             );
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
             // XX grep(data,/URI/).should.match(/URI:MY:APPLICATION:URI/);
             // XX grep(data,/DNS/).should.match(/DNS:localhost/);
             // XX grep(data,/DNS/).should.match(/DNS:my.domain.com/);
@@ -144,8 +144,8 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             );
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            grep(data as string, /URI/).should.match(/urn:MYSERVER:APPLICATION/);
+            grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data, /URI/).should.match(/urn:MYSERVER:APPLICATION/);
             // XX grep(data,/DNS/).should.match(/DNS:localhost/);
             // XX grep(data,/DNS/).should.match(/DNS:my.domain.com/);
         });
@@ -181,11 +181,11 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             );
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            const _startDate = grep(data as string, /Not Before/)
+            grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            const _startDate = grep(data, /Not Before/)
                 .match(/Not Before:(.*)/)?.[1]
                 .trim();
-            const _endDate = grep(data as string, /Not After/)
+            const _endDate = grep(data, /Not After/)
                 .match(/Not After :(.*)/)?.[1]
                 .trim();
             const startDate = new Date(Date.parse(_startDate as string));
@@ -206,9 +206,9 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             fs.existsSync(expectedCertificate).should.eql(true, `should find certificate ${expectedCertificate}`);
 
             const data = await dumpCertificate(expectedCertificate);
-            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            grep(data as string, /DNS/).should.match(/DNS:HOST1/);
-            grep(data as string, /DNS/).should.match(/DNS:HOST2/);
+            grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data, /DNS/).should.match(/DNS:HOST1/);
+            grep(data, /DNS/).should.match(/DNS:HOST2/);
         });
 
         it("should create a self-signed certificate - variation 6 - --ip", async () => {
@@ -229,9 +229,9 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(data as string, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
-            grep(data as string, /IP/).should.match(/IP Address:128.12.13.13/);
-            grep(data as string, /IP/).should.match(/IP Address:128.128.128.128/);
+            grep(data, /Public.Key/).should.match(/Public.Key: \(2048 bit\)/);
+            grep(data, /IP/).should.match(/IP Address:128.12.13.13/);
+            grep(data, /IP/).should.match(/IP Address:128.128.128.128/);
         });
 
         it("should create a self-signed certificate - variation 7 - --subject", async () => {
@@ -244,7 +244,7 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             await call_crypto_create_CA(
                 "certificate -v " +
                 validity +
-                " --subject='C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello' --selfSigned -o mycert.pem",
+                " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
                 cwd
             );
 
@@ -254,10 +254,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(data as string, /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/).should.match(
-                /SomeOrganization/,
-                `should have SomeOrganization ${data}`
-            );
+            grep(
+                data,
+                /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
+            ).should.match(/SomeOrganization/, `should have SomeOrganization ${data}`);
         });
     });
 
@@ -315,9 +315,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(data as string, /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/).should.match(
-                /SomeOrganization/
-            );
+            grep(
+                data,
+                /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
+            ).should.match(/SomeOrganization/);
         });
     });
 });

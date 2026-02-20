@@ -23,10 +23,10 @@ import assert from "node:assert";
 import fs from "node:fs";
 
 import {
-    Subject,
     CertificatePurpose,
     createSelfSignedCertificate as createSelfSignedCertificate1,
-    pemToPrivateKey
+    pemToPrivateKey,
+    Subject
 } from "node-opcua-crypto";
 import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common";
 import { displayTitle } from "../display";

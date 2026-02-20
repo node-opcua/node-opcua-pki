@@ -33,7 +33,7 @@ import url from "node:url";
 import byline from "byline";
 import chalk from "chalk";
 import ProgressBar from "progress";
-import wget from "wget-improved-2"
+import wget from "wget-improved-2";
 import yauzl from "yauzl";
 
 import { warningLog } from "../debug";
@@ -56,7 +56,6 @@ declare interface WgetOptions {
 declare interface WgetInterface {
     download(url: string, outputFilename: string, options: WgetOptions): NodeJS.EventEmitter;
 }
-
 
 interface ExecuteResult {
     exitCode: number;
@@ -99,7 +98,7 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
             cmd,
             options,
             (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
-                const exitCode = err === null ? 0 : (err.code || 1);
+                const exitCode = err === null ? 0 : err.code || 1;
                 if (err) reject(err);
                 else {
                     resolve({ exitCode, output });

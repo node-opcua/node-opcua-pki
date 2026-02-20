@@ -29,7 +29,6 @@ import chalk from "chalk";
 
 import { g_config } from "./config";
 
-
 import { debugLog, warningLog } from "./debug";
 
 export function certificateFileExist(certificateFile: string): boolean {
