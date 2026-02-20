@@ -1,30 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // ---------------------------------------------------------------------------------------------------------------------
-// node-opcua
+// node-opcua-pki — CertificateManager
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2026 - Etienne Rossignon - etienne.rossignon (at) gadz.org
 // Copyright (c) 2022-2026 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
-//
-// This  project is licensed under the terms of the MIT license.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-// documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so,  subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
-// Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// This project is licensed under the terms of the MIT license.
 // ---------------------------------------------------------------------------------------------------------------------
-// tslint:disable:no-shadowed-variable
-// tslint:disable:member-ordering
 
-import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 import { withLock } from "@ster5/global-mutex";
@@ -70,7 +52,6 @@ import _simple_config_template from "./templates/simple_config_template.cnf";
  * self-signed certificate to be generated.
  *
  */
-// tslint:disable-next-line:variable-name
 const configurationFileSimpleTemplate: string = _simple_config_template;
 const fsWriteFile = fs.promises.writeFile;
 
@@ -87,17 +68,15 @@ interface CRLData {
     crls: CRLEntry[];
 }
 interface Thumbs {
-    trusted: { [key: string]: Entry };
-    rejected: { [key: string]: Entry };
+    trusted: Map<string, Entry>;
+    rejected: Map<string, Entry>;
     issuers: {
-        certs: { [key: string]: Entry };
+        certs: Map<string, Entry>;
     };
-    crl: {
-        [key: string]: CRLData; // key is subjectFingerPrint of issuer Certificate
-    };
-    issuersCrl: {
-        [key: string]: CRLData; // key is subjectFingerPrint of issuer Certificate
-    };
+    /** key = subjectFingerPrint of issuer certificate */
+    crl: Map<string, CRLData>;
+    /** key = subjectFingerPrint of issuer certificate */
+    issuersCrl: Map<string, CRLData>;
 }
 
 export interface CertificateManagerOptions {
@@ -246,34 +225,38 @@ export class CertificateManager {
     public state: CertificateManagerState = CertificateManagerState.Uninitialized;
     public folderPoolingInterval = 5000;
 
+    /** @deprecated Use `folderPollingInterval` instead. */
+    public get folderPoolingInterval_deprecated() {
+        return this.folderPoolingInterval;
+    }
+
     public readonly keySize: KeySize;
     private readonly location: string;
     private readonly _watchers: fs.FSWatcher[] = [];
     private _readCertificatesCalled = false;
-    private readonly _filenameToHash: { [key: string]: string } = {};
+    private readonly _filenameToHash = new Map<string, string>();
 
     private readonly _thumbs: Thumbs = {
-        rejected: {},
-        trusted: {},
+        rejected: new Map(),
+        trusted: new Map(),
         issuers: {
-            certs: {}
+            certs: new Map(),
         },
-        crl: {},
-        issuersCrl: {}
+        crl: new Map(),
+        issuersCrl: new Map(),
     };
 
     constructor(options: CertificateManagerOptions) {
         options.keySize = options.keySize || 2048;
-        assert(Object.prototype.hasOwnProperty.call(options, "location"));
-        assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
-        assert(this.state === CertificateManagerState.Uninitialized);
+        if (!options.location) {
+            throw new Error("CertificateManager: missing 'location' option");
+        }
 
         this.location = makePath(options.location, "");
         this.keySize = options.keySize;
 
         mkdirRecursiveSync(options.location);
 
-        // istanbul ignore next
         if (!fs.existsSync(this.location)) {
             throw new Error(`CertificateManager cannot access location ${this.location}`);
         }
@@ -303,16 +286,11 @@ export class CertificateManager {
         await this.initialize();
         let status = await this._checkRejectedOrTrusted(certificate);
         if (status === "unknown") {
-            assert(certificate instanceof Buffer);
-
             const pem = toPem(certificate, "CERTIFICATE");
             const fingerprint = makeFingerprint(certificate);
             const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
             await fs.promises.writeFile(filename, pem);
-            this._thumbs.rejected[fingerprint] = {
-                certificate,
-                filename
-            };
+            this._thumbs.rejected.set(fingerprint, { certificate, filename });
             status = "rejected";
         }
         return status;
@@ -367,33 +345,30 @@ export class CertificateManager {
      */
     public async isCertificateTrusted(certificate: Certificate): Promise<string> {
         const fingerprint = makeFingerprint(certificate) as Thumbprint;
-        const certificateInTrust = this._thumbs.trusted[fingerprint]?.certificate;
 
-        if (certificateInTrust) {
+        if (this._thumbs.trusted.has(fingerprint)) {
             return "Good";
-        } else {
-            const certificateInRejected = this._thumbs.rejected[fingerprint];
-            if (!certificateInRejected) {
-                const certificateFilenameInRejected = path.join(
-                    this.rejectedFolder,
-                    `${buildIdealCertificateName(certificate)}.pem`
-                );
-                if (!this.untrustUnknownCertificate) {
-                    return "Good";
-                }
-                // Certificate should be mark as untrusted
-                // let's first verify that certificate is valid ,as we don't want to write invalid data
-                try {
-                    const _certificateInfo = exploreCertificateInfo(certificate);
-                    _certificateInfo;
-                } catch (_err) {
-                    return "BadCertificateInvalid";
-                }
-                debugLog("certificate has never been seen before and is now rejected (untrusted) ", certificateFilenameInRejected);
-                await fsWriteFile(certificateFilenameInRejected, toPem(certificate, "CERTIFICATE"));
-            }
-            return "BadCertificateUntrusted";
         }
+
+        if (!this._thumbs.rejected.has(fingerprint)) {
+            if (!this.untrustUnknownCertificate) {
+                return "Good";
+            }
+            // Verify structure before writing — don't persist invalid data
+            try {
+                exploreCertificateInfo(certificate);
+            } catch (_err) {
+                return "BadCertificateInvalid";
+            }
+            const filename = path.join(
+                this.rejectedFolder,
+                `${buildIdealCertificateName(certificate)}.pem`
+            );
+            debugLog("certificate has never been seen before and is now rejected (untrusted) ", filename);
+            await fsWriteFile(filename, toPem(certificate, "CERTIFICATE"));
+            this._thumbs.rejected.set(fingerprint, { certificate, filename });
+        }
+        return "BadCertificateUntrusted";
     }
     public async _innerVerifyCertificateAsync(
         certificate: Certificate,
@@ -518,7 +493,7 @@ export class CertificateManager {
         }
 
         const _c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
-        _c2;
+        debugLog("chain[1] info=", _c2);
 
         // Has SoftwareCertificate passed its issue date and has it not expired ?
         // check dates
@@ -531,8 +506,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                    "  not before date =" +
-                    certificateInfo.notBefore
+                "  not before date =" +
+                certificateInfo.notBefore
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -552,7 +527,7 @@ export class CertificateManager {
         if (status === "trusted") {
             return isTimeInvalid ? VerificationStatus.BadCertificateTimeInvalid : VerificationStatus.Good;
         }
-        assert(status === "unknown");
+        // status should be "unknown" at this point
         if (hasIssuerKey) {
             if (!hasTrustedIssuer) {
                 return VerificationStatus.BadCertificateUntrusted;
@@ -624,11 +599,9 @@ export class CertificateManager {
 
         if (!fs.existsSync(this.configFile) || !fs.existsSync(this.privateKey)) {
             return await this.withLock2(async () => {
-                assert(this.state !== CertificateManagerState.Disposing);
-                if (this.state === CertificateManagerState.Disposed) {
+                if (this.state === CertificateManagerState.Disposing || this.state === CertificateManagerState.Disposed) {
                     return;
                 }
-                assert(this.state === CertificateManagerState.Initializing);
 
                 if (!fs.existsSync(this.configFile)) {
                     fs.writeFileSync(this.configFile, configurationFileSimpleTemplate);
@@ -707,12 +680,12 @@ export class CertificateManager {
         this._watchers.splice(0);
 
         // Clear in-memory indexes
-        for (const key of Object.keys(this._thumbs.rejected)) delete this._thumbs.rejected[key];
-        for (const key of Object.keys(this._thumbs.trusted)) delete this._thumbs.trusted[key];
-        for (const key of Object.keys(this._thumbs.issuers.certs)) delete this._thumbs.issuers.certs[key];
-        for (const key of Object.keys(this._thumbs.crl)) delete this._thumbs.crl[key];
-        for (const key of Object.keys(this._thumbs.issuersCrl)) delete this._thumbs.issuersCrl[key];
-        for (const key of Object.keys(this._filenameToHash)) delete this._filenameToHash[key];
+        this._thumbs.rejected.clear();
+        this._thumbs.trusted.clear();
+        this._thumbs.issuers.certs.clear();
+        this._thumbs.crl.clear();
+        this._thumbs.issuersCrl.clear();
+        this._filenameToHash.clear();
 
         // Re-scan all folders
         this._readCertificatesCalled = false;
@@ -731,11 +704,12 @@ export class CertificateManager {
      *
      */
     public async createSelfSignedCertificate(params: CreateSelfSignCertificateParam1): Promise<void> {
-        assert(typeof params.applicationUri === "string", "expecting applicationUri");
+        if (typeof params.applicationUri !== "string") {
+            throw new Error("createSelfSignedCertificate: expecting applicationUri to be a string");
+        }
         if (!fs.existsSync(this.privateKey)) {
             throw new Error(`Cannot find private key ${this.privateKey}`);
         }
-
         let certificateFilename = path.join(this.rootDir, "own/certs/self_signed_certificate.pem");
         certificateFilename = params.outputFile || certificateFilename;
 
@@ -751,14 +725,13 @@ export class CertificateManager {
     }
 
     public async createCertificateRequest(params: CreateSelfSignCertificateParam): Promise<Filename> {
-        assert(params);
+        if (!params) {
+            throw new Error("params is required");
+        }
         const _params = params as CreateSelfSignCertificateWithConfigParam;
         if (Object.prototype.hasOwnProperty.call(_params, "rootDir")) {
             throw new Error("rootDir should not be specified ");
         }
-        assert(!_params.rootDir);
-        assert(!_params.configFile);
-        assert(!_params.privateKey);
         _params.rootDir = path.resolve(this.rootDir);
         _params.configFile = path.resolve(this.configFile);
         _params.privateKey = path.resolve(this.privateKey);
@@ -790,7 +763,7 @@ export class CertificateManager {
         }
         const pemCertificate = toPem(certificate, "CERTIFICATE");
         const fingerprint = makeFingerprint(certificate);
-        if (this._thumbs.issuers.certs[fingerprint]) {
+        if (this._thumbs.issuers.certs.has(fingerprint)) {
             // already in .. simply ignore
             return VerificationStatus.Good;
         }
@@ -799,7 +772,7 @@ export class CertificateManager {
         await fs.promises.writeFile(filename, pemCertificate, "ascii");
 
         // first time seen, let's save it.
-        this._thumbs.issuers.certs[fingerprint] = { certificate, filename };
+        this._thumbs.issuers.certs.set(fingerprint, { certificate, filename });
 
         if (addInTrustList) {
             // add certificate in the trust list as well
@@ -825,8 +798,8 @@ export class CertificateManager {
 
                 const crlInfo = exploreCertificateRevocationList(crl);
                 const key = crlInfo.tbsCertList.issuerFingerprint;
-                if (!index[key]) {
-                    index[key] = { crls: [], serialNumbers: {} };
+                if (!index.has(key)) {
+                    index.set(key, { crls: [], serialNumbers: {} });
                 }
                 const pemCertificate = toPem(crl, "X509 CRL");
                 const filename = path.join(folder, `crl_${buildIdealCertificateName(crl)}.pem`);
@@ -851,7 +824,7 @@ export class CertificateManager {
      *   trusted/crl, "all" clears both.
      */
     public async clearRevocationLists(target: "issuers" | "trusted" | "all"): Promise<void> {
-        const clearFolder = async (folder: string, index: { [key: string]: CRLData }) => {
+        const clearFolder = async (folder: string, index: Map<string, CRLData>) => {
             try {
                 const files = await fs.promises.readdir(folder);
                 for (const file of files) {
@@ -865,10 +838,7 @@ export class CertificateManager {
                     throw err;
                 }
             }
-            // Clear the in-memory index
-            for (const key of Object.keys(index)) {
-                delete index[key];
-            }
+            index.clear();
         };
 
         if (target === "issuers" || target === "all") {
@@ -887,7 +857,7 @@ export class CertificateManager {
     public async hasIssuer(thumbprint: string): Promise<boolean> {
         await this._readCertificates();
         const normalized = thumbprint.toLowerCase();
-        return Object.prototype.hasOwnProperty.call(this._thumbs.issuers.certs, normalized);
+        return this._thumbs.issuers.certs.has(normalized);
     }
 
     /**
@@ -900,7 +870,7 @@ export class CertificateManager {
     public async removeTrustedCertificate(thumbprint: string): Promise<Certificate | null> {
         await this._readCertificates();
         const normalized = thumbprint.toLowerCase();
-        const entry = this._thumbs.trusted[normalized];
+        const entry = this._thumbs.trusted.get(normalized);
         if (!entry) {
             return null;
         }
@@ -911,7 +881,7 @@ export class CertificateManager {
                 throw err;
             }
         }
-        delete this._thumbs.trusted[normalized];
+        this._thumbs.trusted.delete(normalized);
         return entry.certificate;
     }
 
@@ -925,7 +895,7 @@ export class CertificateManager {
     public async removeIssuer(thumbprint: string): Promise<Certificate | null> {
         await this._readCertificates();
         const normalized = thumbprint.toLowerCase();
-        const entry = this._thumbs.issuers.certs[normalized];
+        const entry = this._thumbs.issuers.certs.get(normalized);
         if (!entry) {
             return null;
         }
@@ -936,7 +906,7 @@ export class CertificateManager {
                 throw err;
             }
         }
-        delete this._thumbs.issuers.certs[normalized];
+        this._thumbs.issuers.certs.delete(normalized);
         return entry.certificate;
     }
 
@@ -953,8 +923,8 @@ export class CertificateManager {
         const issuerInfo = exploreCertificate(issuerCertificate);
         const issuerFingerprint = issuerInfo.tbsCertificate.subjectFingerPrint;
 
-        const processIndex = async (index: { [key: string]: CRLData }) => {
-            const crlData = index[issuerFingerprint];
+        const processIndex = async (index: Map<string, CRLData>) => {
+            const crlData = index.get(issuerFingerprint);
             if (!crlData) return;
             for (const crlEntry of crlData.crls) {
                 try {
@@ -965,7 +935,7 @@ export class CertificateManager {
                     }
                 }
             }
-            delete index[issuerFingerprint];
+            index.delete(issuerFingerprint);
         };
 
         if (target === "issuers" || target === "all") {
@@ -1059,7 +1029,7 @@ export class CertificateManager {
      */
     public async isIssuerInUseByTrustedCertificate(issuerCertificate: Certificate): Promise<boolean> {
         await this._readCertificates();
-        for (const entry of Object.values(this._thumbs.trusted)) {
+        for (const entry of this._thumbs.trusted.values()) {
             if (!entry.certificate) continue;
             try {
                 if (verifyCertificateSignature(entry.certificate, issuerCertificate)) {
@@ -1089,7 +1059,6 @@ export class CertificateManager {
     public async findIssuerCertificate(certificate: Certificate): Promise<Certificate | null> {
         const certInfo = exploreCertificate(certificate);
 
-        // istanbul ignore next
         if (isSelfSigned2(certInfo)) {
             // the certificate is self signed so is it's own issuer.
             return certificate;
@@ -1097,31 +1066,27 @@ export class CertificateManager {
 
         const wantedIssuerKey = certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier;
 
-        // istanbul ignore next
         if (!wantedIssuerKey) {
             // Certificate has no extension 3 ! the certificate might have been generated by an old system
             debugLog("Certificate has no extension 3");
             return null;
         }
 
-        const issuerCertificates = Object.values(this._thumbs.issuers.certs);
+        const issuerCertificates = [...this._thumbs.issuers.certs.values()];
 
         const selectedIssuerCertificates = findMatchingIssuerKey(issuerCertificates, wantedIssuerKey);
 
         if (selectedIssuerCertificates.length > 0) {
             if (selectedIssuerCertificates.length > 1) {
-                // tslint:disable-next-line: no-console
                 warningLog("Warning more than one issuer certificate exists with subjectKeyIdentifier ", wantedIssuerKey);
             }
             return selectedIssuerCertificates[0].certificate || null;
         }
         // check also in trusted  list
-        const trustedCertificates = Object.values(this._thumbs.trusted);
+        const trustedCertificates = [...this._thumbs.trusted.values()];
         const selectedTrustedCertificates = findMatchingIssuerKey(trustedCertificates, wantedIssuerKey);
 
-        // istanbul ignore next
         if (selectedTrustedCertificates.length > 1) {
-            // tslint:disable-next-line: no-console
             warningLog(
                 "Warning more than one certificate exists with subjectKeyIdentifier in trusted certificate list ",
                 wantedIssuerKey,
@@ -1136,72 +1101,59 @@ export class CertificateManager {
      * @private
      */
     public async _checkRejectedOrTrusted(certificate: Buffer): Promise<CertificateStatus> {
-        assert(certificate instanceof Buffer);
         const fingerprint = makeFingerprint(certificate);
 
         debugLog("_checkRejectedOrTrusted fingerprint ", short(fingerprint));
 
         await this._readCertificates();
 
-        if (Object.prototype.hasOwnProperty.call(this._thumbs.rejected, fingerprint)) {
+        if (this._thumbs.rejected.has(fingerprint)) {
             return "rejected";
         }
-        if (Object.prototype.hasOwnProperty.call(this._thumbs.trusted, fingerprint)) {
+        if (this._thumbs.trusted.has(fingerprint)) {
             return "trusted";
         }
         return "unknown";
     }
 
     private async _moveCertificate(certificate: Certificate, newStatus: CertificateStatus) {
-        // a mutex is requested here
-
-        assert(certificate instanceof Buffer);
         const fingerprint = makeFingerprint(certificate);
 
         const status = await this.getCertificateStatus(certificate);
         debugLog("_moveCertificate", fingerprint.substring(0, 10), "from", status, "to", newStatus);
-        assert(status === "rejected" || status === "trusted");
+        if (status !== "rejected" && status !== "trusted") {
+            throw new Error(`_moveCertificate: unexpected status '${status}' for certificate ${fingerprint.substring(0, 10)}`);
+        }
 
         if (status !== newStatus) {
             const indexSrc = status === "rejected" ? this._thumbs.rejected : this._thumbs.trusted;
-            const certificateSrc = indexSrc[fingerprint]?.filename;
+            const srcEntry = indexSrc.get(fingerprint);
 
-            // istanbul ignore next
-            if (!certificateSrc) {
-                debugLog(" cannot find certificate ", fingerprint.substring(0, 10), " in", this._thumbs, [status]);
-                throw new Error("internal");
+            if (!srcEntry) {
+                debugLog(" cannot find certificate ", fingerprint.substring(0, 10), " in", status);
+                throw new Error(`_moveCertificate: certificate ${fingerprint.substring(0, 10)} not found in ${status} index`);
             }
-            const destFolder =
-                newStatus === "rejected" ? this.rejectedFolder : newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder;
-            const certificateDest = path.join(destFolder, path.basename(certificateSrc));
+            const destFolder = newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder;
+            const certificateDest = path.join(destFolder, path.basename(srcEntry.filename));
 
-            debugLog("_moveCertificate1", fingerprint.substring(0, 10), "old name", certificateSrc);
-            debugLog("_moveCertificate1", fingerprint.substring(0, 10), "new name", certificateDest);
-            await fs.promises.rename(certificateSrc, certificateDest);
-            delete indexSrc[fingerprint];
-            const indexDest =
-                newStatus === "rejected"
-                    ? this._thumbs.rejected
-                    : newStatus === "trusted"
-                      ? this._thumbs.trusted
-                      : this._thumbs.rejected;
-            indexDest[fingerprint] = {
-                certificate,
-                filename: certificateDest
-            };
+            debugLog("_moveCertificate", fingerprint.substring(0, 10), "old name", srcEntry.filename);
+            debugLog("_moveCertificate", fingerprint.substring(0, 10), "new name", certificateDest);
+            await fs.promises.rename(srcEntry.filename, certificateDest);
+            indexSrc.delete(fingerprint);
+            const indexDest = newStatus === "trusted" ? this._thumbs.trusted : this._thumbs.rejected;
+            indexDest.set(fingerprint, { certificate, filename: certificateDest });
         }
     }
     private _findAssociatedCRLs(issuerCertificate: Certificate): CRLData | null {
         const issuerCertificateInfo = exploreCertificate(issuerCertificate);
         const key = issuerCertificateInfo.tbsCertificate.subjectFingerPrint;
-        return this._thumbs.issuersCrl[key] ? this._thumbs.issuersCrl[key] : this._thumbs.crl[key] ? this._thumbs.crl[key] : null;
+        return this._thumbs.issuersCrl.get(key) ?? this._thumbs.crl.get(key) ?? null;
     }
 
     public async isCertificateRevoked(
         certificate: Certificate,
         issuerCertificate?: Certificate | null
     ): Promise<VerificationStatus> {
-        // istanbul ignore next
         if (isSelfSigned3(certificate)) {
             return VerificationStatus.Good;
         }
@@ -1222,7 +1174,7 @@ export class CertificateManager {
             certInfo.tbsCertificate.serialNumber || certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.serial || "";
 
         const key = certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint || "<unknown>";
-        const crl2 = this._thumbs.crl[key] || null;
+        const crl2 = this._thumbs.crl.get(key) ?? null;
 
         if (crls.serialNumbers[serialNumber] || crl2?.serialNumbers[serialNumber]) {
             return VerificationStatus.BadCertificateRevoked;
@@ -1232,8 +1184,8 @@ export class CertificateManager {
 
     private _pending_crl_to_process = 0;
     private _on_crl_process?: () => void;
-    private queue: { index: { [key: string]: CRLData }; filename: string }[] = [];
-    private _on_crl_file_added(index: { [key: string]: CRLData }, filename: string) {
+    private queue: { index: Map<string, CRLData>; filename: string }[] = [];
+    private _on_crl_file_added(index: Map<string, CRLData>, filename: string) {
         this.queue.push({ index, filename });
         this._pending_crl_to_process += 1;
         if (this._pending_crl_to_process === 1) {
@@ -1247,23 +1199,22 @@ export class CertificateManager {
             const { index, filename } = nextCRL;
             const crl = await readCertificateRevocationList(filename);
             const crlInfo = exploreCertificateRevocationList(crl);
-            debugLog(chalk.cyan("add CRL in folder "), filename); // stat);
+            debugLog(chalk.cyan("add CRL in folder "), filename);
             const fingerprint = crlInfo.tbsCertList.issuerFingerprint;
-            index[fingerprint] = index[fingerprint] || {
-                crls: [],
-                serialNumbers: {}
-            };
-            index[fingerprint].crls.push({ crlInfo, filename });
+            if (!index.has(fingerprint)) {
+                index.set(fingerprint, { crls: [], serialNumbers: {} });
+            }
+            const data = index.get(fingerprint) || { crls: [], serialNumbers: {} };
+            data.crls.push({ crlInfo, filename });
 
-            const serialNumbers = index[fingerprint].serialNumbers;
             // now inject serial numbers
             for (const revokedCertificate of crlInfo.tbsCertList.revokedCertificates) {
                 const serialNumber = revokedCertificate.userCertificate;
-                if (!serialNumbers[serialNumber]) {
-                    serialNumbers[serialNumber] = revokedCertificate.revocationDate;
+                if (!data.serialNumbers[serialNumber]) {
+                    data.serialNumbers[serialNumber] = revokedCertificate.revocationDate;
                 }
             }
-            debugLog(chalk.cyan("CRL"), fingerprint, "serial numbers = ", Object.keys(serialNumbers)); // stat);
+            debugLog(chalk.cyan("CRL"), fingerprint, "serial numbers = ", Object.keys(data.serialNumbers));
         } catch (err) {
             debugLog("CRL filename error =");
             debugLog(err);
@@ -1318,25 +1269,24 @@ export class CertificateManager {
             ...(usePolling ? { interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)) } : {}),
             persistent: false
         };
-        async function _walkCRLFiles(this: CertificateManager, folder: string, index: { [key: string]: CRLData }) {
+        async function _walkCRLFiles(this: CertificateManager, folder: string, index: Map<string, CRLData>) {
             await new Promise<void>((resolve, _reject) => {
                 const w = chokidar.watch(folder, options);
 
                 w.on("unlink", (filename: string) => {
                     // Remove CRL entries whose file was deleted
-                    for (const [key, data] of Object.entries(index)) {
+                    for (const [key, data] of index.entries()) {
                         data.crls = data.crls.filter((c) => c.filename !== filename);
                         if (data.crls.length === 0) {
-                            delete index[key];
+                            index.delete(key);
                         }
                     }
                 });
-                w.on("add", (filename: string, stat?: fs.Stats) => {
-                    stat;
+                w.on("add", (filename: string) => {
                     this._on_crl_file_added(index, filename);
                 });
-                w.on("change", (path: string, stat?: fs.Stats) => {
-                    debugLog("change in folder ", folder, path, stat);
+                w.on("change", (changedPath: string) => {
+                    debugLog("change in folder ", folder, changedPath);
                 });
                 this._watchers.push(w as unknown as fs.FSWatcher);
                 w.on("ready", () => {
@@ -1345,29 +1295,24 @@ export class CertificateManager {
             });
         }
 
-        async function _walkAllFiles(this: CertificateManager, folder: string, index: { [key: string]: Entry }) {
+        async function _walkAllFiles(this: CertificateManager, folder: string, index: Map<string, Entry>) {
             const w = chokidar.watch(folder, options);
-            w.on("unlink", (filename: string, stat?: fs.Stats) => {
-                stat;
+            w.on("unlink", (filename: string) => {
                 debugLog(chalk.cyan(`unlink in folder ${folder}`), filename);
-                const h = this._filenameToHash[filename];
-                if (h && index[h]) {
-                    delete index[h];
+                const h = this._filenameToHash.get(filename);
+                if (h && index.has(h)) {
+                    index.delete(h);
                 }
             });
-            w.on("add", (filename: string, stat?: fs.Stats) => {
-                stat;
-                debugLog(chalk.cyan(`add in folder ${folder}`), filename); // stat);
+            w.on("add", (filename: string) => {
+                debugLog(chalk.cyan(`add in folder ${folder}`), filename);
                 try {
                     const certificate = readCertificate(filename);
                     const info = exploreCertificate(certificate);
                     const fingerprint = makeFingerprint(certificate);
 
-                    index[fingerprint] = {
-                        certificate,
-                        filename
-                    };
-                    this._filenameToHash[filename] = fingerprint;
+                    index.set(fingerprint, { certificate, filename });
+                    this._filenameToHash.set(filename, fingerprint);
 
                     debugLog(
                         chalk.magenta("CERT"),
@@ -1386,12 +1331,12 @@ export class CertificateManager {
                     const certificate = readCertificate(changedPath);
                     const newFingerprint = makeFingerprint(certificate);
                     // Remove old entry if fingerprint changed
-                    const oldHash = this._filenameToHash[changedPath];
+                    const oldHash = this._filenameToHash.get(changedPath);
                     if (oldHash && oldHash !== newFingerprint) {
-                        delete index[oldHash];
+                        index.delete(oldHash);
                     }
-                    index[newFingerprint] = { certificate, filename: changedPath };
-                    this._filenameToHash[changedPath] = newFingerprint;
+                    index.set(newFingerprint, { certificate, filename: changedPath });
+                    this._filenameToHash.set(changedPath, newFingerprint);
                 } catch (err) {
                     debugLog(`change event: failed to re-read ${changedPath}`, err);
                 }
@@ -1400,7 +1345,7 @@ export class CertificateManager {
             await new Promise<void>((resolve, _reject) => {
                 w.on("ready", () => {
                     debugLog("ready");
-                    debugLog(Object.entries(index).map((kv) => (kv[0] as string).substring(0, 10)));
+                    debugLog([...index.keys()].map((k) => k.substring(0, 10)));
                     resolve();
                 });
             });
@@ -1424,7 +1369,6 @@ export class CertificateManager {
                 setImmediate(resolve);
                 return;
             }
-            // istanbul ignore next
             if (this._on_crl_process) {
                 return reject(new Error("Internal Error"));
             }
