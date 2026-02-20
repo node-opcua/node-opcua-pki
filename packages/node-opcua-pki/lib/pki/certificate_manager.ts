@@ -689,6 +689,36 @@ export class CertificateManager {
         }
     }
 
+    /**
+     * Force a full re-scan of all PKI folders, rebuilding
+     * the in-memory `_thumbs` index from scratch.
+     *
+     * Call this after external processes have modified the
+     * PKI folders (e.g. via `writeTrustList` or CLI tools)
+     * to ensure the CertificateManager sees the latest
+     * state without waiting for file-system events.
+     */
+    public async reloadCertificates(): Promise<void> {
+        // Close existing watchers
+        await Promise.all(this._watchers.map((w) => w.close()));
+        for (const w of this._watchers) {
+            w.removeAllListeners();
+        }
+        this._watchers.splice(0);
+
+        // Clear in-memory indexes
+        for (const key of Object.keys(this._thumbs.rejected)) delete this._thumbs.rejected[key];
+        for (const key of Object.keys(this._thumbs.trusted)) delete this._thumbs.trusted[key];
+        for (const key of Object.keys(this._thumbs.issuers.certs)) delete this._thumbs.issuers.certs[key];
+        for (const key of Object.keys(this._thumbs.crl)) delete this._thumbs.crl[key];
+        for (const key of Object.keys(this._thumbs.issuersCrl)) delete this._thumbs.issuersCrl[key];
+        for (const key of Object.keys(this._filenameToHash)) delete this._filenameToHash[key];
+
+        // Re-scan all folders
+        this._readCertificatesCalled = false;
+        await this._readCertificates();
+    }
+
     protected async withLock2<T>(action: () => Promise<T>): Promise<T> {
         const lockFileName = path.join(this.rootDir, "mutex.lock");
         return withLock<T>({ fileToLock: lockFileName }, async () => {
@@ -1292,10 +1322,14 @@ export class CertificateManager {
             await new Promise<void>((resolve, _reject) => {
                 const w = chokidar.watch(folder, options);
 
-                w.on("unlink", (filename: string, stat?: fs.Stats) => {
-                    filename;
-                    stat;
-                    // CRL never removed
+                w.on("unlink", (filename: string) => {
+                    // Remove CRL entries whose file was deleted
+                    for (const [key, data] of Object.entries(index)) {
+                        data.crls = data.crls.filter((c) => c.filename !== filename);
+                        if (data.crls.length === 0) {
+                            delete index[key];
+                        }
+                    }
                 });
                 w.on("add", (filename: string, stat?: fs.Stats) => {
                     stat;
@@ -1346,9 +1380,21 @@ export class CertificateManager {
                     debugLog(err);
                 }
             });
-            w.on("change", (path: string, stat?: fs.Stats) => {
-                stat;
-                debugLog("change in folder ", folder, path);
+            w.on("change", (changedPath: string) => {
+                debugLog(chalk.cyan(`change in folder ${folder}`), changedPath);
+                try {
+                    const certificate = readCertificate(changedPath);
+                    const newFingerprint = makeFingerprint(certificate);
+                    // Remove old entry if fingerprint changed
+                    const oldHash = this._filenameToHash[changedPath];
+                    if (oldHash && oldHash !== newFingerprint) {
+                        delete index[oldHash];
+                    }
+                    index[newFingerprint] = { certificate, filename: changedPath };
+                    this._filenameToHash[changedPath] = newFingerprint;
+                } catch (err) {
+                    debugLog(`change event: failed to re-read ${changedPath}`, err);
+                }
             });
             this._watchers.push(w as unknown as fs.FSWatcher);
             await new Promise<void>((resolve, _reject) => {

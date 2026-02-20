@@ -438,4 +438,76 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             }
         });
     });
+
+    // ── reloadCertificates ──────────────────────────────────────
+
+    describe("reloadCertificates", () => {
+        it("should pick up externally added trusted certificates", async () => {
+            // Create a self-signed cert and write it directly to trusted folder
+            await cm.createSelfSignedCertificate({
+                applicationUri: "urn:test:reload-add",
+                subject: "CN=ReloadAdd",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            });
+            const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
+            const ownCert = readCertificate(ownCertFile);
+
+            // Write directly to trusted folder (bypass CM API)
+            const destFile = path.join(cm.trustedFolder, "externally_added.der");
+            fs.writeFileSync(destFile, ownCert);
+
+            // Before reload: CM doesn't know about it
+            const statusBefore = await cm._checkRejectedOrTrusted(ownCert);
+            statusBefore.should.eql("unknown");
+
+            // After reload: CM picks it up
+            await cm.reloadCertificates();
+            const statusAfter = await cm._checkRejectedOrTrusted(ownCert);
+            statusAfter.should.eql("trusted");
+        });
+
+        it("should detect externally deleted trusted certificates", async () => {
+            // Add a cert via CM API
+            const caCert = readCertificate(caCertFilename);
+            await cm.trustCertificate(caCert);
+
+            const statusBefore = await cm._checkRejectedOrTrusted(caCert);
+            statusBefore.should.eql("trusted");
+
+            // Delete the file directly from disk
+            const files = fs.readdirSync(cm.trustedFolder);
+            for (const f of files) {
+                if (f.endsWith(".pem") || f.endsWith(".der")) {
+                    fs.unlinkSync(path.join(cm.trustedFolder, f));
+                }
+            }
+
+            // Before reload: CM still thinks it's trusted (stale)
+            const statusStale = await cm._checkRejectedOrTrusted(caCert);
+            statusStale.should.eql("trusted");
+
+            // After reload: CM sees deletion
+            await cm.reloadCertificates();
+            const statusAfter = await cm._checkRejectedOrTrusted(caCert);
+            statusAfter.should.eql("unknown");
+        });
+
+        it("should pick up externally added issuers", async () => {
+            const caCert = readCertificate(caCertFilename);
+            const thumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+
+            // Bypass CM API: write issuer directly to disk
+            const destFile = path.join(cm.issuersCertFolder, "external_issuer.der");
+            fs.writeFileSync(destFile, caCert);
+
+            // Before reload: CM doesn't know about it
+            (await cm.hasIssuer(thumbprint)).should.be.false();
+
+            // After reload: CM picks it up
+            await cm.reloadCertificates();
+            (await cm.hasIssuer(thumbprint)).should.be.true();
+        });
+    });
 });
