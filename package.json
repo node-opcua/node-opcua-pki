@@ -1,96 +1,96 @@
 {
-  "name": "node-opcua-pki",
-  "version": "5.7.0",
-  "description": "PKI management for node-opcua",
-  "type": "commonjs",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+    "name": "node-opcua-pki",
+    "version": "5.7.0",
+    "description": "PKI management for node-opcua",
+    "type": "commonjs",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup",
+        "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
+        "test": "mocha -r ./node_modules/source-map-support/register -t 700000 test/**/*.ts",
+        "test:cjs": "node test-cjs/test_cjs.js",
+        "test:esm": "node test-esm/test_esm.mjs",
+        "test:all": "npm run test && npm run test:cjs && npm run test:esm",
+        "cover": "npx nyc -x  bin -x tmp -x lib/misc/install* mocha",
+        "cost-of-modules": "npx cost-of-modules --no-install",
+        "__comment": "Release it now only increate the version number an set a tags, publish should be done in git hub action",
+        "release-it": "npx release-it",
+        "release:minor": "npx release-it minor",
+        "release:major": "npx release-it major",
+        "ncu": "npx npm-check-updates -u -x chokidar,rimraf,env-paths,chalk,update-notifier,@types/node",
+        "ncu2": "npx npm-check-updates -u -f chokidar,rimraf,env-paths,chalk,update-notifier,@types/node -t minor",
+        "pkg": "npx pkg -o pkg/pki dist/bin/pki.js",
+        "lint": "biome lint",
+        "format": "biome format --write",
+        "postinstall2": "opencollective-postinstall",
+        "postinstall3": "github-sponsors",
+        "makelinks": "npx tsx ../make-links/makelinks.ts",
+        "prepublishOnly": "npm run build",
+        "pack:clean": "node scripts/prepare-publish.cjs clean && npm pack && node scripts/prepare-publish.cjs restore"
+    },
+    "files": [
+        "dist"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/node-opcua/node-opcua-pki.git"
+    },
+    "bugs": {
+        "url": "https://github.com/node-opcua/node-opcua-pki/issues"
+    },
+    "keywords": [
+        "PKI",
+        "node-opcua"
+    ],
+    "collective": {
+        "url": "https://opencollective.com/node-opcua"
+    },
+    "author": "Etienne Rossignon",
+    "license": "MIT",
+    "dependencies": {
+        "@ster5/global-mutex": "^2.0.0",
+        "byline": "^5.0.0",
+        "chalk": "4.1.2",
+        "chokidar": "4.0.3",
+        "command-line-args": "^6.0.1",
+        "command-line-usage": "^7.0.3",
+        "node-opcua-crypto": "5.0.0",
+        "progress": "^2.0.3",
+        "rimraf": "4.4.1",
+        "wget-improved-2": "^3.3.0",
+        "yauzl": "^3.2.0"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.3",
+        "@types/async": "^3.2.25",
+        "@types/byline": "^4.2.36",
+        "@types/command-line-args": "^5.2.3",
+        "@types/command-line-usage": "^5.0.4",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^24.10.13",
+        "@types/node-dir": "0.0.37",
+        "@types/progress": "^2.0.7",
+        "@types/rimraf": "^4.0.5",
+        "@types/sinon": "^21.0.0",
+        "@types/yauzl": "^2.10.3",
+        "mocha": "^11.7.5",
+        "node-dir": "^0.1.17",
+        "should": "^13.2.3",
+        "sinon": "^21.0.1",
+        "source-map-support": "^0.5.21",
+        "ts-node": "^10.9.2",
+        "tsup": "^8.5.1",
+        "typescript": "^5.9.3"
+    },
+    "bin": {
+        "pki": "./dist/bin/pki.mjs"
     }
-  },
-  "scripts": {
-    "build": "tsup",
-    "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
-    "test": "mocha -r ./node_modules/source-map-support/register -t 700000 test/**/*.ts",
-    "test:cjs": "node test-cjs/test_cjs.js",
-    "test:esm": "node test-esm/test_esm.mjs",
-    "test:all": "npm run test && npm run test:cjs && npm run test:esm",
-    "cover": "npx nyc -x  bin -x tmp -x lib/misc/install* mocha",
-    "cost-of-modules": "npx cost-of-modules --no-install",
-    "__comment": "Release it now only increate the version number an set a tags, publish should be done in git hub action",
-    "release-it": "npx release-it",
-    "release:minor": "npx release-it minor",
-    "release:major": "npx release-it major",
-    "ncu": "npx npm-check-updates -u -x chokidar,rimraf,env-paths,chalk,update-notifier,@types/node",
-    "ncu2": "npx npm-check-updates -u -f chokidar,rimraf,env-paths,chalk,update-notifier,@types/node -t minor",
-    "pkg": "npx pkg -o pkg/pki dist/bin/pki.js",
-    "lint": "biome lint",
-    "format": "biome format --write",
-    "postinstall2": "opencollective-postinstall",
-    "postinstall3": "github-sponsors",
-    "makelinks": "npx tsx ../make-links/makelinks.ts",
-    "prepublishOnly": "npm run build",
-    "pack:clean": "node scripts/prepare-publish.cjs clean && npm pack && node scripts/prepare-publish.cjs restore"
-  },
-  "files": [
-    "dist"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/node-opcua/node-opcua-pki.git"
-  },
-  "bugs": {
-    "url": "https://github.com/node-opcua/node-opcua-pki/issues"
-  },
-  "keywords": [
-    "PKI",
-    "node-opcua"
-  ],
-  "collective": {
-    "url": "https://opencollective.com/node-opcua"
-  },
-  "author": "Etienne Rossignon",
-  "license": "MIT",
-  "dependencies": {
-    "@ster5/global-mutex": "^2.0.0",
-    "byline": "^5.0.0",
-    "chalk": "4.1.2",
-    "chokidar": "4.0.3",
-    "command-line-args": "^6.0.1",
-    "command-line-usage": "^7.0.3",
-    "node-opcua-crypto": "5.0.0",
-    "progress": "^2.0.3",
-    "rimraf": "4.4.1",
-    "wget-improved-2": "^3.3.0",
-    "yauzl": "^3.2.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.3",
-    "@types/async": "^3.2.25",
-    "@types/byline": "^4.2.36",
-    "@types/command-line-args": "^5.2.3",
-    "@types/command-line-usage": "^5.0.4",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^24.10.13",
-    "@types/node-dir": "0.0.37",
-    "@types/progress": "^2.0.7",
-    "@types/rimraf": "^4.0.5",
-    "@types/sinon": "^21.0.0",
-    "@types/yauzl": "^2.10.3",
-    "mocha": "^11.7.5",
-    "node-dir": "^0.1.17",
-    "should": "^13.2.3",
-    "sinon": "^21.0.1",
-    "source-map-support": "^0.5.21",
-    "ts-node": "^10.9.2",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
-  },
-  "bin": {
-    "pki": "./dist/bin/pki.mjs"
-  }
 }

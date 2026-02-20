@@ -3,7 +3,7 @@
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
 // Copyright (c) 2014-2022 - Etienne Rossignon - etienne.rossignon (at) gadz.org
-// Copyright (c) 2022-2025 - Sterfive.com
+// Copyright (c) 2022-2026 - Sterfive.com
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // This  project is licensed under the terms of the MIT license.
@@ -647,11 +647,7 @@ export async function main(argumentsList: string | string[]) {
 
     if (command === "version") {
         const rootFolder = find_module_root_folder();
-        const pkg = JSON.parse(
-            fs.readFileSync(
-                path.join(rootFolder, "package.json"), "utf-8"
-            )
-        );
+        const pkg = JSON.parse(fs.readFileSync(path.join(rootFolder, "package.json"), "utf-8"));
         console.log(pkg.version);
         return;
     }
@@ -805,7 +801,9 @@ export async function main(argumentsList: string | string[]) {
 
             gLocalConfig.subject = local_argv.subject && local_argv.subject.length > 1 ? local_argv.subject : gLocalConfig.subject;
 
-            const csr_file = await certificateManager.createCertificateRequest(gLocalConfig as Parameters<typeof certificateManager.createCertificateRequest>[0]);
+            const csr_file = await certificateManager.createCertificateRequest(
+                gLocalConfig as Parameters<typeof certificateManager.createCertificateRequest>[0]
+            );
             if (!csr_file) {
                 return;
             }

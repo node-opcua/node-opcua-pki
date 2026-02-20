@@ -243,8 +243,8 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
             await call_crypto_create_CA(
                 "certificate -v " +
-                validity +
-                " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
+                    validity +
+                    " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
                 cwd
             );
 
@@ -254,10 +254,10 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(
-                data,
-                /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
-            ).should.match(/SomeOrganization/, `should have SomeOrganization ${data}`);
+            grep(data, /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/).should.match(
+                /SomeOrganization/,
+                `should have SomeOrganization ${data}`
+            );
         });
     });
 
@@ -315,10 +315,9 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
             if (false) {
                 console.log(data);
             }
-            grep(
-                data,
-                /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/
-            ).should.match(/SomeOrganization/);
+            grep(data, /C\s?=\s?FR, ST\s?=\s?Centre, L\s?=\s?Orleans, O\s?=\s?SomeOrganization, CN\s?=\s?Hello/).should.match(
+                /SomeOrganization/
+            );
         });
     });
 });
