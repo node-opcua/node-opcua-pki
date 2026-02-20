@@ -1,6 +1,14 @@
 {
     "extends": "@istanbuljs/nyc-config-typescript",
-
-    "exclude": ["lib/misc/install*", "lib/misc/hostname.ts*", "test/**/*.ts", "test/**/*.js", "bin/", "tmp/"],
+    "include": [
+        "packages/node-opcua-pki/lib/**/*.ts"
+    ],
+    "exclude": [
+        "packages/node-opcua-pki/lib/misc/install*",
+        "packages/node-opcua-pki/lib/misc/hostname.ts",
+        "packages/node-opcua-pki/bin/",
+        "test/**",
+        "tmp/"
+    ],
     "check-coverage": false
 }

@@ -8,8 +8,8 @@
 
 **PKI management for [node-opcua](https://node-opcua.github.io/)** — create and manage OPC UA certificates, Certificate Authorities, and Public Key Infrastructures from the command line or programmatically.
 
-📦 **Published package**: [node-opcua-pki on npm](https://www.npmjs.com/package/node-opcua-pki)
-📖 **CLI & API documentation**: [packages/node-opcua-pki/readme.md](packages/node-opcua-pki/readme.md)
+- 📦 **Published package**: [node-opcua-pki on npm](https://www.npmjs.com/package/node-opcua-pki)
+- 📖 **CLI & API documentation**: [packages/node-opcua-pki/readme.md](packages/node-opcua-pki/readme.md)
 
 ## Repository Structure
 
