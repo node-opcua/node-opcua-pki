@@ -3,8 +3,8 @@ import child_process from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import "should";
-import { type Filename, makePath } from "../lib";
-import { dumpCertificate } from "../lib/toolbox/with_openssl";
+import { type Filename, makePath } from "node-opcua-pki";
+import { dumpCertificate } from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 
 const n = makePath;
@@ -243,8 +243,8 @@ describe("testing test_crypto_create_CA", function (this: Mocha.Suite) {
 
             await call_crypto_create_CA(
                 "certificate -v " +
-                    validity +
-                    " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
+                validity +
+                " --subject=C=FR/ST=Centre/L=Orleans/O=SomeOrganization/CN=Hello --selfSigned -o mycert.pem",
                 cwd
             );
 

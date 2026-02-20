@@ -1,7 +1,6 @@
 import path from "node:path";
+import { g_config, mkdirRecursiveSync, warningLog } from "node-opcua-pki";
 import { rimraf } from "rimraf";
-
-import { g_config, mkdirRecursiveSync, warningLog } from "../lib/index";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 

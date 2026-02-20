@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsup",
     "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
-    "test": "mocha -r ./node_modules/source-map-support/register -t 700000 test/**/*.ts",
+    "test": "mocha -r ./node_modules/source-map-support/register -r tsconfig-paths/register -t 700000 test/**/*.ts",
     "test:cjs": "node test-cjs/test_cjs.js",
     "test:esm": "node test-esm/test_esm.mjs",
     "test:all": "npm run test && npm run test:cjs && npm run test:esm",
@@ -55,6 +55,7 @@
     "sinon": "^21.0.1",
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   }

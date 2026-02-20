@@ -1,4 +1,4 @@
-import { install_prerequisite } from "../lib/toolbox/with_openssl/install_prerequisite";
+import { install_prerequisite } from "node-opcua-pki";
 
 describe("testing install_prerequisite", () => {
     it("should verify prerequisite", async () => {

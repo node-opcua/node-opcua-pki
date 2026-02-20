@@ -1,10 +1,9 @@
 import fs, { mkdirSync } from "node:fs";
 import path from "node:path";
 import { CertificatePurpose } from "node-opcua-crypto";
-import { CertificateAuthority } from "../lib/ca";
-import { CertificateManager } from "../lib/pki/certificate_manager";
-import { createCertificateSigningRequestWithOpenSSL } from "../lib/toolbox/with_openssl/create_certificate_signing_request";
-import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "../lib/toolbox/without_openssl";
+import { CertificateAuthority, CertificateManager } from "node-opcua-pki";
+import { createCertificateSigningRequestWithOpenSSL } from "node-opcua-pki-priv/toolbox/with_openssl/create_certificate_signing_request";
+import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "node-opcua-pki-priv/toolbox/without_openssl";
 import { beforeTest } from "./helpers";
 
 describe("comparing two implementations of createCertificateSigningRequestAsync", function () {

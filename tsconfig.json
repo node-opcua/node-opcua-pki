@@ -16,7 +16,13 @@
             "node",
             "mocha",
             "should"
-        ]
+        ],
+        "baseUrl": ".",
+        "paths": {
+            "node-opcua-pki-priv/*": [
+                "packages/node-opcua-pki/lib/*"
+            ]
+        }
     },
     "include": [
         "packages/node-opcua-pki/lib/**/*.ts",

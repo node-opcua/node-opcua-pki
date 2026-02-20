@@ -3,7 +3,7 @@ import path from "node:path";
 import "should";
 
 import { readCertificate } from "node-opcua-crypto";
-import { CertificateManager, type CertificateManagerOptions } from "../lib";
+import { CertificateManager, type CertificateManagerOptions } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
 describe("CRL Management - addRevocationList target and clearRevocationLists", function () {

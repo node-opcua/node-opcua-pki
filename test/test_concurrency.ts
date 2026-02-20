@@ -1,6 +1,6 @@
 import path from "node:path";
 import "should";
-import { CertificateManager } from "../lib";
+import { CertificateManager } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
 describe("Concurrency", function (this: Mocha.Suite) {

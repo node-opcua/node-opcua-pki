@@ -7,7 +7,7 @@ import sinon from "sinon";
 import "should";
 
 import { makeSHA1Thumbprint, readCertificate, split_der } from "node-opcua-crypto";
-import { CertificateManager, VerificationStatus } from "../lib";
+import { CertificateManager, VerificationStatus } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
 async function copyFiles(sourceFolder: string, destinationFolder: string) {
@@ -178,8 +178,8 @@ function flagsToString(s: Status) {
         s.certFlags.validity === TimeValidity.expired
             ? chalk.red("E")
             : s.certFlags.validity === TimeValidity.not_yet_valid
-              ? chalk.redBright("V")
-              : chalk.green("√");
+                ? chalk.redBright("V")
+                : chalk.green("√");
     const r = s.certFlags.revoked ? chalk.magenta("R") : " ";
     const m = s.certFlags.manipulated ? chalk.red("$") : s.certFlags.wrongCert ? chalk.cyan("w") : " ";
 

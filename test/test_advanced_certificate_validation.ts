@@ -4,7 +4,7 @@ import sinon from "sinon";
 import "should";
 
 import { readCertificate } from "node-opcua-crypto";
-import { CertificateManager, type CertificateManagerOptions } from "../lib";
+import { CertificateManager, type CertificateManagerOptions } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
 describe("Check Validate Certificate", function () {

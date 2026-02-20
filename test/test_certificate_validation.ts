@@ -8,9 +8,14 @@ import path from "node:path";
 import "should";
 
 import { type Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
-
-import { CertificateManager, type Filename, type KeySize, type Params } from "../lib/";
-import { CertificateAuthority, type CertificateAuthorityOptions } from "../lib/ca";
+import {
+    CertificateAuthority,
+    type CertificateAuthorityOptions,
+    CertificateManager,
+    type Filename,
+    type KeySize,
+    type Params
+} from "node-opcua-pki";
 
 import { beforeTest } from "./helpers";
 

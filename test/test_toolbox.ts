@@ -3,8 +3,8 @@ import path from "node:path";
 import "should";
 
 import { generatePrivateKeyFile } from "node-opcua-crypto";
-import { mkdirRecursiveSync, warningLog } from "../lib";
-import { getPublicKeyFromCertificate, getPublicKeyFromPrivateKey } from "../lib/toolbox/with_openssl";
+import { mkdirRecursiveSync, warningLog } from "node-opcua-pki";
+import { getPublicKeyFromCertificate, getPublicKeyFromPrivateKey } from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
 
 describe("testing NodeOPCUA PKI Toolbox", function (this: Mocha.Suite) {

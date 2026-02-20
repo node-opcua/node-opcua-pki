@@ -14,9 +14,16 @@ import {
     rsaLengthPrivateKey,
     split_der
 } from "node-opcua-crypto";
-import { CertificateAuthority, type CertificateAuthorityOptions } from "../lib/ca/certificate_authority";
-import { CertificateManager, type Filename, g_config, type Params, VerificationStatus } from "../lib/index";
-import { execute_openssl, x509Date } from "../lib/toolbox/with_openssl";
+import {
+    CertificateAuthority,
+    type CertificateAuthorityOptions,
+    CertificateManager,
+    type Filename,
+    g_config,
+    type Params,
+    VerificationStatus
+} from "node-opcua-pki";
+import { execute_openssl, x509Date } from "node-opcua-pki-priv/toolbox/with_openssl";
 
 import { beforeTest } from "./helpers";
 
