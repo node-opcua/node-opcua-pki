@@ -14,7 +14,7 @@
     "test:esm": "node test-esm/test_esm.mjs",
     "test:all": "npm run test && npm run test:cjs && npm run test:esm",
     "cost-of-modules": "npx cost-of-modules --no-install",
-    "__comment": "lerna version bumps version, commits, tags, and pushes. Publish is done by GitHub Actions.",
+    "__comment": "lerna version bumps version, generates CHANGELOG.md, commits, tags, and pushes. Publish is done by GitHub Actions.",
     "release": "npx lerna version",
     "release:minor": "npx lerna version minor",
     "release:major": "npx lerna version major",

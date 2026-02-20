@@ -59,9 +59,10 @@ npm run release:major      # major bump
 This will:
 
 1. Bump the version in `packages/node-opcua-pki/package.json`
-2. Commit with message `chore: release vX.Y.Z`
-3. Create a git tag `vX.Y.Z`
-4. Push the commit and tag to origin
+2. Generate/update `CHANGELOG.md` from conventional commits
+3. Commit with message `chore: release vX.Y.Z`
+4. Create a git tag `vX.Y.Z`
+5. Push the commit and tag to origin
 
 > **Note:** lerna does NOT publish to npm here.
 > Publishing is handled by GitHub Actions.
