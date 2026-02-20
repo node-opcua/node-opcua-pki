@@ -357,6 +357,42 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             const rejectedFiles = fs.readdirSync(cm.rejectedFolder).filter((f) => f.endsWith(".pem") || f.endsWith(".der"));
             rejectedFiles.length.should.eql(0, "rejected folder should be empty");
         });
+
+        it("should find issuers added via filesystem (stale index)", async () => {
+            // Simulate what writeTrustedCertificateList does:
+            // write an issuer cert directly to disk, bypassing
+            // the CertificateManager's in-memory _thumbs index.
+            const caCert = readCertificate(caCertFilename);
+            const issuerFolder = cm.issuersCertFolder;
+            const destFile = path.join(issuerFolder, "manually_added_ca.der");
+            fs.writeFileSync(destFile, caCert);
+
+            // Build a "chain" by concatenating a self-signed leaf
+            // with the CA cert (the issuer check only looks at
+            // thumbprints, not actual signature relationships)
+            await cm.createSelfSignedCertificate({
+                applicationUri: "urn:test:stale-index",
+                subject: "CN=StaleIndex",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            });
+            const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
+            const leafCert = readCertificate(ownCertFile);
+
+            // Concatenate leaf + CA to form a chain buffer
+            const chainBuffer = Buffer.concat([leafCert, caCert]);
+
+            // Without _readCertificates(), this would return
+            // BadCertificateChainIncomplete because the CA
+            // isn't in the in-memory index
+            const status = await cm.addTrustedCertificateFromChain(chainBuffer);
+            status.should.eql("Good");
+
+            // Leaf should now be trusted
+            const trustedStatus = await cm._checkRejectedOrTrusted(leafCert);
+            trustedStatus.should.eql("trusted");
+        });
     });
 
     // ── isIssuerInUseByTrustedCertificate ────────────────────────

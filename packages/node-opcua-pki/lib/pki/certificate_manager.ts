@@ -981,11 +981,30 @@ export class CertificateManager {
         }
 
         // If a chain was provided, verify that every issuer in the
-        // chain is already registered in the issuers store
+        // chain is already registered in the issuers store.
+        // We scan the filesystem directly because issuers may have
+        // been added outside this CertificateManager instance (e.g.
+        // via writeTrustedCertificateList) and the in-memory index
+        // may be stale.
         if (certificates.length > 1) {
+            const issuerFolder = this.issuersCertFolder;
+            const issuerThumbprints = new Set<string>();
+            const files = await fs.promises.readdir(issuerFolder);
+            for (const file of files) {
+                const ext = path.extname(file).toLowerCase();
+                if (ext === ".pem" || ext === ".der") {
+                    try {
+                        const issuerCert = readCertificate(path.join(issuerFolder, file));
+                        const fp = makeFingerprint(issuerCert);
+                        issuerThumbprints.add(fp);
+                    } catch (_err) {
+                        // skip unreadable files
+                    }
+                }
+            }
             for (const issuerCert of certificates.slice(1)) {
                 const thumbprint = makeFingerprint(issuerCert);
-                if (!Object.prototype.hasOwnProperty.call(this._thumbs.issuers.certs, thumbprint)) {
+                if (!issuerThumbprints.has(thumbprint)) {
                     return VerificationStatus.BadCertificateChainIncomplete;
                 }
             }
