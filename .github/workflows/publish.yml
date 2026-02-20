@@ -19,8 +19,14 @@ on:
           - beta
           - alpha
           - 0.0.0-hack
+
+permissions:
+  id-token: write # Required for OIDC token generation
+  contents: read # Required for actions/checkout
+
 jobs:
   publish:
+    if: github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -29,26 +35,35 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Build
         run: npm run build
 
-      - name: Publish to npm
+      - name: Set up Git user
         run: |
-          DIST_TAG="${{ github.event.inputs.dist-tag || 'latest' }}"
-          npm publish -w packages/node-opcua-pki --tag $DIST_TAG
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor}}@users.noreply.github.com"
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
+      - name: "Setup npm"
+        run: |
+          npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
+
+      - name: "detect unwanted changes"
+        run: |
+          git status
+      - name: "stash unwanted changes"
+        run: |
+          git stash
+      - name: Run lerna publish
+        run: |
+          npx lerna publish from-package \
+            --yes \
+            --dist-tag ${{ github.event.inputs.dist-tag }} \
+            --concurrency 1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
