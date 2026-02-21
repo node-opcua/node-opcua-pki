@@ -7,6 +7,6 @@
         "tsconfig-paths/register"
     ],
     "timeout": 20000,
-    "bail": true,
+    "bail": false,
     "extension": "ts"
 }
