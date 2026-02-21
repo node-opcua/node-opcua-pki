@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { g_config, mkdirRecursiveSync, warningLog } from "node-opcua-pki";
+import { mkdirRecursiveSync } from "node-opcua-pki-priv/toolbox/common2";
+import { g_config } from "node-opcua-pki-priv/toolbox/config";
+import { warningLog } from "node-opcua-pki-priv/toolbox/debug";
 
 const tmpFolder = path.join(__dirname, "../tmp");
 

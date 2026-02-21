@@ -61,6 +61,7 @@ import {
     x509Date
 } from "../toolbox/with_openssl";
 
+/** Default X.500 subject used when no custom subject is provided. */
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
 import _ca_config_template from "./templates/ca_config_template.cnf";
@@ -237,15 +238,58 @@ async function regenerateCrl(revocationList: string, configOption: string, optio
     await execute_openssl(`crl  -in ${q(n(revocationList))} -text  -noout`, options);
 }
 
+/**
+ * Options for creating a {@link CertificateAuthority}.
+ */
 export interface CertificateAuthorityOptions {
+    /** RSA key size for the CA private key. */
     keySize: KeySize;
+    /** Filesystem path where the CA directory structure is stored. */
     location: string;
+    /**
+     * X.500 subject for the CA certificate.
+     * Accepts a slash-delimited string (e.g. `"/CN=My CA/O=Acme"`) or
+     * a structured {@link SubjectOptions} object.
+     *
+     * @defaultValue {@link defaultSubject}
+     */
     subject?: string | SubjectOptions;
 }
 
+/**
+ * An OpenSSL-based Certificate Authority (CA) that can create,
+ * sign, and revoke X.509 certificates.
+ *
+ * The CA maintains a standard OpenSSL directory layout under
+ * {@link CertificateAuthority.rootDir | rootDir}:
+ *
+ * ```
+ * <location>/
+ *   ├── conf/           OpenSSL configuration
+ *   ├── private/        CA private key (cakey.pem)
+ *   ├── public/         CA certificate  (cacert.pem)
+ *   ├── certs/          Signed certificates
+ *   ├── crl/            Revocation lists
+ *   ├── serial          Next serial number
+ *   ├── crlnumber       Next CRL number
+ *   └── index.txt       Certificate database
+ * ```
+ *
+ * @example
+ * ```ts
+ * const ca = new CertificateAuthority({
+ *     keySize: 2048,
+ *     location: "/var/pki/CA"
+ * });
+ * await ca.initialize();
+ * ```
+ */
 export class CertificateAuthority {
+    /** RSA key size used when generating the CA private key. */
     public readonly keySize: KeySize;
+    /** Root filesystem path of the CA directory structure. */
     public readonly location: string;
+    /** X.500 subject of the CA certificate. */
     public readonly subject: Subject;
 
     constructor(options: CertificateAuthorityOptions) {
@@ -256,41 +300,62 @@ export class CertificateAuthority {
         this.subject = new Subject(options.subject || defaultSubject);
     }
 
+    /** Absolute path to the CA root directory (alias for {@link location}). */
     public get rootDir() {
         return this.location;
     }
 
+    /** Path to the OpenSSL configuration file (`conf/caconfig.cnf`). */
     public get configFile() {
         return path.normalize(path.join(this.rootDir, "./conf/caconfig.cnf"));
     }
 
+    /** Path to the CA certificate in PEM format (`public/cacert.pem`). */
     public get caCertificate() {
         // the Certificate Authority Certificate
         return makePath(this.rootDir, "./public/cacert.pem");
     }
 
     /**
-     * the file name where  the current Certificate Revocation List is stored (in DER format)
+     * Path to the current Certificate Revocation List in DER format.
+     * (`crl/revocation_list.der`)
      */
     public get revocationListDER() {
         return makePath(this.rootDir, "./crl/revocation_list.der");
     }
 
     /**
-     * the file name where  the current Certificate Revocation List is stored (in PEM format)
+     * Path to the current Certificate Revocation List in PEM format.
+     * (`crl/revocation_list.crl`)
      */
     public get revocationList() {
         return makePath(this.rootDir, "./crl/revocation_list.crl");
     }
 
+    /**
+     * Path to the concatenated CA certificate + CRL file.
+     * Used by OpenSSL for CRL-based verification.
+     */
     public get caCertificateWithCrl() {
         return makePath(this.rootDir, "./public/cacertificate_with_crl.pem");
     }
 
+    /**
+     * Initialize the CA directory structure, generate the CA
+     * private key and self-signed certificate if they do not
+     * already exist.
+     */
     public async initialize(): Promise<void> {
         await construct_CertificateAuthority(this);
     }
 
+    /**
+     * Rebuild the combined CA certificate + CRL file.
+     *
+     * This concatenates the CA certificate with the current
+     * revocation list so that OpenSSL can verify certificates
+     * with CRL checking enabled.
+     */
     public async constructCACertificateWithCRL(): Promise<void> {
         const cacertWithCRL = this.caCertificateWithCrl;
 
@@ -312,6 +377,12 @@ export class CertificateAuthority {
         }
     }
 
+    /**
+     * Append the CA certificate to a signed certificate file,
+     * creating a PEM certificate chain.
+     *
+     * @param certificate - path to the certificate file to extend
+     */
     public async constructCertificateChain(certificate: Filename): Promise<void> {
         assert(fs.existsSync(certificate));
         assert(fs.existsSync(this.caCertificate));
@@ -325,6 +396,13 @@ export class CertificateAuthority {
         );
     }
 
+    /**
+     * Create a self-signed certificate using OpenSSL.
+     *
+     * @param certificateFile - output path for the signed certificate
+     * @param privateKey - path to the private key file
+     * @param params - certificate parameters (subject, validity, SANs)
+     */
     public async createSelfSignedCertificate(certificateFile: Filename, privateKey: Filename, params: Params): Promise<void> {
         assert(typeof privateKey === "string");
         assert(fs.existsSync(privateKey));
@@ -392,13 +470,12 @@ export class CertificateAuthority {
     }
 
     /**
-     * revoke a certificate and update the CRL
+     * Revoke a certificate and regenerate the CRL.
      *
-     * @method revokeCertificate
-     * @param certificate -  the certificate to revoke
-     * @param params
-     * @param [params.reason = "keyCompromise" {String}]
-     * @async
+     * @param certificate - path to the certificate file to revoke
+     * @param params - revocation parameters
+     * @param params.reason - CRL reason code
+     *   (default `"keyCompromise"`)
      */
     public async revokeCertificate(certificate: Filename, params: Params): Promise<void> {
         const crlReasons = [
@@ -465,13 +542,16 @@ export class CertificateAuthority {
     }
 
     /**
+     * Sign a Certificate Signing Request (CSR) with this CA.
      *
-     * @param certificate            - the certificate filename to generate
-     * @param certificateSigningRequestFilename   - the certificate signing request
-     * @param params                 - parameters
-     * @param params.applicationUri  - the applicationUri
-     * @param params.startDate       - startDate of the certificate
-     * @param params.validity        - number of day of validity of the certificate
+     * The signed certificate is written to `certificate`, and the
+     * CA certificate chain plus CRL are appended to form a
+     * complete certificate chain.
+     *
+     * @param certificate - output path for the signed certificate
+     * @param certificateSigningRequestFilename - path to the CSR
+     * @param params1 - signing parameters (validity, dates, SANs)
+     * @returns the path to the signed certificate
      */
     public async signCertificateRequest(
         certificate: Filename,
@@ -550,6 +630,11 @@ export class CertificateAuthority {
         return certificate;
     }
 
+    /**
+     * Verify a certificate against this CA.
+     *
+     * @param certificate - path to the certificate file to verify
+     */
     public async verifyCertificate(certificate: Filename): Promise<void> {
         // openssl verify crashes on windows! we cannot use it reliably
         // istanbul ignore next

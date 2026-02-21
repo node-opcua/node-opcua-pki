@@ -13,9 +13,9 @@ import {
     type CertificateAuthorityOptions,
     CertificateManager,
     type Filename,
-    type KeySize,
-    type Params
+    type KeySize
 } from "node-opcua-pki";
+import type { Params } from "node-opcua-pki-priv/toolbox/common";
 
 import { beforeTest } from "./helpers";
 

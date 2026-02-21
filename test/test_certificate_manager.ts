@@ -7,7 +7,10 @@ import fs from "node:fs";
 import path from "node:path";
 import "should";
 import { readCertificate } from "node-opcua-crypto";
-import { CertificateManager, type CertificateStatus, type Filename, g_config, makePath, quote } from "node-opcua-pki";
+import { CertificateManager, type CertificateStatus, type Filename } from "node-opcua-pki";
+import { quote } from "node-opcua-pki-priv/toolbox/common";
+import { makePath } from "node-opcua-pki-priv/toolbox/common2";
+import { g_config } from "node-opcua-pki-priv/toolbox/config";
 import {
     dumpCertificate,
     executeOpensslAsync,
@@ -178,12 +181,13 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         await cm.dispose();
     });
 
-    it("Q1 - CertificateManager#_getCertificateStatus should return 'unknown' if the certificate is first seen", async () => {
+    it("Q1 - CertificateManager#getCertificateStatus should return 'rejected' for a first-seen certificate", async () => {
         const certificate: Buffer = fs.readFileSync(sample_certificate1_der);
         certificate.should.be.instanceOf(Buffer);
         await executeOpensslAsync(`x509 -inform der -in ${q(n(sample_certificate1_der))} -fingerprint -noout `, {});
-        const status: CertificateStatus = await cm._checkRejectedOrTrusted(certificate);
-        status.should.eql("unknown");
+        // First-seen certificates are auto-rejected by getCertificateStatus
+        const status: CertificateStatus = await cm.getCertificateStatus(certificate);
+        status.should.eql("rejected");
     });
 
     it("Q2 - CertificateManager#getCertificateStatus should store unknown certificate into the untrusted folder", async () => {

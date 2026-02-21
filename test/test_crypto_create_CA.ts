@@ -3,7 +3,8 @@ import child_process from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import "should";
-import { type Filename, makePath } from "node-opcua-pki";
+import type { Filename } from "node-opcua-pki";
+import { makePath } from "node-opcua-pki-priv/toolbox/common2";
 import { dumpCertificate } from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 

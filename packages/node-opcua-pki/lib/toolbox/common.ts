@@ -22,65 +22,117 @@
 // ---------------------------------------------------------------------------------------------------------------------
 import assert from "node:assert";
 
+/** RSA key size in bits. */
 export type KeySize = 1024 | 2048 | 3072 | 4096;
+/** Hex-encoded SHA-1 certificate thumbprint. */
 export type Thumbprint = string;
+/** A filesystem path to a file. */
 export type Filename = string;
+/** Status of a certificate in the trust store. */
 export type CertificateStatus = "unknown" | "trusted" | "rejected";
 
 import type { CertificatePurpose } from "node-opcua-crypto";
 import type { SubjectOptions } from "../misc/subject";
 
+/**
+ * @deprecated Use {@link KeySize} instead.
+ */
 export type KeyLength = 1024 | 2048 | 3072 | 4096;
 
 export function quote(str?: string): string {
     return `"${str || ""}"`;
 }
 
+/**
+ * Subject Alternative Name (SAN) parameters for certificate
+ * generation.
+ */
 export interface ProcessAltNamesParam {
+    /** DNS host names to include in the SAN extension. */
     dns?: string[];
+    /** IP addresses to include in the SAN extension. */
     ip?: string[];
+    /** OPC UA application URI for the SAN extension. */
     applicationUri?: string;
 }
 
-// tslint:disable-next:no-empty-interface
+/**
+ * Options for creating a Certificate Signing Request (CSR).
+ */
 export interface CreateCertificateSigningRequestOptions extends ProcessAltNamesParam {
+    /** X.500 subject for the certificate. */
     subject?: SubjectOptions | string;
 }
 
+/**
+ * Extended CSR options that include filesystem paths and
+ * certificate purpose — used internally by the OpenSSL toolbox.
+ */
 export interface CreateCertificateSigningRequestWithConfigOptions extends CreateCertificateSigningRequestOptions {
+    /** Root directory of the PKI store. */
     rootDir: Filename;
+    /** Path to the OpenSSL configuration file. */
     configFile: Filename;
+    /** Path to the private key file. */
     privateKey: Filename;
+    /** Intended purpose of the certificate. */
     purpose: CertificatePurpose;
 }
 
+/**
+ * Validity period parameters for certificate generation.
+ */
 export interface StartDateEndDateParam {
+    /** Certificate "Not Before" date. Defaults to now. */
     startDate?: Date;
+    /** Certificate "Not After" date (computed from validity). */
     endDate?: Date;
+    /** Number of days the certificate is valid. @defaultValue 365 */
     validity?: number;
 }
 
+/**
+ * Parameters for creating a self-signed certificate.
+ */
 export interface CreateSelfSignCertificateParam extends ProcessAltNamesParam, StartDateEndDateParam {
+    /** X.500 subject for the certificate. */
     subject?: SubjectOptions | string;
 }
 
-// purpose of self-signed certificate
-
+/**
+ * Extended self-signed certificate options that include
+ * filesystem paths and purpose — used internally.
+ */
 export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSignCertificateParam {
+    /** Root directory of the PKI store. */
     rootDir: Filename;
+    /** Path to the OpenSSL configuration file. */
     configFile: Filename;
+    /** Path to the private key file. */
     privateKey: Filename;
+    /** Intended purpose of the certificate. */
     purpose: CertificatePurpose;
 }
 
+/**
+ * General-purpose parameters passed to CA operations such as
+ * {@link CertificateAuthority.signCertificateRequest} and
+ * {@link CertificateAuthority.revokeCertificate}.
+ */
 export interface Params extends ProcessAltNamesParam, StartDateEndDateParam {
+    /** X.500 subject for the certificate. */
     subject?: SubjectOptions | string;
 
+    /** Path to the private key file. */
     privateKey?: string;
+    /** Path to the OpenSSL configuration file. */
     configFile?: string;
+    /** Root directory of the PKI store. */
     rootDir?: string;
 
+    /** Output filename for the generated certificate. */
     outputFile?: string;
+    /** CRL revocation reason (e.g. `"keyCompromise"`). */
     reason?: string;
 }
 

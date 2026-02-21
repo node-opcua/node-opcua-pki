@@ -19,10 +19,10 @@ import {
     type CertificateAuthorityOptions,
     CertificateManager,
     type Filename,
-    g_config,
-    type Params,
     VerificationStatus
 } from "node-opcua-pki";
+import type { Params } from "node-opcua-pki-priv/toolbox/common";
+import { g_config } from "node-opcua-pki-priv/toolbox/config";
 import { execute_openssl, x509Date } from "node-opcua-pki-priv/toolbox/with_openssl";
 
 import { beforeTest } from "./helpers";

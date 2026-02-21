@@ -324,8 +324,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             status.should.eql("Good");
 
             // Verify it's now trusted
-            const trustedStatus = await cm._checkRejectedOrTrusted(ownCert);
-            trustedStatus.should.eql("trusted");
+            const trustedStatus = await cm.isCertificateTrusted(ownCert);
+            trustedStatus.should.eql("Good");
         });
 
         it("should not modify the issuer store when trusting a leaf certificate", async () => {
@@ -390,8 +390,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             status.should.eql("Good");
 
             // Leaf should now be trusted
-            const trustedStatus = await cm._checkRejectedOrTrusted(leafCert);
-            trustedStatus.should.eql("trusted");
+            const trustedStatus = await cm.isCertificateTrusted(leafCert);
+            trustedStatus.should.eql("Good");
         });
     });
 
@@ -459,13 +459,13 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             fs.writeFileSync(destFile, ownCert);
 
             // Before reload: CM doesn't know about it
-            const statusBefore = await cm._checkRejectedOrTrusted(ownCert);
-            statusBefore.should.eql("unknown");
+            const statusBefore = await cm.isCertificateTrusted(ownCert);
+            statusBefore.should.eql("BadCertificateUntrusted");
 
             // After reload: CM picks it up
             await cm.reloadCertificates();
-            const statusAfter = await cm._checkRejectedOrTrusted(ownCert);
-            statusAfter.should.eql("trusted");
+            const statusAfter = await cm.isCertificateTrusted(ownCert);
+            statusAfter.should.eql("Good");
         });
 
         it("should detect externally deleted trusted certificates", async () => {
@@ -473,8 +473,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             const caCert = readCertificate(caCertFilename);
             await cm.trustCertificate(caCert);
 
-            const statusBefore = await cm._checkRejectedOrTrusted(caCert);
-            statusBefore.should.eql("trusted");
+            const statusBefore = await cm.isCertificateTrusted(caCert);
+            statusBefore.should.eql("Good");
 
             // Delete the file directly from disk
             const files = fs.readdirSync(cm.trustedFolder);
@@ -485,13 +485,13 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             }
 
             // Before reload: CM still thinks it's trusted (stale)
-            const statusStale = await cm._checkRejectedOrTrusted(caCert);
-            statusStale.should.eql("trusted");
+            const statusStale = await cm.isCertificateTrusted(caCert);
+            statusStale.should.eql("Good");
 
             // After reload: CM sees deletion
             await cm.reloadCertificates();
-            const statusAfter = await cm._checkRejectedOrTrusted(caCert);
-            statusAfter.should.eql("unknown");
+            const statusAfter = await cm.isCertificateTrusted(caCert);
+            statusAfter.should.eql("BadCertificateUntrusted");
         });
 
         it("should pick up externally added issuers", async () => {
