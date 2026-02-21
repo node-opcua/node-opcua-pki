@@ -5,6 +5,7 @@
 [![Build Status](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml/badge.svg)](https://github.com/node-opcua/node-opcua-pki/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/node-opcua/node-opcua-pki/badge.svg?branch=master)](https://coveralls.io/github/node-opcua/node-opcua-pki?branch=master)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki.svg?type=shield)](https://app.fossa.com/projects/custom%2B20248%2Fgithub.com%2Fnode-opcua%2Fnode-opcua-pki?ref=badge_shield)
+[![Dependency graph](https://img.shields.io/badge/dependency-graph-blue)](https://npmgraph.js.org/?q=node-opcua-pki#sizing=&color=moduleType&zoom=w)
 
 **PKI management for [node-opcua](https://node-opcua.github.io/)** — create and manage OPC UA certificates, Certificate Authorities, and Public Key Infrastructures from the command line or programmatically.
 
