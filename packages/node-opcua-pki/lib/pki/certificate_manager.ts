@@ -230,6 +230,84 @@ export enum CertificateManagerState {
     Disposed = 4
 }
 export class CertificateManager {
+    // ── Global instance registry ─────────────────────────────────
+    // Tracks all initialized CertificateManager instances so their
+    // file watchers can be closed automatically on process exit,
+    // even if the consumer forgets to call dispose().
+    private static _activeInstances = new Set<CertificateManager>();
+    private static _cleanupInstalled = false;
+
+    private static _installProcessCleanup(): void {
+        if (CertificateManager._cleanupInstalled) return;
+        CertificateManager._cleanupInstalled = true;
+
+        const closeDanglingWatchers = () => {
+            for (const cm of CertificateManager._activeInstances) {
+                for (const w of cm._watchers) {
+                    try {
+                        w.close();
+                    } catch {
+                        /* best-effort */
+                    }
+                }
+                cm._watchers.splice(0);
+                cm.state = CertificateManagerState.Disposed;
+            }
+            CertificateManager._activeInstances.clear();
+        };
+
+        // beforeExit fires when the event loop has no more work.
+        // If persistent:false works correctly on watchers, they
+        // won't prevent this event from firing.
+        process.on("beforeExit", closeDanglingWatchers);
+
+        // Also handle external termination signals so watchers
+        // are cleaned up before the process exits.
+        for (const signal of ["SIGINT", "SIGTERM"] as const) {
+            process.once(signal, () => {
+                closeDanglingWatchers();
+                process.exit();
+            });
+        }
+    }
+
+    /**
+     * Dispose **all** active CertificateManager instances,
+     * closing their file watchers and freeing resources.
+     *
+     * This is mainly useful in test tear-down to ensure the
+     * Node.js process can exit cleanly.
+     */
+    public static async disposeAll(): Promise<void> {
+        const instances = [...CertificateManager._activeInstances];
+        await Promise.all(instances.map((cm) => cm.dispose()));
+    }
+
+    /**
+     * Assert that all CertificateManager instances have been
+     * properly disposed. Throws an Error listing the locations
+     * of any leaked instances.
+     *
+     * Intended for use in test `afterAll()` / `afterEach()`
+     * hooks to catch missing `dispose()` calls early.
+     *
+     * @example
+     * ```ts
+     * after(() => {
+     *     CertificateManager.checkAllDisposed();
+     * });
+     * ```
+     */
+    public static checkAllDisposed(): void {
+        if (CertificateManager._activeInstances.size === 0) return;
+        const locations = [...CertificateManager._activeInstances].map((cm) => cm.rootDir);
+        throw new Error(
+            `${CertificateManager._activeInstances.size} CertificateManager instance(s) ` +
+                `not disposed:\n  - ${locations.join("\n  - ")}`
+        );
+    }
+    // ─────────────────────────────────────────────────────────────
+
     public untrustUnknownCertificate = true;
     public state: CertificateManagerState = CertificateManagerState.Uninitialized;
     /** @deprecated Use {@link folderPollingInterval} instead (typo fix). */
@@ -254,10 +332,10 @@ export class CertificateManager {
         rejected: new Map(),
         trusted: new Map(),
         issuers: {
-            certs: new Map(),
+            certs: new Map()
         },
         crl: new Map(),
-        issuersCrl: new Map(),
+        issuersCrl: new Map()
     };
 
     constructor(options: CertificateManagerOptions) {
@@ -374,10 +452,7 @@ export class CertificateManager {
             } catch (_err) {
                 return "BadCertificateInvalid";
             }
-            const filename = path.join(
-                this.rejectedFolder,
-                `${buildIdealCertificateName(certificate)}.pem`
-            );
+            const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
             debugLog("certificate has never been seen before and is now rejected (untrusted) ", filename);
             await fsWriteFile(filename, toPem(certificate, "CERTIFICATE"));
             this._thumbs.rejected.set(fingerprint, { certificate, filename });
@@ -520,8 +595,8 @@ export class CertificateManager {
             // certificate is not active yet
             debugLog(
                 chalk.red("certificate is invalid : certificate is not active yet !") +
-                "  not before date =" +
-                certificateInfo.notBefore
+                    "  not before date =" +
+                    certificateInfo.notBefore
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -596,6 +671,10 @@ export class CertificateManager {
         await this._initializingPromise;
         this._initializingPromise = undefined;
         this.state = CertificateManagerState.Initialized;
+
+        // Register for automatic cleanup on process exit
+        CertificateManager._activeInstances.add(this);
+        CertificateManager._installProcessCleanup();
     }
     private async _initialize(): Promise<void> {
         this.state = CertificateManagerState.Initializing;
@@ -676,6 +755,7 @@ export class CertificateManager {
             this._watchers.splice(0);
         } finally {
             this.state = CertificateManagerState.Disposed;
+            CertificateManager._activeInstances.delete(this);
         }
     }
 
@@ -1283,14 +1363,35 @@ export class CertificateManager {
         //   delay before the in-memory index is updated.
         //
         const usePolling = process.env.OPCUA_PKI_USE_POLLING === "true";
-        const options = {
+        const chokidarOptions = {
             usePolling,
             ...(usePolling ? { interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)) } : {}),
             persistent: false
         };
+
+        // Workaround for chokidar v4 not propagating persistent:false
+        // to the underlying fs.watch() handles on Windows. Without
+        // this, undisposed CertificateManager instances block process
+        // exit. We intercept fs.watch() during watcher creation to
+        // capture and .unref() every native handle.
+        const createUnreffedWatcher = (folder: string) => {
+            const capturedHandles: fs.FSWatcher[] = [];
+            const origWatch = fs.watch;
+            fs.watch = ((...args: Parameters<typeof fs.watch>) => {
+                const handle = origWatch.apply(fs, args);
+                capturedHandles.push(handle);
+                return handle;
+            }) as typeof fs.watch;
+            try {
+                const w = chokidar.watch(folder, chokidarOptions);
+                return { w, capturedHandles };
+            } finally {
+                fs.watch = origWatch;
+            }
+        };
         async function _walkCRLFiles(this: CertificateManager, folder: string, index: Map<string, CRLData>) {
             await new Promise<void>((resolve, _reject) => {
-                const w = chokidar.watch(folder, options);
+                const { w, capturedHandles } = createUnreffedWatcher(folder);
 
                 w.on("unlink", (filename: string) => {
                     // Remove CRL entries whose file was deleted
@@ -1309,13 +1410,16 @@ export class CertificateManager {
                 });
                 this._watchers.push(w as unknown as fs.FSWatcher);
                 w.on("ready", () => {
+                    for (const h of capturedHandles) {
+                        h.unref();
+                    }
                     resolve();
                 });
             });
         }
 
         async function _walkAllFiles(this: CertificateManager, folder: string, index: Map<string, Entry>) {
-            const w = chokidar.watch(folder, options);
+            const { w, capturedHandles } = createUnreffedWatcher(folder);
             w.on("unlink", (filename: string) => {
                 debugLog(chalk.cyan(`unlink in folder ${folder}`), filename);
                 const h = this._filenameToHash.get(filename);
@@ -1363,6 +1467,9 @@ export class CertificateManager {
             this._watchers.push(w as unknown as fs.FSWatcher);
             await new Promise<void>((resolve, _reject) => {
                 w.on("ready", () => {
+                    for (const h of capturedHandles) {
+                        h.unref();
+                    }
                     debugLog("ready");
                     debugLog([...index.keys()].map((k) => k.substring(0, 10)));
                     resolve();

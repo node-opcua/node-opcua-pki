@@ -300,3 +300,60 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         await Promise.all(promises);
     });
 });
+
+describe("CertificateManager static cleanup helpers", function (this: Mocha.Suite) {
+    this.timeout(40000);
+
+    const testData = beforeTest(this);
+
+    afterEach(async () => {
+        // ensure every test leaves a clean slate
+        await CertificateManager.disposeAll();
+    });
+
+    it("disposeAll should dispose all active instances", async () => {
+        const cm1 = new CertificateManager({ location: path.join(testData.tmpFolder, "DA1") });
+        const cm2 = new CertificateManager({ location: path.join(testData.tmpFolder, "DA2") });
+        await cm1.initialize();
+        await cm2.initialize();
+
+        // Both are active — checkAllDisposed should throw
+        (() => CertificateManager.checkAllDisposed()).should.throw(/2 CertificateManager/);
+
+        await CertificateManager.disposeAll();
+
+        // After disposeAll, no active instances remain
+        CertificateManager.checkAllDisposed(); // should not throw
+    });
+
+    it("checkAllDisposed should pass when no instances exist", () => {
+        CertificateManager.checkAllDisposed(); // should not throw
+    });
+
+    it("checkAllDisposed should throw listing undisposed locations", async () => {
+        const loc = path.join(testData.tmpFolder, "DA3");
+        const cm = new CertificateManager({ location: loc });
+        await cm.initialize();
+
+        try {
+            CertificateManager.checkAllDisposed();
+            throw new Error("should have thrown");
+        } catch (err: unknown) {
+            (err as Error).message.should.match(/1 CertificateManager/);
+            // rootDir normalizes path separators, so compare against rootDir
+            (err as Error).message.should.containEql(cm.rootDir);
+        }
+
+        await cm.dispose();
+        CertificateManager.checkAllDisposed(); // should not throw
+    });
+
+    it("checkAllDisposed should pass after manual dispose", async () => {
+        const cm = new CertificateManager({ location: path.join(testData.tmpFolder, "DA4") });
+        await cm.initialize();
+
+        await cm.dispose();
+
+        CertificateManager.checkAllDisposed(); // should not throw
+    });
+});
