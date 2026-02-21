@@ -1370,10 +1370,13 @@ export class CertificateManager {
         };
 
         // Workaround for chokidar v4 not propagating persistent:false
-        // to the underlying fs.watch() handles on Windows. Without
-        // this, undisposed CertificateManager instances block process
-        // exit. We intercept fs.watch() during watcher creation to
-        // capture and .unref() every native handle.
+        // to the underlying fs.watch() handles. Without this, undisposed
+        // CertificateManager instances block process exit. We intercept
+        // fs.watch() during watcher creation to capture every native
+        // handle, then .unref() them once chokidar emits "ready".
+        // The interception stays active until "ready" fires, because
+        // on Linux chokidar may create fs.watch handles asynchronously
+        // as it discovers subdirectories.
         const createUnreffedWatcher = (folder: string) => {
             const capturedHandles: fs.FSWatcher[] = [];
             const origWatch = fs.watch;
@@ -1382,16 +1385,18 @@ export class CertificateManager {
                 capturedHandles.push(handle);
                 return handle;
             }) as typeof fs.watch;
-            try {
-                const w = chokidar.watch(folder, chokidarOptions);
-                return { w, capturedHandles };
-            } finally {
+            const w = chokidar.watch(folder, chokidarOptions);
+            const unreffAll = () => {
                 fs.watch = origWatch;
-            }
+                for (const h of capturedHandles) {
+                    h.unref();
+                }
+            };
+            return { w, capturedHandles, unreffAll };
         };
         async function _walkCRLFiles(this: CertificateManager, folder: string, index: Map<string, CRLData>) {
             await new Promise<void>((resolve, _reject) => {
-                const { w, capturedHandles } = createUnreffedWatcher(folder);
+                const { w, unreffAll } = createUnreffedWatcher(folder);
 
                 w.on("unlink", (filename: string) => {
                     // Remove CRL entries whose file was deleted
@@ -1410,16 +1415,14 @@ export class CertificateManager {
                 });
                 this._watchers.push(w as unknown as fs.FSWatcher);
                 w.on("ready", () => {
-                    for (const h of capturedHandles) {
-                        h.unref();
-                    }
+                    unreffAll();
                     resolve();
                 });
             });
         }
 
         async function _walkAllFiles(this: CertificateManager, folder: string, index: Map<string, Entry>) {
-            const { w, capturedHandles } = createUnreffedWatcher(folder);
+            const { w, unreffAll } = createUnreffedWatcher(folder);
             w.on("unlink", (filename: string) => {
                 debugLog(chalk.cyan(`unlink in folder ${folder}`), filename);
                 const h = this._filenameToHash.get(filename);
@@ -1467,9 +1470,7 @@ export class CertificateManager {
             this._watchers.push(w as unknown as fs.FSWatcher);
             await new Promise<void>((resolve, _reject) => {
                 w.on("ready", () => {
-                    for (const h of capturedHandles) {
-                        h.unref();
-                    }
+                    unreffAll();
                     debugLog("ready");
                     debugLog([...index.keys()].map((k) => k.substring(0, 10)));
                     resolve();

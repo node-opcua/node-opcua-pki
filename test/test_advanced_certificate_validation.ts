@@ -89,5 +89,7 @@ describe("Check Validate Certificate", function () {
             const cert2Status = await certificateManager.verifyCertificate(cert2);
             cert2Status.should.eql("BadCertificateRevoked");
         }
+
+        await certificateManager.dispose();
     });
 });

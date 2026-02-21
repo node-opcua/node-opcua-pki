@@ -24,6 +24,14 @@ describe("CertificateManager", function (this: Mocha.Suite) {
 
     const testData = beforeTest(this);
 
+    before(() => {
+        CertificateManager.checkAllDisposed();
+    });
+
+    after(() => {
+        CertificateManager.checkAllDisposed();
+    });
+
     it("should create a certificateManager", async () => {
         const options = {
             location: path.join(testData.tmpFolder, "PKI")
@@ -124,6 +132,11 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     const testData = beforeTest(this);
     let cm: CertificateManager;
 
+    after(async () => {
+        await cm.dispose();
+        CertificateManager.checkAllDisposed();
+    });
+
     async function createSampleCertificateDer(certificate: Filename): Promise<void> {
         processAltNames({ applicationUri: "T" });
         const defaultOpensslConfPath = path.join(__dirname, "../tmp/PKI2/own/openssl.cnf");
@@ -150,6 +163,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     const sample_certificate4_der = path.join(__dirname, "fixtures/sample_certificate4.der");
 
     before(async () => {
+        CertificateManager.checkAllDisposed();
         const options = {
             location: path.join(testData.tmpFolder, "PKI2")
         };
@@ -312,6 +326,9 @@ describe("CertificateManager static cleanup helpers", function (this: Mocha.Suit
     });
 
     it("disposeAll should dispose all active instances", async () => {
+        // clear any leftovers from previous test suites
+        await CertificateManager.disposeAll();
+
         const cm1 = new CertificateManager({ location: path.join(testData.tmpFolder, "DA1") });
         const cm2 = new CertificateManager({ location: path.join(testData.tmpFolder, "DA2") });
         await cm1.initialize();
