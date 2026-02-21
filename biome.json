@@ -38,6 +38,7 @@
             "!**/dist-cjs",
             "!**/dist-esm",
             "!**/build",
+            "!**/certificates",
             "!package.json",
             "!package-lock.json",
             "!lerna.json"
