@@ -35,7 +35,7 @@
   "author": "Etienne Rossignon",
   "license": "MIT",
   "devDependencies": {
-    "@biomejs/biome": "^2.4.3",
+    "@biomejs/biome": "^2.4.4",
     "@types/byline": "^4.2.36",
     "@types/command-line-args": "^5.2.3",
     "@types/command-line-usage": "^5.0.4",
@@ -46,7 +46,7 @@
     "@types/sinon": "^21.0.0",
     "@types/yauzl": "^2.10.3",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.0",
+    "lint-staged": "^16.2.7",
     "mocha": "^11.7.5",
     "node-dir": "^0.1.17",
     "should": "^13.2.3",
