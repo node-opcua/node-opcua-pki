@@ -3,6 +3,60 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.5.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.4.0...v6.5.0) (2026-02-22)
+
+
+### Bug Fixes
+
+* keep fs.watch interception until chokidar ready event and add before/after checkAllDisposed guards ([6fef633](https://github.com/node-opcua/node-opcua-pki/commit/6fef633a26168e6fd6478dde2cb0bd46906384ff))
+* prevent undisposed CertificateManager from blocking ([0fbe111](https://github.com/node-opcua/node-opcua-pki/commit/0fbe111a2eb68b6e53fb5db9cbc711b09265d21c))
+* use absolute dist path in process exit test and increase timeouts for slow filesystems ([0a7c2e3](https://github.com/node-opcua/node-opcua-pki/commit/0a7c2e3d0a681674db6d7b72ac30c1550a527901))
+
+
+* refactor!: sanitize public API and add JSDoc documentation ([ff8903f](https://github.com/node-opcua/node-opcua-pki/commit/ff8903fa3929782c6dd732583b6965e353ad5057))
+
+
+### Features
+
+* **pki:** Enhance PFX toolbox and certificate verification ([a81b9c9](https://github.com/node-opcua/node-opcua-pki/commit/a81b9c9dbed9743218b21865e134a71183bcc4f0)), closes [PKCS#12](https://github.com/PKCS/issues/12)
+
+
+### BREAKING CHANGES
+
+* `pki_main` is no longer exported from the
+public API. The CLI binary now imports it directly from the
+internal module.
+
+- remove `pki_main` from public API (index.ts); the CLI
+  (`bin/pki.ts`) now imports directly from internal path
+- remove internal helpers from public API: `g_config`,
+  `mkdirRecursiveSync`, `warningLog`, `makePath`, `quote`
+- move `Params` type import to internal path in tests
+- update all test imports to use `node-opcua-pki-priv/...`
+  paths for internal symbols
+- fix `reloadCertificates` tests that incorrectly disabled
+  `untrustUnknownCertificate` (causing false "Good" status)
+
+- add comprehensive JSDoc to `CertificateAuthority` class,
+  `CertificateAuthorityOptions`, and all public members
+- add comprehensive JSDoc to `CertificateManager` class,
+  all public/protected methods, getters, fields, and the
+  `findIssuerCertificateInChain` standalone function
+- add JSDoc to all exported types and interfaces in
+  `common.ts`: `KeySize`, `Filename`, `CertificateStatus`,
+  `ProcessAltNamesParam`, `Params`, `StartDateEndDateParam`,
+  `CreateSelfSignCertificateParam`, etc.
+- add JSDoc to `CertificateManagerOptions`,
+  `CreateSelfSignCertificateParam1`,
+  `VerifyCertificateOptions`, `VerificationStatus`,
+  `CertificateManagerState`
+- mark `KeyLength` as @deprecated in favor of `KeySize`
+- clean up old-style `@method`/`@async` JSDoc tags
+
+
+
+
+
 # [6.4.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.3.0...v6.4.0) (2026-02-20)
 
 
