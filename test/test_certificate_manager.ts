@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import "should";
 import { readCertificate } from "node-opcua-crypto";
-import { CertificateManager, type CertificateStatus, type Filename } from "node-opcua-pki";
+import { CertificateManager, type Filename, VerificationStatus } from "node-opcua-pki";
 import { quote } from "node-opcua-pki-priv/toolbox/common";
 import { makePath } from "node-opcua-pki-priv/toolbox/common2";
 import { g_config } from "node-opcua-pki-priv/toolbox/config";
@@ -181,39 +181,40 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         await cm.dispose();
     });
 
-    it("Q1 - CertificateManager#getCertificateStatus should return 'rejected' for a first-seen certificate", async () => {
+    it("Q1 - CertificateManager#verifyCertificate should return 'rejected' for a first-seen certificate", async () => {
         const certificate: Buffer = fs.readFileSync(sample_certificate1_der);
         certificate.should.be.instanceOf(Buffer);
         await executeOpensslAsync(`x509 -inform der -in ${q(n(sample_certificate1_der))} -fingerprint -noout `, {});
-        // First-seen certificates are auto-rejected by getCertificateStatus
-        const status: CertificateStatus = await cm.getCertificateStatus(certificate);
-        status.should.eql("rejected");
+
+        // First-seen certificates are auto-rejected by triageCertificate
+        const status = await cm.verifyCertificate(certificate);
+        status.should.eql(VerificationStatus.BadCertificateUntrusted);
     });
 
-    it("Q2 - CertificateManager#getCertificateStatus should store unknown certificate into the untrusted folder", async () => {
+    it("Q2 - CertificateManager#verifyCertificate should store unknown certificate into the untrusted folder", async () => {
         const certificate: Buffer = fs.readFileSync(sample_certificate2_der);
 
-        const status1: CertificateStatus = await cm.getCertificateStatus(certificate);
-        status1.should.eql("rejected");
+        const status1 = await cm.verifyCertificate(certificate);
+        status1.should.eql(VerificationStatus.BadCertificateUntrusted);
 
-        const status2: CertificateStatus = await cm.getCertificateStatus(certificate);
-        status2.should.eql("rejected");
+        const status2 = await cm.verifyCertificate(certificate);
+        status2.should.eql(VerificationStatus.BadCertificateUntrusted);
     });
 
     it("Q3 - CertificateManager#trustCertificate should store in trusted folder", async () => {
         const certificate: Buffer = fs.readFileSync(sample_certificate3_der);
 
-        const status1: CertificateStatus = await cm.getCertificateStatus(certificate);
-        status1.should.eql("rejected");
+        const status1 = await cm.verifyCertificate(certificate);
+        status1.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         await cm.trustCertificate(certificate);
-        const status2: CertificateStatus = await cm.getCertificateStatus(certificate);
-        status2.should.eql("trusted");
+        const status2 = await cm.verifyCertificate(certificate);
+        status2.should.eql(VerificationStatus.Good);
 
         await cm.rejectCertificate(certificate);
 
-        const status3: CertificateStatus = await cm.getCertificateStatus(certificate);
-        status3.should.eql("rejected");
+        const status3 = await cm.verifyCertificate(certificate);
+        status3.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         await cm.rejectCertificate(certificate);
     });
@@ -223,22 +224,22 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
 
         const certificate: Buffer = await fsReadFile(sample_certificate3_der);
 
-        const status = await cm.getCertificateStatus(certificate);
+        const status = await cm.verifyCertificate(certificate);
 
-        status.should.eql("rejected");
+        status.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         await cm.trustCertificate(certificate);
 
-        const status1 = await cm.getCertificateStatus(certificate);
-        status1.should.eql("trusted");
+        const status1 = await cm.verifyCertificate(certificate);
+        status1.should.eql(VerificationStatus.Good);
 
         const status1_a = await cm.isCertificateTrusted(certificate);
         status1_a.should.eql("Good");
 
         await cm.rejectCertificate(certificate);
 
-        const status2 = await cm.getCertificateStatus(certificate);
-        status2.should.eql("rejected");
+        const status2 = await cm.verifyCertificate(certificate);
+        status2.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         const status2_a = await cm.isCertificateTrusted(certificate);
         status2_a.should.eql("BadCertificateUntrusted");
@@ -278,11 +279,11 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         const certificate = await readCertificate(sample_certificate3_pem);
         await cm.trustCertificate(certificate);
 
-        const status = await cm.getCertificateStatus(certificate);
+        const status = await cm.verifyCertificate(certificate);
         console.log("status ", status.toString());
 
         const verificationStatus = await cm.verifyCertificate(certificate);
-        console.log("status ", verificationStatus.toString());
+        console.log("verificationStatus ", verificationStatus.toString());
     });
 
     it("Q8A - Disposing while initializing ", async () => {

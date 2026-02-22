@@ -24,4 +24,6 @@
 export { CertificateAuthority, type CertificateAuthorityOptions } from "./ca/certificate_authority";
 export * from "./misc/subject";
 export * from "./pki/certificate_manager";
+export * from "./pki/toolbox_pfx";
+export * from "./toolbox/common";
 export { install_prerequisite } from "./toolbox/with_openssl/install_prerequisite";

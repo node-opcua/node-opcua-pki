@@ -1,8 +1,6 @@
 {
     "extends": "@istanbuljs/nyc-config-typescript",
-    "include": [
-        "packages/node-opcua-pki/lib/**/*.ts"
-    ],
+    "include": ["packages/node-opcua-pki/lib/**/*.ts"],
     "exclude": [
         "packages/node-opcua-pki/lib/ca/crypto_create_CA.ts",
         "packages/node-opcua-pki/lib/misc/hostname.ts",

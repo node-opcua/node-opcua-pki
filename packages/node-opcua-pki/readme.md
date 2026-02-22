@@ -217,11 +217,10 @@ await cm.createSelfSignedCertificate({
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `trustCertificate(cert)`                        | Add a certificate to the trusted store                                                     |
 | `rejectCertificate(cert)`                       | Move a certificate to the rejected store                                                   |
-| `getCertificateStatus(cert)`                    | Returns `"trusted"`, `"rejected"`, or `"unknown"`                                          |
+| `verifyCertificate(cert, options?)`             | Full certificate chain validation                                                          |
 | `removeTrustedCertificate(thumbprint)`          | Remove a trusted certificate by SHA-1 thumbprint. Returns the certificate buffer or `null` |
 | `addTrustedCertificateFromChain(certChain)`     | Validate and trust the leaf certificate from a DER chain                                   |
 | `isIssuerInUseByTrustedCertificate(issuerCert)` | Check if any trusted cert was signed by this issuer                                        |
-| `verifyCertificate(cert, options?)`             | Full certificate chain validation                                                          |
 | `reloadCertificates()`                          | Force a full re-scan of all PKI folders                                                    |
 
 #### Issuer (CA) Certificates

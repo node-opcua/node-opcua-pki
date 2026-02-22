@@ -103,7 +103,7 @@ export interface CertificateManagerOptions {
 }
 
 /**
- * Parameters for {@link CertificateManager.createSelfSignedCertificate}.
+ * Parameters for {@link createSelfSignedCertificate}.
  * All fields from {@link CreateSelfSignCertificateParam} are required.
  */
 export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertificateParam {
@@ -127,6 +127,18 @@ export interface CreateSelfSignCertificateParam1 extends CreateSelfSignCertifica
 /**
  * Options to fine-tune certificate verification behaviour.
  * Passed to {@link CertificateManager.verifyCertificate}.
+ *
+ * Without any options, `verifyCertificate` is **strict**: only
+ * certificates that are explicitly present in the trusted store
+ * will return {@link VerificationStatus.Good}. Unknown or
+ * rejected certificates return
+ * {@link VerificationStatus.BadCertificateUntrusted} even when
+ * their issuer chain is valid.
+ *
+ * Set {@link acceptCertificateWithValidIssuerChain} to `true`
+ * to accept certificates whose issuer chain validates against
+ * a trusted CA — even if the leaf certificate itself is not
+ * in the trusted store.
  */
 export interface VerifyCertificateOptions {
     /** Accept certificates whose "Not After" date has passed. */
@@ -137,6 +149,18 @@ export interface VerifyCertificateOptions {
     ignoreMissingRevocationList?: boolean;
     /** Accept certificates whose "Not Before" date is in the future. */
     acceptPendingCertificate?: boolean;
+    /**
+     * Accept a certificate that is not in the trusted store when
+     * its issuer (CA) certificate is trusted, the signature is
+     * valid, and the certificate does not appear in the CRL.
+     *
+     * When `false` (the default), only certificates explicitly
+     * placed in the trusted store are accepted — this is the
+     * same behaviour as {@link CertificateManager.isCertificateTrusted}.
+     *
+     * @defaultValue false
+     */
+    acceptCertificateWithValidIssuerChain?: boolean;
 }
 
 /**
@@ -182,7 +206,11 @@ export enum VerificationStatus {
 }
 
 function makeFingerprint(certificate: Certificate | CertificateRevocationList): string {
-    return makeSHA1Thumbprint(certificate).toString("hex");
+    // When the buffer contains a certificate chain (multiple
+    // concatenated DER structures), the thumbprint must be
+    // computed on the leaf certificate only (first element).
+    const chain = split_der(certificate);
+    return makeSHA1Thumbprint(chain[0]).toString("hex");
 }
 function short(stringToShorten: string) {
     return stringToShorten.substring(0, 10);
@@ -469,26 +497,8 @@ export class CertificateManager {
     }
 
     /**
-     * returns the certificate status trusted/rejected
-     * @param certificate
-     */
-    public async getCertificateStatus(certificate: Buffer): Promise<CertificateStatus> {
-        await this.initialize();
-        let status = await this.#checkRejectedOrTrusted(certificate);
-        if (status === "unknown") {
-            const pem = toPem(certificate, "CERTIFICATE");
-            const fingerprint = makeFingerprint(certificate);
-            const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
-            await fs.promises.writeFile(filename, pem);
-            this.#thumbs.rejected.set(fingerprint, { certificate, filename });
-            status = "rejected";
-        }
-        return status;
-    }
-
-    /**
      * Move a certificate to the rejected store.
-     * If the certificate was previously trusted, it will be moved.
+     * If the certificate was previously trusted, it will be removed from the trusted folder.
      * @param certificate - the DER-encoded certificate
      */
     public async rejectCertificate(certificate: Certificate): Promise<void> {
@@ -497,7 +507,7 @@ export class CertificateManager {
 
     /**
      * Move a certificate to the trusted store.
-     * If the certificate was previously rejected, it will be moved.
+     * If the certificate was previously rejected, it will be removed from the rejected folder.
      * @param certificate - the DER-encoded certificate
      */
     public async trustCertificate(certificate: Certificate): Promise<void> {
@@ -523,6 +533,13 @@ export class CertificateManager {
     /** Path to the issuer CRL folder. */
     public get issuersCrlFolder(): string {
         return path.join(this.rootDir, "issuers/crl");
+    }
+    /** Path to the own certificate folder. */
+    public get ownCertFolder(): string {
+        return path.join(this.rootDir, "own/certs");
+    }
+    public get ownPrivateFolder(): string {
+        return path.join(this.rootDir, "own/private");
     }
 
     /**
@@ -676,9 +693,10 @@ export class CertificateManager {
 
         const status = await this.#checkRejectedOrTrusted(certificate);
         if (status === "rejected") {
-            return VerificationStatus.BadCertificateUntrusted;
+            if (!(options.acceptCertificateWithValidIssuerChain && hasValidIssuer && hasTrustedIssuer)) {
+                return VerificationStatus.BadCertificateUntrusted;
+            }
         }
-
         const _c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
         debugLog("chain[1] info=", _c2);
 
@@ -714,12 +732,16 @@ export class CertificateManager {
         if (status === "trusted") {
             return isTimeInvalid ? VerificationStatus.BadCertificateTimeInvalid : VerificationStatus.Good;
         }
-        // status should be "unknown" at this point
+        // status should be "unknown" or "rejected" (bypassed) at this point
         if (hasIssuerKey) {
             if (!hasTrustedIssuer) {
                 return VerificationStatus.BadCertificateUntrusted;
             }
             if (!hasValidIssuer) {
+                return VerificationStatus.BadCertificateUntrusted;
+            }
+            if (!options.acceptCertificateWithValidIssuerChain) {
+                // strict mode: the leaf cert is not in the trusted store
                 return VerificationStatus.BadCertificateUntrusted;
             }
             return isTimeInvalid ? VerificationStatus.BadCertificateTimeInvalid : VerificationStatus.Good;
@@ -764,7 +786,13 @@ export class CertificateManager {
             // missing certificate
             return VerificationStatus.BadSecurityChecksFailed;
         }
-        return await this.verifyCertificateAsync(certificate, options || {});
+        try {
+            const status = await this.verifyCertificateAsync(certificate, options || {});
+            return status;
+        } catch (error) {
+            warningLog(`verifyCertificate error: ${(error as Error).message}`);
+            return VerificationStatus.BadCertificateInvalid;
+        }
     }
 
     /**
@@ -1320,6 +1348,9 @@ export class CertificateManager {
     }
 
     /**
+     *
+     * check if the certificate explicitly appear in the trust list, the reject list or none.
+     * In case of being in the reject and trusted list at the same time is consider: rejected.
      * @internal
      * @private
      */
@@ -1343,8 +1374,18 @@ export class CertificateManager {
         await this.withLock2(async () => {
             const fingerprint = makeFingerprint(certificate);
 
-            const status = await this.getCertificateStatus(certificate);
+            let status = await this.#checkRejectedOrTrusted(certificate);
+            if (status === "unknown") {
+                // # unknown mean rejected
+                const pem = toPem(certificate, "CERTIFICATE");
+                const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
+                await fs.promises.writeFile(filename, pem);
+                this.#thumbs.rejected.set(fingerprint, { certificate, filename });
+                status = "rejected";
+            }
+
             debugLog("#moveCertificate", fingerprint.substring(0, 10), "from", status, "to", newStatus);
+
             if (status !== "rejected" && status !== "trusted") {
                 throw new Error(`#moveCertificate: unexpected status '${status}' for certificate ${fingerprint.substring(0, 10)}`);
             }

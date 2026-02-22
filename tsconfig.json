@@ -12,31 +12,14 @@
         "traceResolution": false,
         "esModuleInterop": true,
         "lib": [],
-        "types": [
-            "node",
-            "mocha",
-            "should"
-        ],
+        "types": ["node", "mocha", "should"],
         "baseUrl": ".",
         "paths": {
-            "node-opcua-pki": [
-                "packages/node-opcua-pki/lib/index.ts"
-            ],
-            "node-opcua-pki-priv/*": [
-                "packages/node-opcua-pki/lib/*"
-            ]
+            "node-opcua-pki": ["packages/node-opcua-pki/lib/index.ts"],
+            "node-opcua-pki-priv/*": ["packages/node-opcua-pki/lib/*"]
         }
     },
-    "include": [
-        "packages/node-opcua-pki/lib/**/*.ts",
-        "test/*.ts"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist"
-    ],
-    "files": [
-        "packages/node-opcua-pki/lib/index.ts",
-        "packages/node-opcua-pki/lib/ca/crypto_create_CA.ts"
-    ]
+    "include": ["packages/node-opcua-pki/lib/**/*.ts", "test/*.ts"],
+    "exclude": ["node_modules", "dist"],
+    "files": ["packages/node-opcua-pki/lib/index.ts", "packages/node-opcua-pki/lib/ca/crypto_create_CA.ts"]
 }

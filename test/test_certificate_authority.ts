@@ -277,7 +277,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         status4.should.eql(VerificationStatus.Good);
 
         // check status before revocation...
-        const validate1 = await cm.verifyCertificate(certificate);
+        const validate1 = await cm.verifyCertificate(certificate, { acceptCertificateWithValidIssuerChain: true });
         validate1.should.eql(VerificationStatus.Good);
 
         // now revoke certificate
@@ -288,7 +288,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         const status3 = await cm.addRevocationList(caCRLAfter);
         status3.should.eql(VerificationStatus.Good);
 
-        const validate2 = await cm.verifyCertificate(certificate);
+        const validate2 = await cm.verifyCertificate(certificate, { acceptCertificateWithValidIssuerChain: true });
         validate2.should.eql(VerificationStatus.BadCertificateRevoked);
 
         await cm.dispose();
