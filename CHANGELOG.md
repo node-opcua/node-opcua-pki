@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.5.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.5.0...v6.5.1) (2026-02-23)
+
+**Note:** Version bump only for package node-opcua-pki-project
+
+
+
+
+
 # [6.5.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.4.0...v6.5.0) (2026-02-22)
 
 

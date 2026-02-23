@@ -1,6 +1,6 @@
 {
     "name": "node-opcua-pki",
-    "version": "6.5.0",
+    "version": "6.5.1",
     "description": "PKI management for node-opcua",
     "type": "commonjs",
     "main": "./dist/index.js",
@@ -14,7 +14,7 @@
     },
     "bin": {
         "pki": "./dist/bin/pki.mjs",
-	"node-opcua-pki": "./dist/bin/pki.mjs"
+        "node-opcua-pki": "./dist/bin/pki.mjs"
     },
     "files": [
         "dist",
