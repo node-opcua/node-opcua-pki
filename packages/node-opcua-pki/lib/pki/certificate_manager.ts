@@ -386,7 +386,7 @@ export class CertificateManager {
      */
     public static async disposeAll(): Promise<void> {
         const instances = [...CertificateManager.#activeInstances];
-        await Promise.all(instances.map((cm) => cm.dispose()));
+        await Promise.all(instances.map((cm) => CertificateManager.prototype.dispose.call(cm)));
     }
 
     /**
