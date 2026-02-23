@@ -13,7 +13,8 @@
         }
     },
     "bin": {
-        "pki": "./dist/bin/pki.mjs"
+        "pki": "./dist/bin/pki.mjs",
+	"node-opcua-pki": "./dist/bin/pki.mjs"
     },
     "files": [
         "dist",
