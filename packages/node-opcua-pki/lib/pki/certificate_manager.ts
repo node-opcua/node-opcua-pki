@@ -408,8 +408,7 @@ export class CertificateManager {
         if (CertificateManager.#activeInstances.size === 0) return;
         const locations = [...CertificateManager.#activeInstances].map((cm) => cm.rootDir);
         throw new Error(
-            `${CertificateManager.#activeInstances.size} CertificateManager instance(s) ` +
-                `not disposed:\n  - ${locations.join("\n  - ")}`
+            `${CertificateManager.#activeInstances.size} CertificateManager instance(s) not disposed:\n  - ${locations.join("\n  - ")}`
         );
     }
     // ─────────────────────────────────────────────────────────────
@@ -710,9 +709,7 @@ export class CertificateManager {
         if (certificateInfo.notBefore.getTime() > now.getTime()) {
             // certificate is not active yet
             debugLog(
-                chalk.red("certificate is invalid : certificate is not active yet !") +
-                    "  not before date =" +
-                    certificateInfo.notBefore
+                `${chalk.red("certificate is invalid : certificate is not active yet !")} not before date =${certificateInfo.notBefore}`
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -1209,6 +1206,9 @@ export class CertificateManager {
      * verifies that each issuer is already registered via
      * {@link addIssuer} before trusting the leaf.
      *
+     * If one of the certificates in the chain is not registered in the issuers store,
+     * the leaf certificate will be rejected.
+     *
      * @param certificateChain - DER-encoded certificate or chain
      * @returns `VerificationStatus.Good` on success, or an error
      *  status indicating why the certificate was rejected.
@@ -1233,29 +1233,14 @@ export class CertificateManager {
 
         // If a chain was provided, verify that every issuer in the
         // chain is already registered in the issuers store.
-        // We scan the filesystem directly because issuers may have
-        // been added outside this CertificateManager instance (e.g.
-        // via writeTrustedCertificateList) and the in-memory index
-        // may be stale.
+        // if one of the certificates in the chain is not registered in the issuers store,
+        // the certificate will be rejected.
         if (certificates.length > 1) {
-            const issuerFolder = this.issuersCertFolder;
-            const issuerThumbprints = new Set<string>();
-            const files = await fs.promises.readdir(issuerFolder);
-            for (const file of files) {
-                const ext = path.extname(file).toLowerCase();
-                if (ext === ".pem" || ext === ".der") {
-                    try {
-                        const issuerCert = readCertificate(path.join(issuerFolder, file));
-                        const fp = makeFingerprint(issuerCert);
-                        issuerThumbprints.add(fp);
-                    } catch (_err) {
-                        // skip unreadable files
-                    }
-                }
-            }
             for (const issuerCert of certificates.slice(1)) {
                 const thumbprint = makeFingerprint(issuerCert);
-                if (!issuerThumbprints.has(thumbprint)) {
+                if (!(await this.hasIssuer(thumbprint))) {
+                    // this issuer certificate is not registered in the issuers store
+                    // reject the leaf certificate
                     return VerificationStatus.BadCertificateChainIncomplete;
                 }
             }
