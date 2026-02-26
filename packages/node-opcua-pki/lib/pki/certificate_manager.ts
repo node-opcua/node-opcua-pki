@@ -7,6 +7,7 @@
 // This project is licensed under the terms of the MIT license.
 // ---------------------------------------------------------------------------------------------------------------------
 
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import { withLock } from "@ster5/global-mutex";
@@ -24,6 +25,7 @@ import {
     generatePrivateKeyFile,
     makeSHA1Thumbprint,
     readCertificate,
+    readCertificateAsync,
     readCertificateRevocationList,
     split_der,
     toPem,
@@ -87,6 +89,38 @@ interface Thumbs {
     crl: Map<string, CRLData>;
     /** key = subjectFingerPrint of issuer certificate */
     issuersCrl: Map<string, CRLData>;
+}
+
+/**
+ * Identifies which PKI sub-store a certificate event originated from.
+ */
+export type CertificateStore = "trusted" | "rejected" | "issuersCerts";
+
+/**
+ * Identifies which PKI sub-store a CRL event originated from.
+ */
+export type CrlStore = "crl" | "issuersCrl";
+
+/**
+ * Events emitted by {@link CertificateManager} when the
+ * file-system watchers detect certificate or CRL changes.
+ */
+export interface CertificateManagerEvents {
+    /** A certificate file was added to a store. */
+    certificateAdded: (event: { store: CertificateStore; certificate: Certificate; fingerprint: string; filename: string }) => void;
+    /** A certificate file was removed from a store. */
+    certificateRemoved: (event: { store: CertificateStore; fingerprint: string; filename: string }) => void;
+    /** A certificate file was modified in a store. */
+    certificateChange: (event: {
+        store: CertificateStore;
+        certificate: Certificate;
+        fingerprint: string;
+        filename: string;
+    }) => void;
+    /** A CRL file was added. */
+    crlAdded: (event: { store: CrlStore; filename: string }) => void;
+    /** A CRL file was removed. */
+    crlRemoved: (event: { store: CrlStore; filename: string }) => void;
 }
 
 /**
@@ -327,6 +361,18 @@ export enum CertificateManagerState {
  * longer needed to release watchers and allow the process to
  * exit cleanly.
  *
+ * ## Environment Variables
+ *
+ * - **`OPCUA_PKI_USE_POLLING`** — set to `"true"` to use
+ *   polling-based file watching instead of native OS events.
+ *   Useful for NFS, CIFS, Docker volumes, or other remote /
+ *   virtual file systems where native events are unreliable.
+ *
+ * - **`OPCUA_PKI_POLLING_INTERVAL`** — polling interval in
+ *   milliseconds (only effective when polling is enabled).
+ *   Clamped to the range [100, 600 000]. Defaults to
+ *   {@link folderPollingInterval} (5 000 ms).
+ *
  * @example
  * ```ts
  * const cm = new CertificateManager({ location: "/var/pki" });
@@ -335,7 +381,7 @@ export enum CertificateManagerState {
  * await cm.dispose();
  * ```
  */
-export class CertificateManager {
+export class CertificateManager extends EventEmitter {
     // ── Global instance registry ─────────────────────────────────
     // Tracks all initialized CertificateManager instances so their
     // file watchers can be closed automatically on process exit,
@@ -436,6 +482,7 @@ export class CertificateManager {
     public readonly keySize: KeySize;
     readonly #location: string;
     readonly #watchers: fs.FSWatcher[] = [];
+    readonly #pendingUnrefs: Set<() => void> = new Set();
     #readCertificatesCalled = false;
     readonly #filenameToHash = new Map<string, string>();
     #initializingPromise?: Promise<void>;
@@ -460,6 +507,7 @@ export class CertificateManager {
      * @param options - configuration options
      */
     constructor(options: CertificateManagerOptions) {
+        super();
         options.keySize = options.keySize || 2048;
         if (!options.location) {
             throw new Error("CertificateManager: missing 'location' option");
@@ -885,6 +933,12 @@ export class CertificateManager {
 
         try {
             this.state = CertificateManagerState.Disposing;
+            // Ensure all fs.watch handles are unref'd even if
+            // chokidar hasn't reached "ready" yet.
+            for (const unreff of this.#pendingUnrefs) {
+                unreff();
+            }
+            this.#pendingUnrefs.clear();
             await Promise.all(this.#watchers.map((w) => w.close()));
             this.#watchers.forEach((w) => {
                 w.removeAllListeners();
@@ -1450,7 +1504,7 @@ export class CertificateManager {
     }
 
     #pendingCrlToProcess = 0;
-    #onCrlProcess?: () => void;
+    #onCrlProcessWaiters: (() => void)[] = [];
     #queue: { index: Map<string, CRLData>; filename: string }[] = [];
     #onCrlFileAdded(index: Map<string, CRLData>, filename: string) {
         this.#queue.push({ index, filename });
@@ -1488,10 +1542,10 @@ export class CertificateManager {
         }
         this.#pendingCrlToProcess -= 1;
         if (this.#pendingCrlToProcess === 0) {
-            if (this.#onCrlProcess) {
-                this.#onCrlProcess();
-                this.#onCrlProcess = undefined;
+            for (const waiter of this.#onCrlProcessWaiters) {
+                waiter();
             }
+            this.#onCrlProcessWaiters.length = 0;
         } else {
             this.#processNextCrl();
         }
@@ -1531,9 +1585,13 @@ export class CertificateManager {
         //   delay before the in-memory index is updated.
         //
         const usePolling = process.env.OPCUA_PKI_USE_POLLING === "true";
+        const envInterval = process.env.OPCUA_PKI_POLLING_INTERVAL
+            ? parseInt(process.env.OPCUA_PKI_POLLING_INTERVAL, 10)
+            : undefined;
+        const pollingInterval = Math.min(10 * 60 * 1000, Math.max(100, envInterval ?? this.folderPollingInterval));
         const chokidarOptions = {
             usePolling,
-            ...(usePolling ? { interval: Math.min(10 * 60 * 1000, Math.max(100, this.folderPoolingInterval)) } : {}),
+            ...(usePolling ? { interval: pollingInterval } : {}),
             persistent: false
         };
 
@@ -1563,59 +1621,135 @@ export class CertificateManager {
             return { w, capturedHandles, unreffAll };
         };
 
-        const promises: Promise<void>[] = [
-            this.#walkAllFiles(this.trustedFolder, this.#thumbs.trusted, createUnreffedWatcher),
-            this.#walkAllFiles(this.issuersCertFolder, this.#thumbs.issuers.certs, createUnreffedWatcher),
-            this.#walkAllFiles(this.rejectedFolder, this.#thumbs.rejected, createUnreffedWatcher),
-            this.#walkCRLFiles(this.crlFolder, this.#thumbs.crl, createUnreffedWatcher),
-            this.#walkCRLFiles(this.issuersCrlFolder, this.#thumbs.issuersCrl, createUnreffedWatcher)
-        ];
-        await Promise.all(promises);
+        // ── Phase 1: Async scan ─────────────────────────────────
+        // Populate the in-memory indexes by reading existing
+        // files. Uses async readdir/stat to yield the event loop
+        // between files. All 5 folders are scanned in parallel.
+        await Promise.all([
+            this.#scanCertFolder(this.trustedFolder, this.#thumbs.trusted),
+            this.#scanCertFolder(this.issuersCertFolder, this.#thumbs.issuers.certs),
+            this.#scanCertFolder(this.rejectedFolder, this.#thumbs.rejected),
+            this.#scanCrlFolder(this.crlFolder, this.#thumbs.crl),
+            this.#scanCrlFolder(this.issuersCrlFolder, this.#thumbs.issuersCrl)
+        ]);
+
+        // ── Phase 2: Deferred file watchers ─────────────────────
+        // Start chokidar watchers in the background. We do NOT
+        // await "ready" so initialize() returns immediately after
+        // the sync scan. Chokidar will re-discover existing files
+        // (harmless Map overwrites) then watch for live changes.
+        this.#startWatcher(this.trustedFolder, this.#thumbs.trusted, createUnreffedWatcher, "trusted");
+        this.#startWatcher(this.issuersCertFolder, this.#thumbs.issuers.certs, createUnreffedWatcher, "issuersCerts");
+        this.#startWatcher(this.rejectedFolder, this.#thumbs.rejected, createUnreffedWatcher, "rejected");
+        this.#startCrlWatcher(this.crlFolder, this.#thumbs.crl, createUnreffedWatcher, "crl");
+        this.#startCrlWatcher(this.issuersCrlFolder, this.#thumbs.issuersCrl, createUnreffedWatcher, "issuersCrl");
+    }
+
+    /**
+     * Scan a certificate folder and populate the in-memory index.
+     * Uses async readdir/stat to yield the event loop between
+     * file reads, preventing main-loop stalls with large folders.
+     */
+    async #scanCertFolder(folder: string, index: Map<string, Entry>): Promise<void> {
+        if (!fs.existsSync(folder)) return;
+        const files = await fs.promises.readdir(folder);
+        for (const file of files) {
+            const filename = path.join(folder, file);
+            try {
+                const stat = await fs.promises.stat(filename);
+                if (!stat.isFile()) continue;
+                const certificate = await readCertificateAsync(filename);
+                const info = exploreCertificate(certificate);
+                const fingerprint = makeFingerprint(certificate);
+                index.set(fingerprint, { certificate, filename, info });
+                this.#filenameToHash.set(filename, fingerprint);
+            } catch (err) {
+                debugLog(`scanCertFolder: skipping ${filename}`, err);
+            }
+        }
+    }
+
+    /**
+     * Scan a CRL folder and populate the in-memory CRL index.
+     */
+    async #scanCrlFolder(folder: string, index: Map<string, CRLData>): Promise<void> {
+        if (!fs.existsSync(folder)) return;
+        const files = await fs.promises.readdir(folder);
+        for (const file of files) {
+            const filename = path.join(folder, file);
+            try {
+                const stat = await fs.promises.stat(filename);
+                if (!stat.isFile()) continue;
+                this.#onCrlFileAdded(index, filename);
+            } catch (err) {
+                debugLog(`scanCrlFolder: skipping ${filename}`, err);
+            }
+        }
         await this.#waitAndCheckCRLProcessingStatus();
     }
 
-    async #walkCRLFiles(
+    /**
+     * Start a chokidar watcher for a CRL folder.
+     * Non-blocking — does NOT await "ready".
+     */
+    #startCrlWatcher(
         folder: string,
         index: Map<string, CRLData>,
-        createUnreffedWatcher: (folder: string) => { w: ChokidarFSWatcher; unreffAll: () => void }
-    ) {
-        await new Promise<void>((resolve, _reject) => {
-            const { w, unreffAll } = createUnreffedWatcher(folder);
+        createUnreffedWatcher: (folder: string) => { w: ChokidarFSWatcher; unreffAll: () => void },
+        store: CrlStore
+    ): void {
+        const { w, unreffAll } = createUnreffedWatcher(folder);
+        let ready = false;
 
-            w.on("unlink", (filename: string) => {
-                // Remove CRL entries whose file was deleted
-                for (const [key, data] of index.entries()) {
-                    data.crls = data.crls.filter((c) => c.filename !== filename);
-                    if (data.crls.length === 0) {
-                        index.delete(key);
-                    }
+        w.on("unlink", (filename: string) => {
+            for (const [key, data] of index.entries()) {
+                data.crls = data.crls.filter((c) => c.filename !== filename);
+                if (data.crls.length === 0) {
+                    index.delete(key);
                 }
-            });
-            w.on("add", (filename: string) => {
+            }
+            if (ready) {
+                this.emit("crlRemoved", { store, filename });
+            }
+        });
+        w.on("add", (filename: string) => {
+            if (ready) {
                 this.#onCrlFileAdded(index, filename);
-            });
-            w.on("change", (changedPath: string) => {
-                debugLog("change in folder ", folder, changedPath);
-            });
-            this.#watchers.push(w as unknown as fs.FSWatcher);
-            w.on("ready", () => {
-                unreffAll();
-                resolve();
-            });
+                this.emit("crlAdded", { store, filename });
+            }
+        });
+        w.on("change", (changedPath: string) => {
+            debugLog("change in folder ", folder, changedPath);
+        });
+        this.#watchers.push(w as unknown as fs.FSWatcher);
+        this.#pendingUnrefs.add(unreffAll);
+        w.on("ready", () => {
+            ready = true;
+            this.#pendingUnrefs.delete(unreffAll);
+            unreffAll();
         });
     }
 
-    async #walkAllFiles(
+    /**
+     * Start a chokidar watcher for a certificate folder.
+     * Non-blocking — does NOT await "ready".
+     */
+    #startWatcher(
         folder: string,
         index: Map<string, Entry>,
-        createUnreffedWatcher: (folder: string) => { w: ChokidarFSWatcher; unreffAll: () => void }
-    ) {
+        createUnreffedWatcher: (folder: string) => { w: ChokidarFSWatcher; unreffAll: () => void },
+        store: CertificateStore
+    ): void {
         const { w, unreffAll } = createUnreffedWatcher(folder);
+        let ready = false;
         w.on("unlink", (filename: string) => {
             debugLog(chalk.cyan(`unlink in folder ${folder}`), filename);
             const h = this.#filenameToHash.get(filename);
             if (h && index.has(h)) {
                 index.delete(h);
+                if (ready) {
+                    this.emit("certificateRemoved", { store, fingerprint: h, filename });
+                }
             }
         });
         w.on("add", (filename: string) => {
@@ -1634,6 +1768,9 @@ export class CertificateManager {
                     info.tbsCertificate.serialNumber,
                     info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint
                 );
+                if (ready) {
+                    this.emit("certificateAdded", { store, certificate, fingerprint, filename });
+                }
             } catch (err) {
                 debugLog(`Walk files in folder ${folder} with file ${filename}`);
                 debugLog(err);
@@ -1644,39 +1781,38 @@ export class CertificateManager {
             try {
                 const certificate = readCertificate(changedPath);
                 const newFingerprint = makeFingerprint(certificate);
-                // Remove old entry if fingerprint changed
                 const oldHash = this.#filenameToHash.get(changedPath);
                 if (oldHash && oldHash !== newFingerprint) {
                     index.delete(oldHash);
                 }
                 index.set(newFingerprint, { certificate, filename: changedPath, info: exploreCertificate(certificate) });
                 this.#filenameToHash.set(changedPath, newFingerprint);
+                if (ready) {
+                    this.emit("certificateChange", { store, certificate, fingerprint: newFingerprint, filename: changedPath });
+                }
             } catch (err) {
                 debugLog(`change event: failed to re-read ${changedPath}`, err);
             }
         });
         this.#watchers.push(w as unknown as fs.FSWatcher);
-        await new Promise<void>((resolve, _reject) => {
-            w.on("ready", () => {
-                unreffAll();
-                debugLog("ready");
-                debugLog([...index.keys()].map((k) => k.substring(0, 10)));
-                resolve();
-            });
+        this.#pendingUnrefs.add(unreffAll);
+        w.on("ready", () => {
+            ready = true;
+            this.#pendingUnrefs.delete(unreffAll);
+            unreffAll();
+            debugLog("ready");
+            debugLog([...index.keys()].map((k) => k.substring(0, 10)));
         });
     }
 
     // make sure that all crls have been processed.
     async #waitAndCheckCRLProcessingStatus(): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve, _reject) => {
             if (this.#pendingCrlToProcess === 0) {
                 setImmediate(resolve);
                 return;
             }
-            if (this.#onCrlProcess) {
-                return reject(new Error("Internal Error"));
-            }
-            this.#onCrlProcess = resolve;
+            this.#onCrlProcessWaiters.push(resolve);
         });
     }
 }

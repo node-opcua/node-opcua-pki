@@ -256,15 +256,39 @@ await cm.createSelfSignedCertificate({
 
 `CertificateManager` uses [chokidar](https://github.com/paulmillr/chokidar) to watch the PKI folders for changes. By default, it uses **native OS events** (inotify, FSEvents, ReadDirectoryChangesW) for near-real-time detection.
 
-If the PKI folders are on a network file system (NFS, CIFS) or inside a Docker volume where native events don't propagate, set the environment variable:
+#### Environment Variables
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `OPCUA_PKI_USE_POLLING` | Set to `"true"` to use polling instead of native FS events. Required for NFS, CIFS, Docker volumes, or other remote/virtual file systems. | `false` |
+| `OPCUA_PKI_POLLING_INTERVAL` | Polling interval in milliseconds (only effective when polling is enabled). Clamped to [100, 600 000]. | `5000` |
 
 ```bash
-OPCUA_PKI_USE_POLLING=true
+# Example: enable polling with a 2-second interval
+OPCUA_PKI_USE_POLLING=true OPCUA_PKI_POLLING_INTERVAL=2000 node my_server.js
 ```
 
-This falls back to filesystem polling, which is slower but works on all file systems.
-
 > **Note:** If external processes modify the PKI folders directly (e.g., CLI tools, OPC UA `WriteTrustList`), call `reloadCertificates()` to force an immediate re-scan of the folder state.
+
+#### Events
+
+After `initialize()`, the `CertificateManager` emits events when its file-system watchers detect live changes. Events are **not** emitted during `initialize()` or `reloadCertificates()` to avoid noise.
+
+| Event | Payload | Description |
+| --- | --- | --- |
+| `certificateAdded` | `{ store, certificate, fingerprint, filename }` | A certificate file was added to a store |
+| `certificateRemoved` | `{ store, fingerprint, filename }` | A certificate file was removed from a store |
+| `certificateChange` | `{ store, certificate, fingerprint, filename }` | A certificate file was modified in a store |
+| `crlAdded` | `{ store, filename }` | A CRL file was added |
+| `crlRemoved` | `{ store, filename }` | A CRL file was removed |
+
+`store` is one of `"trusted"`, `"rejected"`, `"issuersCerts"` (for certificate events) or `"crl"`, `"issuersCrl"` (for CRL events).
+
+```typescript
+cm.on("certificateAdded", ({ store, fingerprint, filename }) => {
+    console.log(`New certificate in ${store}: ${fingerprint}`);
+});
+```
 
 ## References
 
