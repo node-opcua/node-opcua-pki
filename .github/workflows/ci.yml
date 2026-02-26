@@ -69,5 +69,6 @@ jobs:
 
       - name: Upload to Coveralls
         uses: coverallsapp/github-action@v2
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
