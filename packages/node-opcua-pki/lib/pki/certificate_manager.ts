@@ -1747,9 +1747,7 @@ export class CertificateManager extends EventEmitter {
             const h = this.#filenameToHash.get(filename);
             if (h && index.has(h)) {
                 index.delete(h);
-                if (ready) {
-                    this.emit("certificateRemoved", { store, fingerprint: h, filename });
-                }
+                this.emit("certificateRemoved", { store, fingerprint: h, filename });
             }
         });
         w.on("add", (filename: string) => {
@@ -1759,6 +1757,7 @@ export class CertificateManager extends EventEmitter {
                 const info = exploreCertificate(certificate);
                 const fingerprint = makeFingerprint(certificate);
 
+                const isNew = !index.has(fingerprint);
                 index.set(fingerprint, { certificate, filename, info });
                 this.#filenameToHash.set(filename, fingerprint);
 
@@ -1768,7 +1767,7 @@ export class CertificateManager extends EventEmitter {
                     info.tbsCertificate.serialNumber,
                     info.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint
                 );
-                if (ready) {
+                if (ready || isNew) {
                     this.emit("certificateAdded", { store, certificate, fingerprint, filename });
                 }
             } catch (err) {
@@ -1787,9 +1786,7 @@ export class CertificateManager extends EventEmitter {
                 }
                 index.set(newFingerprint, { certificate, filename: changedPath, info: exploreCertificate(certificate) });
                 this.#filenameToHash.set(changedPath, newFingerprint);
-                if (ready) {
-                    this.emit("certificateChange", { store, certificate, fingerprint: newFingerprint, filename: changedPath });
-                }
+                this.emit("certificateChange", { store, certificate, fingerprint: newFingerprint, filename: changedPath });
             } catch (err) {
                 debugLog(`change event: failed to re-read ${changedPath}`, err);
             }
