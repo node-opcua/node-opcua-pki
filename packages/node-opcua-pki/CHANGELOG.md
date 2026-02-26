@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.6.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.5.1...v6.6.0) (2026-02-26)
+
+
+### Features
+
+* deferred watcher init and event emission ([f813c6f](https://github.com/node-opcua/node-opcua-pki/commit/f813c6f26c2c6fca16e7e0bad6999dcd748d5664))
+
+
+
+
+
 ## [6.5.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.5.0...v6.5.1) (2026-02-23)
 
 **Note:** Version bump only for package node-opcua-pki
