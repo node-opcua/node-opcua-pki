@@ -39,7 +39,7 @@
     "author": "Etienne Rossignon",
     "license": "MIT",
     "dependencies": {
-        "@ster5/global-mutex": "^2.0.0",
+        "@ster5/global-mutex": "^3.1.0",
         "byline": "^5.0.0",
         "chalk": "4.1.2",
         "chokidar": "4.0.3",
