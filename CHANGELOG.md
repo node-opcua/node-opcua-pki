@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.7.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.6.0...v6.7.0) (2026-02-26)
+
+
+### Bug Fixes
+
+* emit certificateAdded for certs written before ([e229161](https://github.com/node-opcua/node-opcua-pki/commit/e2291618ef8d8701fb0053ccdfa480990d508150))
+* macOS CI test failures for stale issuer index ([610e54f](https://github.com/node-opcua/node-opcua-pki/commit/610e54ff64f9a4f682349fb9050e5897af454b1a))
+
+
+
+
+
 # [6.6.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.5.1...v6.6.0) (2026-02-26)
 
 
