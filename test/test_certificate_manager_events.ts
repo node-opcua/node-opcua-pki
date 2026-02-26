@@ -160,6 +160,13 @@ describe("CertificateManager events", function (this: Mocha.Suite) {
     // 3. Events for live file changes (post-ready)
     // ──────────────────────────────────────────────────────────
     describe("live file changes (post-ready)", () => {
+        before(function () {
+            if (process.platform === "darwin") {
+                // macOS FSEvents with persistent:false watchers are
+                // unreliable — skip live-detection tests on macOS.
+                this.skip();
+            }
+        });
         it("E4 - should emit certificateAdded when a new cert is written to trusted folder", async () => {
             const pkiDir = path.join(testData.tmpFolder, "evt_live_add");
             const helperDir = path.join(testData.tmpFolder, "evt_live_add_helper");

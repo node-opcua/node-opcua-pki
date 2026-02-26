@@ -1290,6 +1290,11 @@ export class CertificateManager extends EventEmitter {
         // if one of the certificates in the chain is not registered in the issuers store,
         // the certificate will be rejected.
         if (certificates.length > 1) {
+            // Re-scan the issuers folder to pick up certificates
+            // added directly to disk (e.g. by GDS push or external
+            // tooling) that the file-system watcher may not have
+            // delivered yet.
+            await this.#scanCertFolder(this.issuersCertFolder, this.#thumbs.issuers.certs);
             for (const issuerCert of certificates.slice(1)) {
                 const thumbprint = makeFingerprint(issuerCert);
                 if (!(await this.hasIssuer(thumbprint))) {
