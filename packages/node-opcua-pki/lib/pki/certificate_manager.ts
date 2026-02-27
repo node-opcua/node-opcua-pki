@@ -67,9 +67,43 @@ interface Entry {
 /** Return the cached `info` or compute and cache it. */
 function getOrComputeInfo(entry: Entry): CertificateInternals {
     if (!entry.info) {
-        entry.info = exploreCertificate(entry.certificate);
+        entry.info = exploreCertificateCached(entry.certificate);
     }
     return entry.info;
+}
+
+/**
+ * Module-level LRU cache for `exploreCertificate()` results.
+ *
+ * During a single `verifyCertificate()` flow the same certificate
+ * buffer can be parsed 4-6 times across different helper functions.
+ * This cache deduplicates the ASN.1 DER parsing by keying on the
+ * SHA-1 thumbprint of the certificate buffer.
+ *
+ * The cache is deliberately small (8 entries) so it covers the
+ * "same-cert-in-one-verification-flow" case without unbounded
+ * memory growth.
+ */
+const EXPLORE_CACHE_MAX = 8;
+const _exploreCache = new Map<string, CertificateInternals>();
+
+function exploreCertificateCached(certificate: Certificate): CertificateInternals {
+    const key = makeSHA1Thumbprint(certificate).toString("hex");
+    const cached = _exploreCache.get(key);
+    if (cached) {
+        // Move to end (most-recently-used)
+        _exploreCache.delete(key);
+        _exploreCache.set(key, cached);
+        return cached;
+    }
+    const info = exploreCertificate(certificate);
+    _exploreCache.set(key, info);
+    if (_exploreCache.size > EXPLORE_CACHE_MAX) {
+        // Evict oldest (first key in insertion order)
+        const oldest = _exploreCache.keys().next().value;
+        if (oldest) _exploreCache.delete(oldest);
+    }
+    return info;
 }
 interface CRLEntry {
     crlInfo: CertificateRevocationListInfo;
@@ -254,7 +288,7 @@ const forbiddenChars = /[\x00-\x1F<>:"/\\|?*]/g;
 function buildIdealCertificateName(certificate: Certificate): string {
     const fingerprint = makeFingerprint(certificate);
     try {
-        const commonName = exploreCertificate(certificate).tbsCertificate.subject.commonName || "";
+        const commonName = exploreCertificateCached(certificate).tbsCertificate.subject.commonName || "";
         // commonName may contain invalid characters for a filename such as / or \ or :
         // that we need to replace with a valid character.
         // replace / or \ or : with _
@@ -280,7 +314,7 @@ function isSelfSigned2(info: CertificateInternals): boolean {
 }
 
 function isSelfSigned3(certificate: Buffer): boolean {
-    const info = exploreCertificate(certificate);
+    const info = exploreCertificateCached(certificate);
     return isSelfSigned2(info);
 }
 
@@ -296,7 +330,7 @@ export function findIssuerCertificateInChain(certificate: Certificate, chain: Ce
     if (!certificate) {
         return null;
     }
-    const certInfo = exploreCertificate(certificate);
+    const certInfo = exploreCertificateCached(certificate);
 
     // istanbul ignore next
     if (isSelfSigned2(certInfo)) {
@@ -312,7 +346,7 @@ export function findIssuerCertificateInChain(certificate: Certificate, chain: Ce
         return null;
     }
     const potentialIssuers = chain.filter((c) => {
-        const info = exploreCertificate(c);
+        const info = exploreCertificateCached(c);
         return info.tbsCertificate.extensions && info.tbsCertificate.extensions.subjectKeyIdentifier === wantedIssuerKey;
     });
 
@@ -633,7 +667,7 @@ export class CertificateManager extends EventEmitter {
         }
         const chain = split_der(certificate);
         debugLog("NB CERTIFICATE IN CHAIN = ", chain.length);
-        const info = exploreCertificate(chain[0]);
+        const info = exploreCertificateCached(chain[0]);
 
         let hasValidIssuer = false;
         let hasTrustedIssuer = false;
@@ -1222,7 +1256,7 @@ export class CertificateManager extends EventEmitter {
         issuerCertificate: Certificate,
         target: "issuers" | "trusted" | "all" = "all"
     ): Promise<void> {
-        const issuerInfo = exploreCertificate(issuerCertificate);
+        const issuerInfo = exploreCertificateCached(issuerCertificate);
         const issuerFingerprint = issuerInfo.tbsCertificate.subjectFingerPrint;
 
         const processIndex = async (index: Map<string, CRLData>) => {
@@ -1273,7 +1307,7 @@ export class CertificateManager extends EventEmitter {
 
         // Structural validation — can we parse it?
         try {
-            exploreCertificate(leafCertificate);
+            exploreCertificateCached(leafCertificate);
         } catch (_err) {
             return VerificationStatus.BadCertificateInvalid;
         }
@@ -1352,7 +1386,7 @@ export class CertificateManager extends EventEmitter {
      *
      */
     public async findIssuerCertificate(certificate: Certificate): Promise<Certificate | null> {
-        const certInfo = exploreCertificate(certificate);
+        const certInfo = exploreCertificateCached(certificate);
 
         if (isSelfSigned2(certInfo)) {
             // the certificate is self signed so is it's own issuer.
@@ -1455,7 +1489,7 @@ export class CertificateManager extends EventEmitter {
         });
     }
     #findAssociatedCRLs(issuerCertificate: Certificate): CRLData | null {
-        const issuerCertificateInfo = exploreCertificate(issuerCertificate);
+        const issuerCertificateInfo = exploreCertificateCached(issuerCertificate);
         const key = issuerCertificateInfo.tbsCertificate.subjectFingerPrint;
         return this.#thumbs.issuersCrl.get(key) ?? this.#thumbs.crl.get(key) ?? null;
     }
@@ -1495,7 +1529,7 @@ export class CertificateManager extends EventEmitter {
         if (!crls) {
             return VerificationStatus.BadCertificateRevocationUnknown;
         }
-        const certInfo = exploreCertificate(certificate);
+        const certInfo = exploreCertificateCached(certificate);
         const serialNumber =
             certInfo.tbsCertificate.serialNumber || certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.serial || "";
 
@@ -1664,7 +1698,7 @@ export class CertificateManager extends EventEmitter {
                 const stat = await fs.promises.stat(filename);
                 if (!stat.isFile()) continue;
                 const certificate = await readCertificateAsync(filename);
-                const info = exploreCertificate(certificate);
+                const info = exploreCertificateCached(certificate);
                 const fingerprint = makeFingerprint(certificate);
                 index.set(fingerprint, { certificate, filename, info });
                 this.#filenameToHash.set(filename, fingerprint);
@@ -1759,7 +1793,7 @@ export class CertificateManager extends EventEmitter {
             debugLog(chalk.cyan(`add in folder ${folder}`), filename);
             try {
                 const certificate = readCertificate(filename);
-                const info = exploreCertificate(certificate);
+                const info = exploreCertificateCached(certificate);
                 const fingerprint = makeFingerprint(certificate);
 
                 const isNew = !index.has(fingerprint);
@@ -1789,7 +1823,7 @@ export class CertificateManager extends EventEmitter {
                 if (oldHash && oldHash !== newFingerprint) {
                     index.delete(oldHash);
                 }
-                index.set(newFingerprint, { certificate, filename: changedPath, info: exploreCertificate(certificate) });
+                index.set(newFingerprint, { certificate, filename: changedPath, info: exploreCertificateCached(certificate) });
                 this.#filenameToHash.set(changedPath, newFingerprint);
                 this.emit("certificateChange", { store, certificate, fingerprint: newFingerprint, filename: changedPath });
             } catch (err) {
