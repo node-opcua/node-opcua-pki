@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.7.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.7.0...v6.7.1) (2026-02-27)
+
+
+### Bug Fixes
+
+* **certificate-manager:** avoid double .lock suffix ([f161ff2](https://github.com/node-opcua/node-opcua-pki/commit/f161ff23ef0d447dab388458db9222c144683294))
+
+
+### Performance Improvements
+
+* **certificate-manager:** add LRU cache for ([f0e9126](https://github.com/node-opcua/node-opcua-pki/commit/f0e9126ab362cad68210c1047da08e4bc73eec33))
+
+
+
+
+
 # [6.7.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.6.0...v6.7.0) (2026-02-26)
 
 
