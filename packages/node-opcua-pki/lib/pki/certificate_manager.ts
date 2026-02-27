@@ -1015,7 +1015,7 @@ export class CertificateManager extends EventEmitter {
     }
 
     protected async withLock2<T>(action: () => Promise<T>): Promise<T> {
-        const lockFileName = path.join(this.rootDir, "mutex.lock");
+        const lockFileName = path.join(this.rootDir, "mutex");
         return withLock<T>({ fileToLock: lockFileName }, async () => {
             return await action();
         });
