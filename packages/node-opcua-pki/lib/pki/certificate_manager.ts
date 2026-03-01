@@ -1634,30 +1634,56 @@ export class CertificateManager extends EventEmitter {
             persistent: false
         };
 
-        // Workaround for chokidar v4 not propagating persistent:false
-        // to the underlying fs.watch() handles. Without this, undisposed
-        // CertificateManager instances block process exit. We intercept
-        // fs.watch() during watcher creation to capture every native
-        // handle, then .unref() them once chokidar emits "ready".
-        // The interception stays active until "ready" fires, because
-        // on Linux chokidar may create fs.watch handles asynchronously
-        // as it discovers subdirectories.
+        // Workaround for two chokidar v4 bugs with persistent:false:
+        //
+        //   1. Chokidar does not propagate persistent:false to the
+        //      underlying fs.watch() handles. Without .unref(), an
+        //      undisposed CertificateManager blocks process exit.
+        //
+        //   2. Chokidar does not register an 'error' handler on
+        //      fs.watch when persistent:false (handler.js l.160-168).
+        //      On Windows + Node < 22, the native handle fires EPERM
+        //      when the watched directory is removed, which becomes
+        //      an uncaught exception that crashes the process.
+        //
+        // We install a single shared fs.watch() interception BEFORE
+        // creating all 5 watchers.  Every captured handle gets both
+        // an error handler (fix #2) and is later .unref()'d (fix #1).
+        //
+        // The interception stays active until ALL watchers have
+        // emitted "ready" — chokidar creates fs.watch handles
+        // asynchronously during directory scanning, so we must keep
+        // the interception alive until that completes.
+        const allCapturedHandles: fs.FSWatcher[] = [];
+        const origWatch = fs.watch;
+        let watcherReadyCount = 0;
+        const totalWatchers = 5;
+
+        fs.watch = ((...args: Parameters<typeof fs.watch>) => {
+            const handle = origWatch.apply(fs, args);
+            handle.setMaxListeners(handle.getMaxListeners() + 1);
+            handle.on("error", () => {
+                /* swallow – watched directory was removed */
+            });
+            allCapturedHandles.push(handle);
+            return handle;
+        }) as typeof fs.watch;
+
         const createUnreffedWatcher = (folder: string) => {
-            const capturedHandles: fs.FSWatcher[] = [];
-            const origWatch = fs.watch;
-            fs.watch = ((...args: Parameters<typeof fs.watch>) => {
-                const handle = origWatch.apply(fs, args);
-                capturedHandles.push(handle);
-                return handle;
-            }) as typeof fs.watch;
+            const startIdx = allCapturedHandles.length;
             const w = chokidar.watch(folder, chokidarOptions);
             const unreffAll = () => {
-                fs.watch = origWatch;
-                for (const h of capturedHandles) {
-                    h.unref();
+                // Unref only handles created for THIS watcher
+                for (let i = startIdx; i < allCapturedHandles.length; i++) {
+                    allCapturedHandles[i].unref();
+                }
+                // Restore fs.watch once ALL watchers are ready
+                watcherReadyCount++;
+                if (watcherReadyCount >= totalWatchers) {
+                    fs.watch = origWatch;
                 }
             };
-            return { w, capturedHandles, unreffAll };
+            return { w, capturedHandles: allCapturedHandles.slice(startIdx), unreffAll };
         };
 
         // ── Phase 1: Async scan ─────────────────────────────────
@@ -1738,6 +1764,9 @@ export class CertificateManager extends EventEmitter {
         store: CrlStore
     ): void {
         const { w, unreffAll } = createUnreffedWatcher(folder);
+        w.on("error", (err: unknown) => {
+            debugLog(`chokidar CRL watcher error on ${folder}:`, err);
+        });
         let ready = false;
 
         w.on("unlink", (filename: string) => {
@@ -1780,6 +1809,9 @@ export class CertificateManager extends EventEmitter {
         store: CertificateStore
     ): void {
         const { w, unreffAll } = createUnreffedWatcher(folder);
+        w.on("error", (err: unknown) => {
+            debugLog(`chokidar cert watcher error on ${folder}:`, err);
+        });
         let ready = false;
         w.on("unlink", (filename: string) => {
             debugLog(chalk.cyan(`unlink in folder ${folder}`), filename);
