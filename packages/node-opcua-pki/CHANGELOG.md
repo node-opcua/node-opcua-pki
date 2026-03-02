@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.7.3](https://github.com/node-opcua/node-opcua-pki/compare/v6.7.2...v6.7.3) (2026-03-02)
+
+
+### Bug Fixes
+
+* drain pending locks in CertificateManager.dispose() ([0b546dd](https://github.com/node-opcua/node-opcua-pki/commit/0b546dd499e2ea15296c3e0dba3704f4a1813fc4))
+
+
+
+
+
 ## [6.7.2](https://github.com/node-opcua/node-opcua-pki/compare/v6.7.1...v6.7.2) (2026-03-01)
 
 
