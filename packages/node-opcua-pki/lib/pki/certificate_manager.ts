@@ -10,7 +10,7 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
-import { withLock } from "@ster5/global-mutex";
+import { drainPendingLocks, withLock } from "@ster5/global-mutex";
 import chalk from "chalk";
 import chokidar, { type FSWatcher as ChokidarFSWatcher } from "chokidar";
 import {
@@ -967,6 +967,10 @@ export class CertificateManager extends EventEmitter {
 
         try {
             this.state = CertificateManagerState.Disposing;
+            // Wait for any in-flight withLock operations (e.g.
+            // fire-and-forget trustCertificate calls) to complete
+            // so their setInterval timers are properly cleared.
+            await drainPendingLocks();
             // Ensure all fs.watch handles are unref'd even if
             // chokidar hasn't reached "ready" yet.
             for (const unreff of this.#pendingUnrefs) {
