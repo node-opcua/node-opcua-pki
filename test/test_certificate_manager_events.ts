@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import "should";
 import { CertificateManager, type CertificateStore } from "node-opcua-pki";
-import { beforeTest } from "./helpers";
+import { beforeTest, waitUntil } from "./helpers";
 
 describe("CertificateManager events", function (this: Mocha.Suite) {
     this.timeout(60_000);
@@ -187,18 +187,9 @@ describe("CertificateManager events", function (this: Mocha.Suite) {
             // Write a new certificate
             await writeUniqueCert(helperDir, certFile, 200);
 
-            // Wait a bit for the watcher to pick it up
-            await new Promise<void>((resolve) => {
-                const check = () => {
-                    if (liveEvents.certificateAdded.some((e) => e.filename.includes("live_added_cert"))) {
-                        resolve();
-                    } else {
-                        setTimeout(check, 100);
-                    }
-                };
-                setTimeout(check, 50);
-                // Safety timeout
-                setTimeout(() => resolve(), 10000);
+            // Wait for the watcher to pick it up
+            await waitUntil(() => liveEvents.certificateAdded.some((e) => e.filename.includes("live_added_cert")), {
+                timeoutMs: 15_000
             });
 
             const liveAdded = liveEvents.certificateAdded.filter((e) => e.filename.includes("live_added_cert"));
@@ -283,18 +274,8 @@ describe("CertificateManager events", function (this: Mocha.Suite) {
             const liveCertFile = path.join(pkiDir, "trusted/certs", "noise_live_cert.pem");
             await writeUniqueCert(helperDir, liveCertFile, 500);
 
-            // Wait for detection
-            await new Promise<void>((resolve) => {
-                const check = () => {
-                    if (liveEventCount > 0) {
-                        resolve();
-                    } else {
-                        setTimeout(check, 100);
-                    }
-                };
-                setTimeout(check, 50);
-                setTimeout(() => resolve(), 10000);
-            });
+            // Wait for the watcher to detect the live cert
+            await waitUntil(() => liveEventCount > 0, { timeoutMs: 15_000 });
 
             console.log(`      init events (noise):  ${initEventCount}`);
             console.log(`      live events (signal):  ${liveEventCount}`);

@@ -54,3 +54,17 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
     });
     return testData;
 }
+
+/**
+ * Poll `condition` every `intervalMs` until it returns `true`
+ * or `timeoutMs` elapses.  Resolves `true` when the condition
+ * was met, `false` on timeout.
+ */
+export async function waitUntil(condition: () => boolean, { timeoutMs = 15_000, intervalMs = 100 } = {}): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (condition()) return true;
+        await new Promise<void>((r) => setTimeout(r, intervalMs));
+    }
+    return condition();
+}
