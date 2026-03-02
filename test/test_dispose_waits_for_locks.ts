@@ -64,10 +64,8 @@ describe("dispose() waits for active withLock2() operations", function (this: Mo
         // Once it completes it should be allowed to delete the PKI folder.
         await cm.dispose();
 
-        // todo - commented out for now to showcase compromisedError below
-        // todo - ideally these should be enabled again
-        // cm.activeOps.should.eql(0, "all withLock2 operations must have completed before dispose() resolved");
-        // cm.completedOps.should.eql(1, "the withLock2 operation must have run to completion");
+        cm.activeOps.should.eql(0, "all withLock2 operations must have completed before dispose() resolved");
+        cm.completedOps.should.be.greaterThanOrEqual(1, "the withLock2 operation must have run to completion");
 
         await fs.promises.rm(pkiDir, { recursive: true, force: true });
 
