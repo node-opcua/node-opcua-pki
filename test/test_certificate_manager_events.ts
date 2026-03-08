@@ -240,6 +240,13 @@ describe("CertificateManager events", function (this: Mocha.Suite) {
     // 4. Event noise analysis
     // ──────────────────────────────────────────────────────────
     describe("event noise analysis", () => {
+        before(function () {
+            if (process.platform === "darwin") {
+                // macOS FSEvents with persistent:false watchers are
+                // unreliable — skip live-detection tests on macOS.
+                this.skip();
+            }
+        });
         it("E6 - should count total events during init vs live to quantify noise", async () => {
             const pkiDir = path.join(testData.tmpFolder, "evt_noise");
             const helperDir = path.join(testData.tmpFolder, "evt_noise_helper");

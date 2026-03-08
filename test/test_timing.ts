@@ -318,7 +318,13 @@ describe("CertificateManager live-detection latency", function (this: Mocha.Suit
         return times;
     }
 
-    before(async () => {
+    before(async function () {
+        if (process.platform === "darwin") {
+            // macOS FSEvents with persistent:false watchers are
+            // unreliable — skip live-detection tests on macOS.
+            this.skip();
+        }
+
         await CertificateManager.disposeAll();
 
         // Bootstrap a minimal PKI (just private key + dirs)
