@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.8.2](https://github.com/node-opcua/node-opcua-pki/compare/v6.8.1...v6.8.2) (2026-03-08)
+
+
+### Features
+
+* **pki:** add isTrustListEmpty() and ([227a95d](https://github.com/node-opcua/node-opcua-pki/commit/227a95de56baccb9d5cdb64fe7fb32bc06fc7ac4))
+
+
+
+
+
 ## [6.8.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.8.0...v6.8.1) (2026-03-07)
 
 **Note:** Version bump only for package node-opcua-pki
