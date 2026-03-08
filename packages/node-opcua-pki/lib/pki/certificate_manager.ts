@@ -595,6 +595,25 @@ export class CertificateManager extends EventEmitter {
         await this.#moveCertificate(certificate, "trusted");
     }
 
+    /**
+     * Check whether the trusted certificate store is empty.
+     *
+     * This inspects the in-memory index, which is kept in
+     * sync with the `trusted/certs/` folder by file-system
+     * watchers after {@link initialize} has been called.
+     */
+    public isTrustListEmpty(): boolean {
+        return this.#thumbs.trusted.size === 0;
+    }
+
+    /**
+     * Return the number of certificates currently in the
+     * trusted store.
+     */
+    public getTrustedCertificateCount(): number {
+        return this.#thumbs.trusted.size;
+    }
+
     /** Path to the rejected certificates folder. */
     public get rejectedFolder(): string {
         return path.join(this.rootDir, "rejected");

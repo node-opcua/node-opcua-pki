@@ -379,3 +379,67 @@ describe("CertificateManager static cleanup helpers", function (this: Mocha.Suit
         CertificateManager.checkAllDisposed(); // should not throw
     });
 });
+
+describe("US-032: isTrustListEmpty and getTrustedCertificateCount", function (this: Mocha.Suite) {
+    this.timeout(40000);
+
+    const testData = beforeTest(this);
+    let cm: CertificateManager;
+
+    const sample_certificate3_der = path.join(__dirname, "fixtures/sample_certificate3.der");
+    const sample_certificate4_der = path.join(__dirname, "fixtures/sample_certificate4.der");
+
+    before(async () => {
+        CertificateManager.checkAllDisposed();
+        cm = new CertificateManager({
+            location: path.join(testData.tmpFolder, "PKI_US032")
+        });
+        await cm.initialize();
+    });
+
+    after(async () => {
+        await cm.dispose();
+        CertificateManager.checkAllDisposed();
+    });
+
+    it("should report empty trust list after initialization", () => {
+        cm.isTrustListEmpty().should.eql(true);
+        cm.getTrustedCertificateCount().should.eql(0);
+    });
+
+    it("should report non-empty after trusting a certificate", async () => {
+        const cert = fs.readFileSync(sample_certificate3_der);
+
+        await cm.trustCertificate(cert);
+
+        cm.isTrustListEmpty().should.eql(false);
+        cm.getTrustedCertificateCount().should.eql(1);
+    });
+
+    it("should track count with multiple trusted certs", async () => {
+        const cert2 = fs.readFileSync(sample_certificate4_der);
+
+        await cm.trustCertificate(cert2);
+
+        cm.getTrustedCertificateCount().should.eql(2);
+        cm.isTrustListEmpty().should.eql(false);
+    });
+
+    it("should reflect rejection in count", async () => {
+        const cert = fs.readFileSync(sample_certificate3_der);
+
+        await cm.rejectCertificate(cert);
+
+        cm.getTrustedCertificateCount().should.eql(1);
+        cm.isTrustListEmpty().should.eql(false);
+    });
+
+    it("should be empty after rejecting all trusted certs", async () => {
+        const cert2 = fs.readFileSync(sample_certificate4_der);
+
+        await cm.rejectCertificate(cert2);
+
+        cm.getTrustedCertificateCount().should.eql(0);
+        cm.isTrustListEmpty().should.eql(true);
+    });
+});
