@@ -412,7 +412,15 @@ export class CertificateAuthority {
      *   (call {@link initialize} first).
      */
     public getCACertificatePEM(): string {
-        return readCertificatePEM(this.caCertificate);
+        const raw = readCertificatePEM(this.caCertificate);
+        // OpenSSL CA cert files may include a human-readable text
+        // dump before the PEM block — strip it.
+        const beginMarker = "-----BEGIN CERTIFICATE-----";
+        const idx = raw.indexOf(beginMarker);
+        if (idx > 0) {
+            return raw.substring(idx);
+        }
+        return raw;
     }
 
     /**
@@ -440,7 +448,15 @@ export class CertificateAuthority {
         if (!fs.existsSync(crlPath)) {
             return "";
         }
-        return fs.readFileSync(crlPath, "utf-8");
+        const raw = fs.readFileSync(crlPath, "utf-8");
+        // OpenSSL CRL files may include a human-readable text
+        // dump before the PEM block — strip it.
+        const beginMarker = "-----BEGIN X509 CRL-----";
+        const idx = raw.indexOf(beginMarker);
+        if (idx > 0) {
+            return raw.substring(idx);
+        }
+        return raw;
     }
 
     // ---------------------------------------------------------------
