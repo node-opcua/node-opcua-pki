@@ -252,6 +252,84 @@ await cm.createSelfSignedCertificate({
 | `issuersCrlFolder`  | `{location}/issuers/crl`   |
 | `rootDir`           | `{location}`               |
 
+### CertificateAuthority API
+
+The `CertificateAuthority` class manages an OpenSSL-based CA directory structure for issuing, revoking, and tracking certificates.
+
+```typescript
+import { CertificateAuthority } from "node-opcua-pki";
+
+const ca = new CertificateAuthority({
+    location: "./my_ca",
+    keySize: 2048,
+});
+await ca.initialize();
+```
+
+#### Buffer Accessors
+
+| Method                   | Returns  | Description                              |
+| ------------------------ | -------- | ---------------------------------------- |
+| `getCACertificateDER()`  | `Buffer` | CA certificate as DER                    |
+| `getCACertificatePEM()`  | `string` | CA certificate as PEM                    |
+| `getCRLDER()`            | `Buffer` | Current CRL as DER (empty if none)       |
+| `getCRLPEM()`            | `string` | Current CRL as PEM                       |
+
+#### Buffer Operations
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `signCertificateRequestFromDER(csrDer, options?)` | `Promise<Buffer>` | Sign a DER-encoded CSR, return signed cert as DER. Handles temp files internally. |
+| `revokeCertificateDER(certDer, reason?)` | `Promise<void>` | Revoke a DER-encoded certificate. Looks up the stored cert by serial number. |
+
+```typescript
+// Sign a CSR from a DER buffer
+const certDer = await ca.signCertificateRequestFromDER(csrDer, {
+    validity: 365,
+});
+
+// Revoke a certificate from its DER buffer
+await ca.revokeCertificateDER(certDer, "keyCompromise");
+```
+
+#### Certificate Database
+
+These methods parse the OpenSSL `index.txt` database to query issued certificate status. Certificate files are read from the CA's `certs/` directory.
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `getIssuedCertificates()` | `IssuedCertificateRecord[]` | All records from `index.txt` |
+| `getIssuedCertificateCount()` | `number` | Total number of issued certificates |
+| `getCertificateStatus(serial)` | `string \| undefined` | `"valid"`, `"revoked"`, or `"expired"` |
+| `getCertificateBySerial(serial)` | `Buffer \| undefined` | DER buffer from `certs/<serial>.pem` |
+
+```typescript
+// List all issued certificates
+const records = ca.getIssuedCertificates();
+for (const r of records) {
+    console.log(`${r.serial}: ${r.status} — ${r.subject}`);
+}
+
+// Check if a specific certificate is revoked
+const status = ca.getCertificateStatus("1000");
+if (status === "revoked") {
+    console.log("Certificate 1000 has been revoked");
+}
+
+// Read a certificate by serial number
+const der = ca.getCertificateBySerial("1000");
+```
+
+**`IssuedCertificateRecord`** fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `serial` | `string` | Hex serial (e.g. `"1000"`) |
+| `status` | `"valid" \| "revoked" \| "expired"` | Certificate status |
+| `subject` | `string` | X.500 subject (slash-delimited) |
+| `expiryDate` | `string` | ISO-8601 expiry date |
+| `revocationDate` | `string?` | ISO-8601 revocation date (if revoked) |
+
 ### File Watching
 
 `CertificateManager` uses [chokidar](https://github.com/paulmillr/chokidar) to watch the PKI folders for changes. By default, it uses **native OS events** (inotify, FSEvents, ReadDirectoryChangesW) for near-real-time detection.

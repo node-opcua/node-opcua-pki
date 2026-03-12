@@ -319,15 +319,18 @@ export interface IssuedCertificateRecord {
  * ISO-8601 string.
  */
 function parseOpenSSLDate(dateStr: string): string {
-    if (!dateStr || dateStr.length < 12) return "";
+    // Revocation dates may have a reason suffix: "YYMMDDHHmmssZ,reason"
+    // Strip anything after the first comma.
+    const raw = dateStr?.split(",")[0] ?? "";
+    if (raw.length < 12) return "";
     // OpenSSL uses 2-digit year; 70+ is 19xx, <70 is 20xx
-    const yy = parseInt(dateStr.substring(0, 2), 10);
+    const yy = parseInt(raw.substring(0, 2), 10);
     const year = yy >= 70 ? 1900 + yy : 2000 + yy;
-    const month = dateStr.substring(2, 4);
-    const day = dateStr.substring(4, 6);
-    const hour = dateStr.substring(6, 8);
-    const min = dateStr.substring(8, 10);
-    const sec = dateStr.substring(10, 12);
+    const month = raw.substring(2, 4);
+    const day = raw.substring(4, 6);
+    const hour = raw.substring(6, 8);
+    const min = raw.substring(8, 10);
+    const sec = raw.substring(10, 12);
     return `${year}-${month}-${day}T${hour}:${min}:${sec}Z`;
 }
 
@@ -643,7 +646,7 @@ export class CertificateAuthority {
         // 2. Use the cert file that openssl ca already stored
         const storedCertFile = path.join(this.rootDir, "certs", `${serial}.pem`);
         if (!fs.existsSync(storedCertFile)) {
-            throw new Error(`Cannot revoke: no stored certificate found ` + `for serial ${serial} at ${storedCertFile}`);
+            throw new Error(`Cannot revoke: no stored certificate found for serial ${serial} at ${storedCertFile}`);
         }
 
         // 3. Delegate to the existing file-based method
