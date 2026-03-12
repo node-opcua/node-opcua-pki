@@ -105,6 +105,37 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         fs.existsSync(theCertificateAuthority.caCertificateWithCrl).should.eql(true);
     });
 
+    // ------- Buffer-based accessors (US-059) -------
+
+    it("T1a - getCACertificateDER() should return a DER buffer", () => {
+        const der = theCertificateAuthority.getCACertificateDER();
+        Buffer.isBuffer(der).should.eql(true);
+        der.length.should.be.greaterThan(0);
+        // DER-encoded certificates start with 0x30 (SEQUENCE)
+        der[0].should.eql(0x30);
+    });
+
+    it("T1b - getCACertificatePEM() should return a PEM string", () => {
+        const pem = theCertificateAuthority.getCACertificatePEM();
+        pem.should.be.a.String();
+        pem.should.startWith("-----BEGIN CERTIFICATE-----");
+        pem.should.match(/-----END CERTIFICATE-----/);
+    });
+
+    it("T1c - getCRLDER() should return a DER buffer", () => {
+        const der = theCertificateAuthority.getCRLDER();
+        Buffer.isBuffer(der).should.eql(true);
+        der.length.should.be.greaterThan(0);
+        // DER-encoded CRLs also start with 0x30 (SEQUENCE)
+        der[0].should.eql(0x30);
+    });
+
+    it("T1d - getCRLPEM() should return a PEM string", () => {
+        const pem = theCertificateAuthority.getCRLPEM();
+        pem.should.be.a.String();
+        pem.length.should.be.greaterThan(0);
+    });
+
     it("T2 - should sign a Certificate Request", async () => {
         const self = {
             certificateRequest: ""

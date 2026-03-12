@@ -26,8 +26,10 @@ import fs from "node:fs";
 import path from "node:path";
 import chalk from "chalk";
 import {
+    convertPEMtoDER,
     exploreCertificateSigningRequest,
     generatePrivateKeyFile,
+    readCertificatePEM,
     readCertificateSigningRequest,
     Subject,
     type SubjectOptions
@@ -338,6 +340,59 @@ export class CertificateAuthority {
      */
     public get caCertificateWithCrl() {
         return makePath(this.rootDir, "./public/cacertificate_with_crl.pem");
+    }
+
+    // ---------------------------------------------------------------
+    // Buffer-based accessors (US-059)
+    // ---------------------------------------------------------------
+
+    /**
+     * Return the CA certificate as a DER-encoded buffer.
+     *
+     * @throws if the CA certificate file does not exist
+     *   (call {@link initialize} first).
+     */
+    public getCACertificateDER(): Buffer {
+        const pem = readCertificatePEM(this.caCertificate);
+        return convertPEMtoDER(pem);
+    }
+
+    /**
+     * Return the CA certificate as a PEM-encoded string.
+     *
+     * @throws if the CA certificate file does not exist
+     *   (call {@link initialize} first).
+     */
+    public getCACertificatePEM(): string {
+        return readCertificatePEM(this.caCertificate);
+    }
+
+    /**
+     * Return the current Certificate Revocation List as a
+     * DER-encoded buffer.
+     *
+     * Returns an empty buffer if no CRL has been generated yet.
+     */
+    public getCRLDER(): Buffer {
+        const crlPath = this.revocationListDER;
+        if (!fs.existsSync(crlPath)) {
+            return Buffer.alloc(0);
+        }
+        return fs.readFileSync(crlPath);
+    }
+
+    /**
+     * Return the current Certificate Revocation List as a
+     * PEM-encoded string.
+     *
+     * Returns an empty string if no CRL has been generated yet.
+     */
+    public getCRLPEM(): string {
+        const crlPath = this.revocationList;
+        if (!fs.existsSync(crlPath)) {
+            return "";
+        }
+        return fs.readFileSync(crlPath, "utf-8");
     }
 
     /**
