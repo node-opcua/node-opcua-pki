@@ -23,6 +23,7 @@
 // tslint:disable:no-shadowed-variable
 import assert from "node:assert";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
 import {
@@ -32,7 +33,8 @@ import {
     readCertificatePEM,
     readCertificateSigningRequest,
     Subject,
-    type SubjectOptions
+    type SubjectOptions,
+    toPem
 } from "node-opcua-crypto";
 
 import {
@@ -393,6 +395,81 @@ export class CertificateAuthority {
             return "";
         }
         return fs.readFileSync(crlPath, "utf-8");
+    }
+
+    // ---------------------------------------------------------------
+    // Buffer-based CA operations (US-058)
+    // ---------------------------------------------------------------
+
+    /**
+     * Sign a DER-encoded Certificate Signing Request and return
+     * the signed certificate as a DER buffer.
+     *
+     * This method handles temp-file creation and cleanup
+     * internally so that callers can work with in-memory
+     * buffers only.
+     *
+     * @param csrDer - the CSR as a DER-encoded buffer
+     * @param options - signing options
+     * @param options.validity - certificate validity in days
+     *   (default: 365)
+     * @returns the signed certificate as a DER-encoded buffer
+     */
+    public async signCertificateRequestFromDER(csrDer: Buffer, options?: { validity?: number }): Promise<Buffer> {
+        const validity = options?.validity ?? 365;
+        const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-sign-"));
+
+        try {
+            const csrFile = path.join(tmpDir, "request.csr");
+            const certFile = path.join(tmpDir, "certificate.pem");
+
+            // Write CSR as PEM
+            const csrPem = toPem(csrDer, "CERTIFICATE REQUEST");
+            await fs.promises.writeFile(csrFile, csrPem, "utf-8");
+
+            // Delegate to the existing file-based method
+            await this.signCertificateRequest(certFile, csrFile, { validity });
+
+            // Read the signed certificate and convert to DER
+            const certPem = readCertificatePEM(certFile);
+            return convertPEMtoDER(certPem);
+        } finally {
+            await fs.promises.rm(tmpDir, {
+                recursive: true,
+                force: true
+            });
+        }
+    }
+
+    /**
+     * Revoke a DER-encoded certificate and regenerate the CRL.
+     *
+     * This method handles temp-file creation and cleanup
+     * internally so that callers can work with in-memory
+     * buffers only.
+     *
+     * @param certDer - the certificate as a DER-encoded buffer
+     * @param reason - CRL reason code
+     *   (default: `"keyCompromise"`)
+     */
+    public async revokeCertificateDER(certDer: Buffer, reason?: string): Promise<void> {
+        const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-revoke-"));
+
+        try {
+            const certFile = path.join(tmpDir, "cert.pem");
+            const certPem = toPem(certDer, "CERTIFICATE");
+            await fs.promises.writeFile(certFile, certPem, "utf-8");
+
+            // Delegate to the existing file-based method
+            await this.revokeCertificate(certFile, {
+                reason: reason ?? "keyCompromise"
+            });
+        } finally {
+            await fs.promises.rm(tmpDir, {
+                recursive: true,
+                force: true
+            });
+        }
     }
 
     /**

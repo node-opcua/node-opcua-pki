@@ -275,6 +275,47 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         await theCertificateAuthority.revokeCertificate(certificate, {});
     });
 
+    // ------- Buffer-based sign & revoke (US-058) -------
+
+    it("T5a - signCertificateRequestFromDER() should sign a DER CSR and return DER cert", async () => {
+        const csrFilename = await createCertificateRequest();
+        // Read the CSR file produced by CertificateManager
+        const csrDer = readCertificate(csrFilename);
+
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 365
+        });
+
+        Buffer.isBuffer(certDer).should.eql(true);
+        certDer.length.should.be.greaterThan(0);
+        // DER-encoded certificates start with 0x30 (SEQUENCE)
+        certDer[0].should.eql(0x30);
+
+        // Should be parseable
+        const info = exploreCertificate(certDer);
+        info.tbsCertificate.subject.commonName!.should.eql("MyCommonName");
+    });
+
+    it("T5b - revokeCertificateDER() should revoke a DER certificate", async () => {
+        // Sign a cert first
+        const csrFilename = await createCertificateRequest();
+        const csrDer = readCertificate(csrFilename);
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 365
+        });
+
+        // Get CRL before revocation
+        const crlBefore = theCertificateAuthority.getCRLDER();
+
+        // Revoke via DER
+        await theCertificateAuthority.revokeCertificateDER(certDer, "keyCompromise");
+
+        // CRL should have changed
+        const crlAfter = theCertificateAuthority.getCRLDER();
+        crlAfter.length.should.be.greaterThan(0);
+        crlBefore.equals(crlAfter).should.eql(false);
+    });
+
     async function createCertificateFromCA(): Promise<string> {
         const certificateRequest = await createCertificateRequest();
 
