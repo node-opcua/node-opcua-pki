@@ -24,6 +24,7 @@ import {
 import type { Params } from "node-opcua-pki-priv/toolbox/common";
 import { g_config } from "node-opcua-pki-priv/toolbox/config";
 import { execute_openssl, x509Date } from "node-opcua-pki-priv/toolbox/with_openssl";
+import should from "should";
 
 import { beforeTest } from "./helpers";
 
@@ -293,7 +294,9 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         // Should be parseable
         const info = exploreCertificate(certDer);
-        info.tbsCertificate.subject.commonName!.should.eql("MyCommonName");
+        const cn = info.tbsCertificate.subject.commonName;
+        should.exist(cn);
+        (cn as string).should.eql("MyCommonName");
     });
 
     it("T5b - revokeCertificateDER() should revoke a DER certificate", async () => {
@@ -314,6 +317,13 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         const crlAfter = theCertificateAuthority.getCRLDER();
         crlAfter.length.should.be.greaterThan(0);
         crlBefore.equals(crlAfter).should.eql(false);
+
+        // Certificate should be marked as revoked in index.txt
+        const info = exploreCertificate(certDer);
+        const serial = info.tbsCertificate.serialNumber.replace(/:/g, "").toUpperCase();
+        const revokeStatus = theCertificateAuthority.getCertificateStatus(serial);
+        should.exist(revokeStatus);
+        (revokeStatus as string).should.eql("revoked");
     });
 
     // ------- Certificate database API (US-057) -------
@@ -342,8 +352,8 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         const serial = records[0].serial;
         const status = theCertificateAuthority.getCertificateStatus(serial);
-        (status !== undefined).should.eql(true);
-        status!.should.be.oneOf(["valid", "revoked", "expired"]);
+        should.exist(status);
+        (status as string).should.be.oneOf(["valid", "revoked", "expired"]);
     });
 
     it("T5f - getCertificateStatus() should return undefined for unknown serial", () => {
@@ -357,18 +367,18 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         const serial = records[0].serial;
         const der = theCertificateAuthority.getCertificateBySerial(serial);
-        (der !== undefined).should.eql(true);
-        Buffer.isBuffer(der!).should.eql(true);
-        der![0].should.eql(0x30); // DER SEQUENCE
+        should.exist(der);
+        Buffer.isBuffer(der as Buffer).should.eql(true);
+        (der as Buffer)[0].should.eql(0x30); // DER SEQUENCE
     });
 
-    it("T5h - getCertificateStatus() should return 'revoked' after revocation", async () => {
+    it("T5h - getCertificateStatus() should return 'revoked' after revokeCertificateDER", async () => {
         // Sign a fresh cert
         const countBefore = theCertificateAuthority.getIssuedCertificateCount();
 
         const csrFilename = await createCertificateRequest();
         const csrDer = readCertificate(csrFilename);
-        await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
             validity: 365
         });
 
@@ -378,22 +388,22 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         const serial = recordsBefore[recordsBefore.length - 1].serial;
 
         // Should be valid before revocation
-        theCertificateAuthority.getCertificateStatus(serial)!.should.eql("valid");
+        const statusBefore = theCertificateAuthority.getCertificateStatus(serial);
+        should.exist(statusBefore);
+        (statusBefore as string).should.eql("valid");
 
-        // Revoke using the cert file stored by OpenSSL in certs/
-        const certFile = path.join(theCertificateAuthority.rootDir, "certs", `${serial}.pem`);
-        fs.existsSync(certFile).should.eql(true, `cert file ${certFile} should exist`);
-        await theCertificateAuthority.revokeCertificate(certFile, {
-            reason: "keyCompromise"
-        });
+        // Revoke using the DER method (the bug fix!)
+        await theCertificateAuthority.revokeCertificateDER(certDer, "keyCompromise");
 
         // Should be revoked after
-        theCertificateAuthority.getCertificateStatus(serial)!.should.eql("revoked");
+        const statusAfter = theCertificateAuthority.getCertificateStatus(serial);
+        should.exist(statusAfter);
+        (statusAfter as string).should.eql("revoked");
 
         // Revoked record should have a revocationDate
         const revokedRecord = theCertificateAuthority.getIssuedCertificates().find((r) => r.serial === serial);
-        (revokedRecord !== undefined).should.eql(true);
-        revokedRecord!.revocationDate!.should.be.a.String();
+        should.exist(revokedRecord);
+        should.exist((revokedRecord as { revocationDate?: string }).revocationDate);
     });
 
     async function createCertificateFromCA(): Promise<string> {

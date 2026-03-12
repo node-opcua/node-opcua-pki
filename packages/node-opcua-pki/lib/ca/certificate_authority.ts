@@ -28,6 +28,7 @@ import path from "node:path";
 import chalk from "chalk";
 import {
     convertPEMtoDER,
+    exploreCertificate,
     exploreCertificateSigningRequest,
     generatePrivateKeyFile,
     readCertificatePEM,
@@ -623,32 +624,32 @@ export class CertificateAuthority {
     /**
      * Revoke a DER-encoded certificate and regenerate the CRL.
      *
-     * This method handles temp-file creation and cleanup
-     * internally so that callers can work with in-memory
-     * buffers only.
+     * Extracts the serial number from the certificate, then
+     * uses the stored cert file at `certs/<serial>.pem` for
+     * revocation — avoiding temp-file PEM format mismatches.
      *
      * @param certDer - the certificate as a DER-encoded buffer
      * @param reason - CRL reason code
      *   (default: `"keyCompromise"`)
+     * @throws if the certificate's serial is not found in the CA
      */
     public async revokeCertificateDER(certDer: Buffer, reason?: string): Promise<void> {
-        const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-revoke-"));
+        // 1. Extract serial from the DER certificate
+        const info = exploreCertificate(certDer);
+        // exploreCertificate returns serial as "10:00" (colon-hex)
+        // openssl stores cert files as "1000.pem" (plain hex upper)
+        const serial = info.tbsCertificate.serialNumber.replace(/:/g, "").toUpperCase();
 
-        try {
-            const certFile = path.join(tmpDir, "cert.pem");
-            const certPem = toPem(certDer, "CERTIFICATE");
-            await fs.promises.writeFile(certFile, certPem, "utf-8");
-
-            // Delegate to the existing file-based method
-            await this.revokeCertificate(certFile, {
-                reason: reason ?? "keyCompromise"
-            });
-        } finally {
-            await fs.promises.rm(tmpDir, {
-                recursive: true,
-                force: true
-            });
+        // 2. Use the cert file that openssl ca already stored
+        const storedCertFile = path.join(this.rootDir, "certs", `${serial}.pem`);
+        if (!fs.existsSync(storedCertFile)) {
+            throw new Error(`Cannot revoke: no stored certificate found ` + `for serial ${serial} at ${storedCertFile}`);
         }
+
+        // 3. Delegate to the existing file-based method
+        await this.revokeCertificate(storedCertFile, {
+            reason: reason ?? "keyCompromise"
+        });
     }
 
     /**
