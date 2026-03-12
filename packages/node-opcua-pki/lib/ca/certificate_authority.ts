@@ -288,6 +288,48 @@ export interface CertificateAuthorityOptions {
  * await ca.initialize();
  * ```
  */
+
+// ---------------------------------------------------------------
+// Certificate database types (US-057)
+// ---------------------------------------------------------------
+
+/**
+ * A record from the OpenSSL CA certificate database
+ * (`index.txt`).
+ */
+export interface IssuedCertificateRecord {
+    /** Hex-encoded serial number (e.g. `"1000"`). */
+    serial: string;
+    /** Certificate status. */
+    status: "valid" | "revoked" | "expired";
+    /** X.500 subject string (slash-delimited). */
+    subject: string;
+    /** Certificate expiry date as ISO-8601 string. */
+    expiryDate: string;
+    /**
+     * Revocation date as ISO-8601 string.
+     * Only present when `status === "revoked"`.
+     */
+    revocationDate?: string;
+}
+
+/**
+ * Parse an OpenSSL date string (`YYMMDDHHmmssZ`) into an
+ * ISO-8601 string.
+ */
+function parseOpenSSLDate(dateStr: string): string {
+    if (!dateStr || dateStr.length < 12) return "";
+    // OpenSSL uses 2-digit year; 70+ is 19xx, <70 is 20xx
+    const yy = parseInt(dateStr.substring(0, 2), 10);
+    const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+    const month = dateStr.substring(2, 4);
+    const day = dateStr.substring(4, 6);
+    const hour = dateStr.substring(6, 8);
+    const min = dateStr.substring(8, 10);
+    const sec = dateStr.substring(10, 12);
+    return `${year}-${month}-${day}T${hour}:${min}:${sec}Z`;
+}
+
 export class CertificateAuthority {
     /** RSA key size used when generating the CA private key. */
     public readonly keySize: KeySize;
@@ -395,6 +437,143 @@ export class CertificateAuthority {
             return "";
         }
         return fs.readFileSync(crlPath, "utf-8");
+    }
+
+    // ---------------------------------------------------------------
+    // Certificate database API (US-057)
+    // ---------------------------------------------------------------
+
+    /**
+     * Return a list of all issued certificates recorded in the
+     * OpenSSL `index.txt` database.
+     *
+     * Each entry includes the serial number, subject, status,
+     * expiry date, and (for revoked certs) the revocation date.
+     */
+    public getIssuedCertificates(): IssuedCertificateRecord[] {
+        return this._parseIndexTxt();
+    }
+
+    /**
+     * Return the total number of certificates recorded in
+     * `index.txt`.
+     */
+    public getIssuedCertificateCount(): number {
+        return this._parseIndexTxt().length;
+    }
+
+    /**
+     * Return the status of a certificate by its serial number.
+     *
+     * @param serial - hex-encoded serial number (e.g. `"1000"`)
+     * @returns `"valid"`, `"revoked"`, `"expired"`, or
+     *   `undefined` if not found
+     */
+    public getCertificateStatus(serial: string): "valid" | "revoked" | "expired" | undefined {
+        const upper = serial.toUpperCase();
+        const record = this._parseIndexTxt().find((r) => r.serial.toUpperCase() === upper);
+        return record?.status;
+    }
+
+    /**
+     * Read a specific issued certificate by serial number and
+     * return its content as a DER-encoded buffer.
+     *
+     * OpenSSL stores signed certificates in the `certs/`
+     * directory using the naming convention `<SERIAL>.pem`.
+     *
+     * @param serial - hex-encoded serial number (e.g. `"1000"`)
+     * @returns the DER buffer, or `undefined` if not found
+     */
+    public getCertificateBySerial(serial: string): Buffer | undefined {
+        const upper = serial.toUpperCase();
+        const certFile = path.join(this.rootDir, "certs", `${upper}.pem`);
+        if (!fs.existsSync(certFile)) {
+            return undefined;
+        }
+        const pem = readCertificatePEM(certFile);
+        return convertPEMtoDER(pem);
+    }
+
+    /**
+     * Path to the OpenSSL certificate database file.
+     */
+    public get indexFile(): string {
+        return path.join(this.rootDir, "index.txt");
+    }
+
+    /**
+     * Parse the OpenSSL `index.txt` certificate database.
+     *
+     * Each line has tab-separated fields:
+     * ```
+     * status  expiry  [revocationDate]  serial  unknown  subject
+     * ```
+     *
+     * - status: `V` (valid), `R` (revoked), `E` (expired)
+     * - expiry: `YYMMDDHHmmssZ`
+     * - revocationDate: present only for revoked certs
+     * - serial: hex string
+     * - unknown: always `"unknown"`
+     * - subject: X.500 slash-delimited string
+     */
+    private _parseIndexTxt(): IssuedCertificateRecord[] {
+        const indexPath = this.indexFile;
+        if (!fs.existsSync(indexPath)) {
+            return [];
+        }
+
+        const content = fs.readFileSync(indexPath, "utf-8");
+        const lines = content.split("\n").filter((l) => l.trim().length > 0);
+        const records: IssuedCertificateRecord[] = [];
+
+        for (const line of lines) {
+            const fields = line.split("\t");
+            if (fields.length < 4) continue;
+
+            const statusChar = fields[0];
+            const expiryStr = fields[1];
+
+            let serial: string;
+            let subject: string;
+            let revocationDate: string | undefined;
+
+            if (statusChar === "R") {
+                // Revoked: status  expiry  revocationDate  serial  unknown  subject
+                revocationDate = fields[2];
+                serial = fields[3];
+                subject = fields.length >= 6 ? fields[5] : "";
+            } else {
+                // Valid/Expired: status  expiry  (empty)  serial  unknown  subject
+                serial = fields[3];
+                subject = fields.length >= 6 ? fields[5] : "";
+            }
+
+            let status: "valid" | "revoked" | "expired";
+            switch (statusChar) {
+                case "V":
+                    status = "valid";
+                    break;
+                case "R":
+                    status = "revoked";
+                    break;
+                case "E":
+                    status = "expired";
+                    break;
+                default:
+                    continue; // skip unknown status
+            }
+
+            records.push({
+                serial,
+                status,
+                subject,
+                expiryDate: parseOpenSSLDate(expiryStr),
+                revocationDate: revocationDate ? parseOpenSSLDate(revocationDate) : undefined
+            });
+        }
+
+        return records;
     }
 
     // ---------------------------------------------------------------

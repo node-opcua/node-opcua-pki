@@ -316,6 +316,86 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         crlBefore.equals(crlAfter).should.eql(false);
     });
 
+    // ------- Certificate database API (US-057) -------
+
+    it("T5c - getIssuedCertificates() should return records after signing", async () => {
+        // At this point, several certs have been signed by earlier tests
+        const records = theCertificateAuthority.getIssuedCertificates();
+        records.length.should.be.greaterThan(0);
+
+        const r = records[0];
+        r.serial.should.be.a.String();
+        r.status.should.be.oneOf(["valid", "revoked", "expired"]);
+        r.subject.should.be.a.String();
+        r.expiryDate.should.be.a.String();
+    });
+
+    it("T5d - getIssuedCertificateCount() should match records length", () => {
+        const count = theCertificateAuthority.getIssuedCertificateCount();
+        const records = theCertificateAuthority.getIssuedCertificates();
+        count.should.eql(records.length);
+    });
+
+    it("T5e - getCertificateStatus() should return status for known serial", () => {
+        const records = theCertificateAuthority.getIssuedCertificates();
+        records.length.should.be.greaterThan(0);
+
+        const serial = records[0].serial;
+        const status = theCertificateAuthority.getCertificateStatus(serial);
+        (status !== undefined).should.eql(true);
+        status!.should.be.oneOf(["valid", "revoked", "expired"]);
+    });
+
+    it("T5f - getCertificateStatus() should return undefined for unknown serial", () => {
+        const status = theCertificateAuthority.getCertificateStatus("DEADBEEF");
+        (status === undefined).should.eql(true);
+    });
+
+    it("T5g - getCertificateBySerial() should return DER for known serial", () => {
+        const records = theCertificateAuthority.getIssuedCertificates();
+        records.length.should.be.greaterThan(0);
+
+        const serial = records[0].serial;
+        const der = theCertificateAuthority.getCertificateBySerial(serial);
+        (der !== undefined).should.eql(true);
+        Buffer.isBuffer(der!).should.eql(true);
+        der![0].should.eql(0x30); // DER SEQUENCE
+    });
+
+    it("T5h - getCertificateStatus() should return 'revoked' after revocation", async () => {
+        // Sign a fresh cert
+        const countBefore = theCertificateAuthority.getIssuedCertificateCount();
+
+        const csrFilename = await createCertificateRequest();
+        const csrDer = readCertificate(csrFilename);
+        await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 365
+        });
+
+        // Find the newly signed cert's serial via index.txt
+        const recordsBefore = theCertificateAuthority.getIssuedCertificates();
+        recordsBefore.length.should.be.greaterThan(countBefore);
+        const serial = recordsBefore[recordsBefore.length - 1].serial;
+
+        // Should be valid before revocation
+        theCertificateAuthority.getCertificateStatus(serial)!.should.eql("valid");
+
+        // Revoke using the cert file stored by OpenSSL in certs/
+        const certFile = path.join(theCertificateAuthority.rootDir, "certs", `${serial}.pem`);
+        fs.existsSync(certFile).should.eql(true, `cert file ${certFile} should exist`);
+        await theCertificateAuthority.revokeCertificate(certFile, {
+            reason: "keyCompromise"
+        });
+
+        // Should be revoked after
+        theCertificateAuthority.getCertificateStatus(serial)!.should.eql("revoked");
+
+        // Revoked record should have a revocationDate
+        const revokedRecord = theCertificateAuthority.getIssuedCertificates().find((r) => r.serial === serial);
+        (revokedRecord !== undefined).should.eql(true);
+        revokedRecord!.revocationDate!.should.be.a.String();
+    });
+
     async function createCertificateFromCA(): Promise<string> {
         const certificateRequest = await createCertificateRequest();
 
