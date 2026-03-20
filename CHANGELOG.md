@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.9.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.8.2...v6.9.0) (2026-03-20)
+
+
+### Bug Fixes
+
+* **ca:** revokeCertificateDER now uses stored cert ([ecde299](https://github.com/node-opcua/node-opcua-pki/commit/ecde2991f8b3ad4c324980daafa9b0527c5d7ded))
+* strip OpenSSL text dump from PEM accessors ([65f4474](https://github.com/node-opcua/node-opcua-pki/commit/65f447431b9f250a924d0b91cd2ea86dcb631f1f))
+
+
+### Features
+
+* **ca:** add buffer-based cert & CRL accessors ([641e482](https://github.com/node-opcua/node-opcua-pki/commit/641e482373831a5c7065f2df26bd2df91ab106e6))
+* **ca:** add buffer-based sign & revoke methods ([aa1b0ac](https://github.com/node-opcua/node-opcua-pki/commit/aa1b0acf8564a78c51c27dd31982274f32ae238f))
+* **ca:** add certificate database API (US-057) ([cc01917](https://github.com/node-opcua/node-opcua-pki/commit/cc01917efa90e2bbb6151c5fc2e30dcf7cd6860a))
+
+
+
+
+
 ## [6.8.2](https://github.com/node-opcua/node-opcua-pki/compare/v6.8.1...v6.8.2) (2026-03-08)
 
 
