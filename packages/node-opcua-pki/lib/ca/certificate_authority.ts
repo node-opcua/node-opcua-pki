@@ -200,7 +200,7 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
         "req -new" +
             " -sha256 " +
             " -text " +
-            " -extensions v3_ca" +
+            " -extensions v3_ca_req" +
             configOption +
             " -key " +
             q(n(privateKeyFilename)) +
