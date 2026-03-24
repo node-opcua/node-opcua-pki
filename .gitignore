@@ -45,3 +45,4 @@ pkg/
 random.rnd
 *.tgz
 *.tsbuildinfo
+commit_message.txt
