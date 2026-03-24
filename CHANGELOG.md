@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.10.2](https://github.com/node-opcua/node-opcua-pki/compare/v6.10.1...v6.10.2) (2026-03-24)
+
+
+### Bug Fixes
+
+* **ca:** recover from partial CA initialization ([a59f971](https://github.com/node-opcua/node-opcua-pki/commit/a59f971f675d462297fbc92b8b820bc97861acfa))
+
+
+
+
+
 ## [6.10.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.10.0...v6.10.1) (2026-03-24)
 
 
