@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.10.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.9.0...v6.10.0) (2026-03-24)
+
+
+### Bug Fixes
+
+* **ca:** use `keyid` instead of `keyid:always,issuer:always` ([72e6f8d](https://github.com/node-opcua/node-opcua-pki/commit/72e6f8dca5ea3a73602b0c36d3d9455223279a73))
+
+
+
+
+
 # [6.9.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.8.2...v6.9.0) (2026-03-20)
 
 
