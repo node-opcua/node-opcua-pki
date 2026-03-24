@@ -46,6 +46,40 @@ jobs:
       - name: Test
         run: npm run test:all
 
+  # ── Alpine (OpenSSL 3.5.x) ──────────────────────────────────────
+  # Alpine ships OpenSSL 3.5+ which enforces stricter X.509 extension
+  # validation (e.g. authorityKeyIdentifier=keyid:always fails during
+  # root CA CSR generation). This job catches regressions that only
+  # manifest on newer OpenSSL versions.
+  test-alpine:
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    runs-on: ubuntu-latest
+    container:
+      image: node:${{ matrix.node-version }}-alpine
+    steps:
+      - name: Install build deps (git, openssl, python, make, g++)
+        run: apk add --no-cache git openssl python3 make g++
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Versions
+        run: |
+          node --version
+          openssl version
+
+      - name: Install deps
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test:all
+
   coverage:
     runs-on: ubuntu-latest
     strategy:
