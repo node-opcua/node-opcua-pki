@@ -151,10 +151,25 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
 
     await construct_default_files();
 
-    if (fs.existsSync(path.join(caRootDir, "private/cakey.pem")) && !config.forceCA) {
-        // certificate already exists => do not overwrite
-        debugLog("CA private key already exists ... skipping");
+    const caKeyExists = fs.existsSync(path.join(caRootDir, "private/cakey.pem"));
+    const caCertExists = fs.existsSync(path.join(caRootDir, "public/cacert.pem"));
+    if (caKeyExists && caCertExists && !config.forceCA) {
+        // CA is fully initialized => do not overwrite
+        debugLog("CA private key and certificate already exist ... skipping");
         return;
+    }
+    if (caKeyExists && !caCertExists) {
+        // Partial init: key exists but certificate does not.
+        // This can happen when a previous CA creation failed
+        // (e.g. OpenSSL 3.5 authorityKeyIdentifier error).
+        // Remove the stale key so the CA is rebuilt from scratch.
+        debugLog("CA private key exists but cacert.pem is missing — rebuilding CA");
+        fs.unlinkSync(path.join(caRootDir, "private/cakey.pem"));
+        // Also remove the stale CSR if present
+        const staleCsr = path.join(caRootDir, "private/cakey.csr");
+        if (fs.existsSync(staleCsr)) {
+            fs.unlinkSync(staleCsr);
+        }
     }
 
     // tslint:disable:no-empty

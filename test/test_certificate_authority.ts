@@ -50,6 +50,39 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
         const ca = new CertificateAuthority(options as CertificateAuthorityOptions);
         await ca.initialize();
     });
+
+    it("should recover from partial CA init (key exists, cert missing)", async () => {
+        // Simulate a partial init: create directory with cakey.pem but no cacert.pem
+        const partialCALocation = path.join(testData.tmpFolder, "CA_partial");
+        const privateDir = path.join(partialCALocation, "private");
+        const publicDir = path.join(partialCALocation, "public");
+
+        fs.mkdirSync(privateDir, { recursive: true });
+        fs.mkdirSync(publicDir, { recursive: true });
+
+        // Create a dummy private key file to simulate the partial state
+        fs.writeFileSync(path.join(privateDir, "cakey.pem"), "STALE KEY DATA");
+
+        // cacert.pem intentionally NOT created
+
+        const ca = new CertificateAuthority({
+            keySize: 2048,
+            location: partialCALocation
+        });
+
+        // initialize() should detect the partial state, clean up, and rebuild
+        await ca.initialize();
+
+        // After recovery, both files should exist
+        fs.existsSync(path.join(privateDir, "cakey.pem")).should.eql(true);
+        fs.existsSync(path.join(publicDir, "cacert.pem")).should.eql(true);
+
+        // The CA should be functional — verify we can get the cert
+        const der = ca.getCACertificateDER();
+        Buffer.isBuffer(der).should.eql(true);
+        der.length.should.be.greaterThan(0);
+        der[0].should.eql(0x30); // DER SEQUENCE
+    });
 });
 
 describe("Signing Certificate with Certificate Authority", function (this: Mocha.Suite) {
