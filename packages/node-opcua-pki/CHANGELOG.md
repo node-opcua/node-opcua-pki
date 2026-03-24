@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.10.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.10.0...v6.10.1) (2026-03-24)
+
+
+### Bug Fixes
+
+* **ca:** use separate v3_ca_req section for CSR generation ([dbadb7e](https://github.com/node-opcua/node-opcua-pki/commit/dbadb7eef18903c3df51802dc2f65a679d576817))
+
+
+
+
+
 # [6.10.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.9.0...v6.10.0) (2026-03-24)
 
 
