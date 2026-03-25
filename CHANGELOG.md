@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.11.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.10.2...v6.11.0) (2026-03-25)
+
+
+### Bug Fixes
+
+* **pki:** CRL filenames no longer contain ([3d2a24d](https://github.com/node-opcua/node-opcua-pki/commit/3d2a24d6e5d98ec0a1a5b142dd26a129a3c9bbe7))
+
+
+### Features
+
+* **ca:** add generateKeyPairAndSignDER method ([ece765b](https://github.com/node-opcua/node-opcua-pki/commit/ece765bcdc30f7634eefe6086419741e65d56a87))
+* **ca:** add subordinate CA support with manual ([8df521f](https://github.com/node-opcua/node-opcua-pki/commit/8df521f6f1915a0478667597114bf84013a20404))
+* **ca:** issuer chain support and code cleanup ([587b1ba](https://github.com/node-opcua/node-opcua-pki/commit/587b1bac02cba3d4d9ce46ff598228e66c6c641c))
+
+
+
+
+
 ## [6.10.2](https://github.com/node-opcua/node-opcua-pki/compare/v6.10.1...v6.10.2) (2026-03-24)
 
 
