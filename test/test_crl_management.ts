@@ -133,4 +133,24 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
         await certificateManager.clearRevocationLists("all");
         // No error should be thrown
     });
+
+    it("addRevocationList should NOT produce 'invalid_certificate' filenames (regression)", async () => {
+        // Bug: buildIdealCertificateName() was called with a CRL buffer, but
+        // it internally calls exploreCertificateCached() which expects a
+        // certificate (not a CRL). The CRL's different ASN.1 structure caused
+        // a parse error, falling into the catch block which returned
+        // "invalid_certificate_[fingerprint]" as the filename.
+        const crl = fs.readFileSync(crlFilename);
+        const status = await certificateManager.addRevocationList(crl, "issuers");
+        status.should.eql("Good");
+
+        const issuersCrlFiles = fs.readdirSync(certificateManager.issuersCrlFolder);
+        const crlFiles = issuersCrlFiles.filter((f) => f.startsWith("crl_"));
+        crlFiles.length.should.be.greaterThan(0, "CRL file should exist");
+
+        // Verify no file contains "invalid_certificate" in its name
+        for (const file of crlFiles) {
+            file.should.not.containEql("invalid_certificate");
+        }
+    });
 });

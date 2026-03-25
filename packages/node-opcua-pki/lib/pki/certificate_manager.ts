@@ -1161,7 +1161,11 @@ export class CertificateManager extends EventEmitter {
                     index.set(key, { crls: [], serialNumbers: {} });
                 }
                 const pemCertificate = toPem(crl, "X509 CRL");
-                const filename = path.join(folder, `crl_${buildIdealCertificateName(crl)}.pem`);
+                // Use the issuer fingerprint for the filename — NOT buildIdealCertificateName()
+                // which expects a certificate, not a CRL. Passing a CRL causes
+                // exploreCertificateCached() to throw, producing "invalid_certificate_" names.
+                const sanitizedKey = key.replace(/:/g, "");
+                const filename = path.join(folder, `crl_[${sanitizedKey}].pem`);
                 await fs.promises.writeFile(filename, pemCertificate, "ascii");
 
                 await this.#onCrlFileAdded(index, filename);
