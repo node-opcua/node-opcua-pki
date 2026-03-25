@@ -439,6 +439,78 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         should.exist((revokedRecord as { revocationDate?: string }).revocationDate);
     });
 
+    // ------- generateKeyPairAndSignDER (US-113) -------
+
+    it("T5i - generateKeyPairAndSignDER() should return cert + key DER buffers", async () => {
+        const result = await theCertificateAuthority.generateKeyPairAndSignDER({
+            applicationUri: "urn:test:US113:BasicTest",
+            subject: "/CN=US113-Test",
+            dns: ["localhost"],
+            ip: ["127.0.0.1"],
+            validity: 365
+        });
+
+        // Certificate should be a DER buffer
+        Buffer.isBuffer(result.certificateDer).should.eql(true);
+        result.certificateDer.length.should.be.greaterThan(0);
+        result.certificateDer[0].should.eql(0x30); // DER SEQUENCE
+
+        // Private key should exist
+        should.exist(result.privateKey);
+
+        // Certificate should be parseable
+        const info = exploreCertificate(result.certificateDer);
+        const cn = info.tbsCertificate.subject.commonName;
+        should.exist(cn);
+        (cn as string).should.eql("US113-Test");
+
+        // Certificate and private key should match
+        const matches = certificateMatchesPrivateKey(result.certificateDer, result.privateKey);
+        matches.should.eql(true, "certificate and generated private key must match");
+
+        // Private key should NOT be stored on disk by the CA
+        const caDir = theCertificateAuthority.rootDir;
+        const allFiles = fs.readdirSync(caDir, { recursive: true }) as string[];
+        const privateKeyFiles = allFiles.filter((f) => f.includes("pki-keygen-"));
+        privateKeyFiles.length.should.eql(0, "No temp key files should remain in CA directory");
+    });
+
+    it("T5j - generateKeyPairAndSignDER() should support custom keySize", async () => {
+        const result = await theCertificateAuthority.generateKeyPairAndSignDER({
+            applicationUri: "urn:test:US113:KeySize3072",
+            subject: "/CN=US113-3072",
+            keySize: 3072,
+            validity: 180
+        });
+
+        Buffer.isBuffer(result.certificateDer).should.eql(true);
+        should.exist(result.privateKey);
+
+        // Verify the key size via the private key (rsaLengthPrivateKey returns bytes)
+        const keyLength = rsaLengthPrivateKey(result.privateKey);
+        keyLength.should.eql(3072 / 8);
+
+        // Verify cert-key match
+        certificateMatchesPrivateKey(result.certificateDer, result.privateKey).should.eql(true);
+    });
+
+    it("T5k - signCertificateRequestFromDER() should accept CA overrides", async () => {
+        const csrFilename = await createCertificateRequest();
+        const csrDer = readCertificate(csrFilename);
+
+        // Sign with custom DNS override
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 180,
+            dns: ["override.example.com", "localhost"]
+        });
+
+        Buffer.isBuffer(certDer).should.eql(true);
+        certDer[0].should.eql(0x30);
+
+        const info = exploreCertificate(certDer);
+        should.exist(info.tbsCertificate.extensions?.subjectAltName);
+    });
+
     async function createCertificateFromCA(): Promise<string> {
         const certificateRequest = await createCertificateRequest();
 

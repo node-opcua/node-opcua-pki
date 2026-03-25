@@ -21,7 +21,12 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
-export { CertificateAuthority, type CertificateAuthorityOptions } from "./ca/certificate_authority";
+export {
+    CertificateAuthority,
+    type CertificateAuthorityOptions,
+    type GenerateKeyPairAndSignOptions,
+    type SignCertificateOptions
+} from "./ca/certificate_authority";
 export * from "./misc/subject";
 export * from "./pki/certificate_manager";
 export * from "./pki/toolbox_pfx";

@@ -27,17 +27,19 @@ import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
 import {
+    CertificatePurpose,
     convertPEMtoDER,
     exploreCertificate,
     exploreCertificateSigningRequest,
     generatePrivateKeyFile,
+    type PrivateKey,
     readCertificatePEM,
     readCertificateSigningRequest,
+    readPrivateKey,
     Subject,
     type SubjectOptions,
     toPem
 } from "node-opcua-crypto";
-
 import {
     adjustApplicationUri,
     adjustDate,
@@ -53,8 +55,8 @@ import {
     type ProcessAltNamesParam,
     quote
 } from "../toolbox";
-
 import {
+    createCertificateSigningRequestWithOpenSSL,
     type ExecuteOpenSSLOptions,
     type ExecuteOptions,
     ensure_openssl_installed,
@@ -69,10 +71,12 @@ import {
 /** Default X.500 subject used when no custom subject is provided. */
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
+import _simple_config_template from "../pki/templates/simple_config_template.cnf";
 import _ca_config_template from "./templates/ca_config_template.cnf";
 
 // tslint:disable-next-line:variable-name
 export const configurationFileTemplate: string = _ca_config_template;
+const configurationFileSimpleTemplate: string = _simple_config_template;
 
 const config = {
     certificateDir: "INVALID",
@@ -349,6 +353,47 @@ function parseOpenSSLDate(dateStr: string): string {
     return `${year}-${month}-${day}T${hour}:${min}:${sec}Z`;
 }
 
+/**
+ * Options for {@link CertificateAuthority.signCertificateRequestFromDER}.
+ *
+ * All fields are optional. When provided, they override the
+ * corresponding values from the CSR.
+ */
+export interface SignCertificateOptions {
+    /** Certificate validity in days (default: 365). */
+    validity?: number;
+    /** Override the certificate start date. */
+    startDate?: Date;
+    /** Override DNS SANs. */
+    dns?: string[];
+    /** Override IP SANs. */
+    ip?: string[];
+    /** Override the application URI SAN. */
+    applicationUri?: string;
+    /** Override the X.500 subject. */
+    subject?: SubjectOptions | string;
+}
+
+/**
+ * Options for {@link CertificateAuthority.generateKeyPairAndSignDER}.
+ */
+export interface GenerateKeyPairAndSignOptions {
+    /** OPC UA application URI (required). */
+    applicationUri: string;
+    /** X.500 subject for the certificate (e.g. "CN=MyApp"). */
+    subject?: SubjectOptions | string;
+    /** DNS host names for the SAN extension. */
+    dns?: string[];
+    /** IP addresses for the SAN extension. */
+    ip?: string[];
+    /** Certificate validity in days (default: 365). */
+    validity?: number;
+    /** Certificate start date (default: now). */
+    startDate?: Date;
+    /** RSA key size in bits (default: 2048). */
+    keySize?: KeySize;
+}
+
 export class CertificateAuthority {
     /** RSA key size used when generating the CA private key. */
     public readonly keySize: KeySize;
@@ -623,13 +668,15 @@ export class CertificateAuthority {
      * internally so that callers can work with in-memory
      * buffers only.
      *
+     * The CA can override fields from the CSR by passing
+     * `options.dns`, `options.ip`, `options.applicationUri`,
+     * `options.startDate`, or `options.subject`.
+     *
      * @param csrDer - the CSR as a DER-encoded buffer
-     * @param options - signing options
-     * @param options.validity - certificate validity in days
-     *   (default: 365)
+     * @param options - signing options and CA overrides
      * @returns the signed certificate as a DER-encoded buffer
      */
-    public async signCertificateRequestFromDER(csrDer: Buffer, options?: { validity?: number }): Promise<Buffer> {
+    public async signCertificateRequestFromDER(csrDer: Buffer, options?: SignCertificateOptions): Promise<Buffer> {
         const validity = options?.validity ?? 365;
         const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-sign-"));
 
@@ -641,13 +688,92 @@ export class CertificateAuthority {
             const csrPem = toPem(csrDer, "CERTIFICATE REQUEST");
             await fs.promises.writeFile(csrFile, csrPem, "utf-8");
 
+            // Build signing parameters — CA overrides take precedence
+            const signingParams: Params = { validity };
+            if (options?.startDate) signingParams.startDate = options.startDate;
+            if (options?.dns) signingParams.dns = options.dns;
+            if (options?.ip) signingParams.ip = options.ip;
+            if (options?.applicationUri) signingParams.applicationUri = options.applicationUri;
+            if (options?.subject) signingParams.subject = options.subject;
+
             // Delegate to the existing file-based method
-            await this.signCertificateRequest(certFile, csrFile, { validity });
+            await this.signCertificateRequest(certFile, csrFile, signingParams);
 
             // Read the signed certificate and convert to DER
             const certPem = readCertificatePEM(certFile);
             return convertPEMtoDER(certPem);
         } finally {
+            await fs.promises.rm(tmpDir, {
+                recursive: true,
+                force: true
+            });
+        }
+    }
+
+    /**
+     * Generate a new RSA key pair, create an internal CSR, sign it
+     * with this CA, and return both the certificate and private key
+     * as DER-encoded buffers.
+     *
+     * The private key is **never stored** by the CA — it exists only
+     * in a temporary directory that is cleaned up after the operation.
+     *
+     * This is used by `StartNewKeyPairRequest` (OPC UA Part 12) for
+     * constrained devices that cannot generate their own keys.
+     *
+     * @param options - key generation and certificate parameters
+     * @returns `{ certificateDer, privateKey }` — certificate as DER,
+     *   private key as a branded `PrivateKey` buffer
+     */
+    public async generateKeyPairAndSignDER(options: GenerateKeyPairAndSignOptions): Promise<{
+        certificateDer: Buffer;
+        privateKey: PrivateKey;
+    }> {
+        const keySize = options.keySize ?? 2048;
+        const validity = options.validity ?? 365;
+        const startDate = options.startDate ?? new Date();
+        const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-keygen-"));
+
+        try {
+            // 1. Generate ephemeral private key
+            const privateKeyFile = path.join(tmpDir, "private_key.pem");
+            await generatePrivateKeyFile(privateKeyFile, keySize);
+
+            // 2. Create a minimal OpenSSL config for CSR generation
+            const configFile = path.join(tmpDir, "openssl.cnf");
+            await fs.promises.writeFile(configFile, configurationFileSimpleTemplate, "utf-8");
+
+            // 3. Create CSR using the ephemeral key
+            const csrFile = path.join(tmpDir, "request.csr");
+            await createCertificateSigningRequestWithOpenSSL(csrFile, {
+                rootDir: tmpDir,
+                configFile,
+                privateKey: privateKeyFile,
+                applicationUri: options.applicationUri,
+                subject: options.subject,
+                dns: options.dns ?? [],
+                ip: options.ip ?? [],
+                purpose: CertificatePurpose.ForApplication
+            });
+
+            // 4. Sign the CSR with this CA
+            const certFile = path.join(tmpDir, "certificate.pem");
+            await this.signCertificateRequest(certFile, csrFile, {
+                applicationUri: options.applicationUri,
+                dns: options.dns,
+                ip: options.ip,
+                startDate,
+                validity
+            });
+
+            // 5. Read results
+            const certPem = readCertificatePEM(certFile);
+            const certificateDer = convertPEMtoDER(certPem);
+            const privateKey = readPrivateKey(privateKeyFile);
+
+            return { certificateDer, privateKey };
+        } finally {
+            // 6. Securely clean up — private key is never persisted
             await fs.promises.rm(tmpDir, {
                 recursive: true,
                 force: true
