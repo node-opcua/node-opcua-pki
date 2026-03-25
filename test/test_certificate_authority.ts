@@ -658,9 +658,10 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
         const result1 = await intermediateCA1.initializeCSR();
         result1.status.should.eql("created");
         //   Step B: Root CA signs the CSR with v3_ca extensions
+        //          (output already contains [signedCert, rootCACert])
         const signedCert1 = path.join(testData.tmpFolder, "int1_signed.pem");
         await rootCA.signCACertificateRequest(signedCert1, (result1 as { csrPath: string }).csrPath, { validity: 3650 });
-        //   Step C: install the externally-signed certificate
+        //   Step C: install the chain (auto-splits into cacert.pem + issuer_chain.pem)
         await intermediateCA1.installCACertificate(signedCert1);
 
         // 3. Intermediate CA #2 — same manual workflow
@@ -700,7 +701,7 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
         (int2Info.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
     });
 
-    it("T8c - End-entity cert signed by Intermediate CA #1 should have 2-element chain", async () => {
+    it("T8c - End-entity cert signed by Intermediate CA #1 should have full chain", async () => {
         // Generate end-entity key + CSR
         const endEntityManager = new CertificateManager({
             location: path.join(testData.tmpFolder, "EndEntity1")
@@ -720,25 +721,30 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
             validity: 365
         });
 
-        // The signed cert file contains end-entity + intermediate CA cert
+        // The signed cert file contains full chain: end-entity + intermediate + root
         const chainDer = readCertificate(certFile);
         const elements = split_der(chainDer);
-        elements.length.should.eql(2, "chain should have end-entity + intermediate CA cert");
+        elements.length.should.eql(3, "chain = end-entity + intermediate + root CA");
 
-        // First element: end-entity cert issued by Intermediate CA 1
+        // Element 0: end-entity cert issued by Intermediate CA 1
         const endEntityInfo = exploreCertificate(elements[0]);
         (endEntityInfo.tbsCertificate.subject.commonName ?? "").should.eql("App1");
         (endEntityInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 1");
 
-        // Second element: Intermediate CA 1 cert issued by Root CA
+        // Element 1: Intermediate CA 1 cert issued by Root CA
         const intCAInfo = exploreCertificate(elements[1]);
         (intCAInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 1");
         (intCAInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
 
+        // Element 2: Root CA cert (self-signed, last in chain per Part 6 §6.2.6)
+        const rootInfo = exploreCertificate(elements[2]);
+        (rootInfo.tbsCertificate.subject.commonName ?? "").should.eql("Test Root CA");
+        (rootInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
         await endEntityManager.dispose();
     });
 
-    it("T8d - generateKeyPairAndSignDER from Intermediate CA #2 should produce valid chain", async () => {
+    it("T8d - generateKeyPairAndSignDER from Intermediate CA #2 should produce full chain", async () => {
         const result = await intermediateCA2.generateKeyPairAndSignDER({
             applicationUri: "urn:test:hierarchy:app2",
             dns: ["app2.example.com"],
@@ -749,9 +755,9 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
         Buffer.isBuffer(result.certificateDer).should.eql(true);
         should.exist(result.privateKey);
 
-        // The certificate chain should contain end-entity + intermediate CA cert
+        // Full chain: end-entity + intermediate + root
         const elements = split_der(result.certificateDer);
-        elements.length.should.eql(2, "chain should have end-entity + intermediate CA cert");
+        elements.length.should.eql(3, "chain = end-entity + intermediate + root CA");
 
         // Verify issuer chain: App2 -> Intermediate CA 2 -> Test Root CA
         const endEntityInfo = exploreCertificate(elements[0]);
@@ -761,6 +767,10 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
         const intCAInfo = exploreCertificate(elements[1]);
         (intCAInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 2");
         (intCAInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
+        const rootInfo = exploreCertificate(elements[2]);
+        (rootInfo.tbsCertificate.subject.commonName ?? "").should.eql("Test Root CA");
+        (rootInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
 
         // Certificate and private key should match
         certificateMatchesPrivateKey(result.certificateDer, result.privateKey).should.eql(true);
@@ -837,11 +847,11 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
         renewResult.status.should.eql("expired");
         if (renewResult.status !== "expired") return;
 
-        // Step 2: Root CA re-signs the CSR
+        // Step 2: Root CA re-signs the CSR (output includes chain)
         const renewedCert = path.join(testData.tmpFolder, "int1_renewed.pem");
         await rootCA.signCACertificateRequest(renewedCert, renewResult.csrPath, { validity: 3650 });
 
-        // Step 3: install the renewed certificate
+        // Step 3: install the renewed certificate chain
         const installResult = await intermediateCA1.installCACertificate(renewedCert);
         installResult.status.should.eql("success");
 
@@ -871,30 +881,22 @@ describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
             validity: 365
         });
 
-        // The cert chain in the DER output = [endEntity, intermediateCA]
+        // Full chain per OPC UA Part 6 §6.2.6
         const elements = split_der(result.certificateDer);
-        elements.length.should.eql(2, "chain = end-entity + intermediate CA");
+        elements.length.should.eql(3, "complete chain = end-entity + intermediate + root");
 
-        // Verify link 1: end-entity issued by intermediate CA
+        // Link 1: end-entity issued by intermediate CA
         const endEntityInfo = exploreCertificate(elements[0]);
-        const intermediateInfo = exploreCertificate(elements[1]);
         (endEntityInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 1");
-        (intermediateInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 1");
 
-        // Verify link 2: intermediate CA issued by root CA
+        // Link 2: intermediate CA issued by root CA
+        const intermediateInfo = exploreCertificate(elements[1]);
+        (intermediateInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 1");
         (intermediateInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
 
-        // Verify link 3: root CA cert exists and is self-signed (trust anchor)
-        const rootDer = readCertificate(rootCA.caCertificate);
-        const rootInfo = exploreCertificate(rootDer);
+        // Link 3: root CA is self-signed (last in chain per Part 6 §6.2.6)
+        const rootInfo = exploreCertificate(elements[2]);
         (rootInfo.tbsCertificate.subject.commonName ?? "").should.eql("Test Root CA");
         (rootInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
-
-        // Per OPC UA Part 6 §6.2.6:
-        //   - Both partial and complete chains are valid
-        //   - "If the root CA is sent as part of the chain, it is
-        //      last Certificate appended to the ByteString"
-        //   - Our current output is a *partial* chain (without root),
-        //     which is spec-compliant. Including the root is optional.
     });
 });

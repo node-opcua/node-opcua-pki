@@ -503,6 +503,19 @@ export class CertificateAuthority {
     }
 
     /**
+     * Path to the issuer certificate chain (`public/issuer_chain.pem`).
+     *
+     * This file is created by {@link installCACertificate} when the
+     * provided cert file contains additional issuer certificates
+     * (e.g. intermediate + root). It is appended to signed certs
+     * by {@link constructCertificateChain} to produce a full chain
+     * per OPC UA Part 6 §6.2.6.
+     */
+    public get issuerCertificateChain() {
+        return makePath(this.rootDir, "./public/issuer_chain.pem");
+    }
+
+    /**
      * Path to the current Certificate Revocation List in DER format.
      * (`crl/revocation_list.der`)
      */
@@ -996,7 +1009,7 @@ export class CertificateAuthority {
             mkdirRecursiveSync(path.join(caRootDir, dir));
         }
 
-        const caCertFile = path.join(caRootDir, "public/cacert.pem");
+        const caCertFile = this.caCertificate;
         const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
         const csrFile = path.join(caRootDir, "private/cakey.csr");
 
@@ -1073,7 +1086,7 @@ export class CertificateAuthority {
      */
     public async renewCSR(thresholdDays = 30): Promise<InitializeCSRResult> {
         const caRootDir = path.resolve(this.rootDir);
-        const caCertFile = path.join(caRootDir, "public/cacert.pem");
+        const caCertFile = this.caCertificate;
         const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
         const csrFile = path.join(caRootDir, "private/cakey.csr");
 
@@ -1102,6 +1115,7 @@ export class CertificateAuthority {
      */
     private async _generateCSR(caRootDir: string, privateKeyFile: string, csrFile: string): Promise<void> {
         const subjectOpt = ` -subj "${this.subject.toString()}" `;
+        // Reset global SAN state — required by generateStaticConfig
         processAltNames({} as Params);
         const options = { cwd: caRootDir };
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
@@ -1141,12 +1155,24 @@ export class CertificateAuthority {
      */
     public async installCACertificate(signedCertFile: string): Promise<InstallCACertificateResult> {
         const caRootDir = path.resolve(this.rootDir);
-        const caCertFile = path.join(caRootDir, "public/cacert.pem");
+        const caCertFile = this.caCertificate;
         const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
 
-        // Verify the certificate matches the private key
-        const certPem = readCertificatePEM(signedCertFile);
-        const certDer = convertPEMtoDER(certPem);
+        // Read the full content once — may contain a chain
+        const fullPem = await fs.promises.readFile(signedCertFile, "utf8");
+
+        // Split PEM blocks: first cert → cacert.pem, rest → issuer_chain.pem
+        const pemBlocks = fullPem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+        if (!pemBlocks || pemBlocks.length === 0) {
+            return {
+                status: "error",
+                reason: "no_certificate_found",
+                message: "The provided file does not contain any PEM-encoded certificate."
+            };
+        }
+
+        // Verify the first certificate matches the CA private key
+        const certDer = convertPEMtoDER(pemBlocks[0]);
         const privateKey = readPrivateKey(privateKeyFile);
         if (!certificateMatchesPrivateKey(certDer, privateKey)) {
             return {
@@ -1159,8 +1185,21 @@ export class CertificateAuthority {
             };
         }
 
-        // Copy the signed certificate into place
-        await fs.promises.copyFile(signedCertFile, caCertFile);
+        // Write the first cert (the CA cert itself)
+        await fs.promises.writeFile(caCertFile, `${pemBlocks[0]}\n`);
+
+        // Write any additional issuer certs to the chain file
+        const issuerChainFile = this.issuerCertificateChain;
+        if (pemBlocks.length > 1) {
+            const issuerPem = `${pemBlocks.slice(1).join("\n")}\n`;
+            await fs.promises.writeFile(issuerChainFile, issuerPem);
+            debugLog(`Stored ${pemBlocks.length - 1} issuer certificate(s) in issuer_chain.pem`);
+        } else {
+            // No issuer chain — remove stale file if present
+            if (fs.existsSync(issuerChainFile)) {
+                await fs.promises.unlink(issuerChainFile);
+            }
+        }
 
         // Generate initial CRL
         const options = { cwd: caRootDir };
@@ -1208,6 +1247,11 @@ export class CertificateAuthority {
                 q(n(certFile)),
             options
         );
+
+        // Append this CA's cert chain to the output so the caller
+        // receives a complete chain file ready for installCACertificate.
+        // Chain format: [signedSubordinateCert, thisCA, thisCA's issuers...]
+        await this.constructCertificateChain(certFile);
     }
 
     /**
@@ -1249,12 +1293,18 @@ export class CertificateAuthority {
         assert(fs.existsSync(this.caCertificate));
 
         debugLog(chalk.yellow("        certificate file :"), chalk.cyan(certificate));
-        // append
-        await fs.promises.writeFile(
-            certificate,
-            (await fs.promises.readFile(certificate, "utf8")) + (await fs.promises.readFile(this.caCertificate, "utf8"))
-            //   + fs.readFileSync(this.revocationList)
-        );
+
+        // Build chain: cert + this CA cert + issuer chain (if available)
+        let chain = await fs.promises.readFile(certificate, "utf8");
+        chain += await fs.promises.readFile(this.caCertificate, "utf8");
+
+        // Append the issuer certificate chain (e.g. root CA cert)
+        // to produce a complete chain per OPC UA Part 6 §6.2.6
+        if (fs.existsSync(this.issuerCertificateChain)) {
+            chain += await fs.promises.readFile(this.issuerCertificateChain, "utf8");
+        }
+
+        await fs.promises.writeFile(certificate, chain);
     }
 
     /**
