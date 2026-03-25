@@ -190,182 +190,46 @@ pki demo [--dev] [--silent] [--clean]
 ## Programmatic Usage
 
 ```typescript
-import { CertificateManager } from "node-opcua-pki";
+import { CertificateManager, CertificateAuthority } from "node-opcua-pki";
+```
 
-const cm = new CertificateManager({
-    location: "./my_pki",
-    keySize: 2048,
-});
+### [CertificateManager](./docs/certificate-manager.md)
 
+Manages an OPC UA–compliant PKI directory with trust stores, issuer
+stores, file watching, and certificate lifecycle.
+
+```typescript
+const cm = new CertificateManager({ location: "./my_pki" });
 await cm.initialize();
-
-// Create a self-signed certificate
-await cm.createSelfSignedCertificate({
-    applicationUri: "urn:my-server:application",
-    subject: "/CN=My Server/O=My Organization",
-    dns: ["localhost"],
-    startDate: new Date(),
-    validity: 365,
-});
 ```
 
-### CertificateManager API
+### [CertificateAuthority](./docs/certificate-authority.md)
 
-#### Certificate Trust
-
-| Method                                          | Description                                                                                |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `trustCertificate(cert)`                        | Add a certificate to the trusted store                                                     |
-| `rejectCertificate(cert)`                       | Move a certificate to the rejected store                                                   |
-| `verifyCertificate(cert, options?)`             | Full certificate chain validation                                                          |
-| `removeTrustedCertificate(thumbprint)`          | Remove a trusted certificate by SHA-1 thumbprint. Returns the certificate buffer or `null` |
-| `addTrustedCertificateFromChain(certChain)`     | Validate and trust the leaf certificate from a DER chain                                   |
-| `isIssuerInUseByTrustedCertificate(issuerCert)` | Check if any trusted cert was signed by this issuer                                        |
-| `reloadCertificates()`                          | Force a full re-scan of all PKI folders                                                    |
-
-#### Issuer (CA) Certificates
-
-| Method                                        | Description                                                              |
-| --------------------------------------------- | ------------------------------------------------------------------------ |
-| `addIssuer(cert, validate?, addInTrustList?)` | Add a CA certificate to the issuers store                                |
-| `hasIssuer(thumbprint)`                       | Check if an issuer exists by SHA-1 thumbprint                            |
-| `removeIssuer(thumbprint)`                    | Remove an issuer by thumbprint. Returns the certificate buffer or `null` |
-| `findIssuerCertificate(cert)`                 | Find the issuer certificate for a given certificate                      |
-
-#### Certificate Revocation Lists (CRLs)
-
-| Method                                          | Description                                                                                   |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `addRevocationList(crl, target?)`               | Add a CRL. `target` is `"issuers"` (default) or `"trusted"`                                   |
-| `clearRevocationLists(target)`                  | Remove all CRLs from `"issuers"`, `"trusted"`, or `"all"`                                     |
-| `removeRevocationListsForIssuer(cert, target?)` | Remove CRLs issued by a specific CA. `target`: `"issuers"`, `"trusted"`, or `"all"` (default) |
-| `isCertificateRevoked(cert, issuerCert?)`       | Check if a certificate has been revoked                                                       |
-
-#### Folder Accessors
-
-| Getter              | Path                       |
-| ------------------- | -------------------------- |
-| `trustedFolder`     | `{location}/trusted/certs` |
-| `rejectedFolder`    | `{location}/rejected`      |
-| `crlFolder`         | `{location}/trusted/crl`   |
-| `issuersCertFolder` | `{location}/issuers/certs` |
-| `issuersCrlFolder`  | `{location}/issuers/crl`   |
-| `rootDir`           | `{location}`               |
-
-### CertificateAuthority API
-
-The `CertificateAuthority` class manages an OpenSSL-based CA directory structure for issuing, revoking, and tracking certificates.
+OpenSSL-based CA for issuing, revoking, and tracking certificates.
+Supports root CAs, intermediate CAs with manual 3-step workflow,
+proactive certificate renewal, and full chain output per OPC UA
+Part 6 §6.2.6.
 
 ```typescript
-import { CertificateAuthority } from "node-opcua-pki";
-
-const ca = new CertificateAuthority({
-    location: "./my_ca",
+// Root CA
+const rootCA = new CertificateAuthority({
     keySize: 2048,
+    location: "./my_root_ca",
+    subject: "/CN=My Root CA",
 });
-await ca.initialize();
-```
+await rootCA.initialize();
 
-#### Buffer Accessors
-
-| Method                   | Returns  | Description                              |
-| ------------------------ | -------- | ---------------------------------------- |
-| `getCACertificateDER()`  | `Buffer` | CA certificate as DER                    |
-| `getCACertificatePEM()`  | `string` | CA certificate as PEM                    |
-| `getCRLDER()`            | `Buffer` | Current CRL as DER (empty if none)       |
-| `getCRLPEM()`            | `string` | Current CRL as PEM                       |
-
-#### Buffer Operations
-
-| Method | Returns | Description |
-| --- | --- | --- |
-| `signCertificateRequestFromDER(csrDer, options?)` | `Promise<Buffer>` | Sign a DER-encoded CSR, return signed cert as DER. Handles temp files internally. |
-| `revokeCertificateDER(certDer, reason?)` | `Promise<void>` | Revoke a DER-encoded certificate. Looks up the stored cert by serial number. |
-
-```typescript
-// Sign a CSR from a DER buffer
-const certDer = await ca.signCertificateRequestFromDER(csrDer, {
-    validity: 365,
+// Intermediate CA (3-step workflow)
+const intCA = new CertificateAuthority({
+    keySize: 2048,
+    location: "./my_intermediate_ca",
+    subject: "/CN=My Intermediate CA",
 });
-
-// Revoke a certificate from its DER buffer
-await ca.revokeCertificateDER(certDer, "keyCompromise");
-```
-
-#### Certificate Database
-
-These methods parse the OpenSSL `index.txt` database to query issued certificate status. Certificate files are read from the CA's `certs/` directory.
-
-| Method | Returns | Description |
-| --- | --- | --- |
-| `getIssuedCertificates()` | `IssuedCertificateRecord[]` | All records from `index.txt` |
-| `getIssuedCertificateCount()` | `number` | Total number of issued certificates |
-| `getCertificateStatus(serial)` | `string \| undefined` | `"valid"`, `"revoked"`, or `"expired"` |
-| `getCertificateBySerial(serial)` | `Buffer \| undefined` | DER buffer from `certs/<serial>.pem` |
-
-```typescript
-// List all issued certificates
-const records = ca.getIssuedCertificates();
-for (const r of records) {
-    console.log(`${r.serial}: ${r.status} — ${r.subject}`);
-}
-
-// Check if a specific certificate is revoked
-const status = ca.getCertificateStatus("1000");
-if (status === "revoked") {
-    console.log("Certificate 1000 has been revoked");
-}
-
-// Read a certificate by serial number
-const der = ca.getCertificateBySerial("1000");
-```
-
-**`IssuedCertificateRecord`** fields:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `serial` | `string` | Hex serial (e.g. `"1000"`) |
-| `status` | `"valid" \| "revoked" \| "expired"` | Certificate status |
-| `subject` | `string` | X.500 subject (slash-delimited) |
-| `expiryDate` | `string` | ISO-8601 expiry date |
-| `revocationDate` | `string?` | ISO-8601 revocation date (if revoked) |
-
-### File Watching
-
-`CertificateManager` uses [chokidar](https://github.com/paulmillr/chokidar) to watch the PKI folders for changes. By default, it uses **native OS events** (inotify, FSEvents, ReadDirectoryChangesW) for near-real-time detection.
-
-#### Environment Variables
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `OPCUA_PKI_USE_POLLING` | Set to `"true"` to use polling instead of native FS events. Required for NFS, CIFS, Docker volumes, or other remote/virtual file systems. | `false` |
-| `OPCUA_PKI_POLLING_INTERVAL` | Polling interval in milliseconds (only effective when polling is enabled). Clamped to [100, 600 000]. | `5000` |
-
-```bash
-# Example: enable polling with a 2-second interval
-OPCUA_PKI_USE_POLLING=true OPCUA_PKI_POLLING_INTERVAL=2000 node my_server.js
-```
-
-> **Note:** If external processes modify the PKI folders directly (e.g., CLI tools, OPC UA `WriteTrustList`), call `reloadCertificates()` to force an immediate re-scan of the folder state.
-
-#### Events
-
-After `initialize()`, the `CertificateManager` emits events when its file-system watchers detect live changes. Events are **not** emitted during `initialize()` or `reloadCertificates()` to avoid noise.
-
-| Event | Payload | Description |
-| --- | --- | --- |
-| `certificateAdded` | `{ store, certificate, fingerprint, filename }` | A certificate file was added to a store |
-| `certificateRemoved` | `{ store, fingerprint, filename }` | A certificate file was removed from a store |
-| `certificateChange` | `{ store, certificate, fingerprint, filename }` | A certificate file was modified in a store |
-| `crlAdded` | `{ store, filename }` | A CRL file was added |
-| `crlRemoved` | `{ store, filename }` | A CRL file was removed |
-
-`store` is one of `"trusted"`, `"rejected"`, `"issuersCerts"` (for certificate events) or `"crl"`, `"issuersCrl"` (for CRL events).
-
-```typescript
-cm.on("certificateAdded", ({ store, fingerprint, filename }) => {
-    console.log(`New certificate in ${store}: ${fingerprint}`);
-});
+const result = await intCA.initializeCSR();       // Step 1
+await rootCA.signCACertificateRequest(             // Step 2
+    certFile, result.csrPath, { validity: 3650 }
+);
+await intCA.installCACertificate(certFile);        // Step 3
 ```
 
 ## References
