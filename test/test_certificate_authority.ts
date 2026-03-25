@@ -511,6 +511,46 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         should.exist(info.tbsCertificate.extensions?.subjectAltName);
     });
 
+    // ------- generateKeyPairAndSignPFX (PFX variant) -------
+
+    it("T5l - generateKeyPairAndSignPFX() should return a PFX buffer", async () => {
+        const pfx = await theCertificateAuthority.generateKeyPairAndSignPFX({
+            applicationUri: "urn:test:US113:PfxBasic",
+            subject: "/CN=US113-PFX-Test",
+            dns: ["localhost"],
+            validity: 365
+        });
+
+        Buffer.isBuffer(pfx).should.eql(true);
+        pfx.length.should.be.greaterThan(0);
+    });
+
+    it("T5m - generateKeyPairAndSignPFX() should support passphrase", async () => {
+        const passphrase = "test-password-123";
+        const pfx = await theCertificateAuthority.generateKeyPairAndSignPFX({
+            applicationUri: "urn:test:US113:PfxPassword",
+            subject: "/CN=US113-PFX-Password",
+            dns: ["localhost"],
+            validity: 365,
+            passphrase
+        });
+
+        Buffer.isBuffer(pfx).should.eql(true);
+        pfx.length.should.be.greaterThan(0);
+
+        // Verify we can extract info from the PFX with the correct password
+        // Write to temp file, extract, verify
+        const tmpPfx = path.join(testData.tmpFolder, "test_password.pfx");
+        fs.writeFileSync(tmpPfx, pfx);
+
+        const { extractCertificateFromPFX } = require("node-opcua-pki");
+        const certPem = await extractCertificateFromPFX({
+            pfxFile: tmpPfx,
+            passphrase
+        });
+        certPem.should.containEql("BEGIN CERTIFICATE");
+    });
+
     async function createCertificateFromCA(): Promise<string> {
         const certificateRequest = await createCertificateRequest();
 
@@ -588,5 +628,273 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         validate1.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         await cm.dispose();
+    });
+});
+
+describe("Intermediate CA Hierarchy", function (this: Mocha.Suite) {
+    const testData = beforeTest(this);
+
+    let rootCA: CertificateAuthority;
+    let intermediateCA1: CertificateAuthority;
+    let intermediateCA2: CertificateAuthority;
+
+    before(async () => {
+        // 1. Root CA (self-signed) — the only one that self-signs
+        rootCA = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "RootCA"),
+            subject: "/CN=Test Root CA/O=TestOrg"
+        });
+        await rootCA.initialize();
+
+        // 2. Intermediate CA #1 — manual 3-step workflow
+        //    (simulates an external root CA that we don't own)
+        intermediateCA1 = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "IntermediateCA1"),
+            subject: "/CN=Intermediate CA 1/O=TestOrg"
+        });
+        //   Step A: generate key + CSR (no signing yet)
+        const result1 = await intermediateCA1.initializeCSR();
+        result1.status.should.eql("created");
+        //   Step B: Root CA signs the CSR with v3_ca extensions
+        const signedCert1 = path.join(testData.tmpFolder, "int1_signed.pem");
+        await rootCA.signCACertificateRequest(signedCert1, (result1 as { csrPath: string }).csrPath, { validity: 3650 });
+        //   Step C: install the externally-signed certificate
+        await intermediateCA1.installCACertificate(signedCert1);
+
+        // 3. Intermediate CA #2 — same manual workflow
+        intermediateCA2 = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "IntermediateCA2"),
+            subject: "/CN=Intermediate CA 2/O=TestOrg"
+        });
+        const result2 = await intermediateCA2.initializeCSR();
+        result2.status.should.eql("created");
+        const signedCert2 = path.join(testData.tmpFolder, "int2_signed.pem");
+        await rootCA.signCACertificateRequest(signedCert2, (result2 as { csrPath: string }).csrPath, { validity: 3650 });
+        await intermediateCA2.installCACertificate(signedCert2);
+    });
+
+    it("T8a - Root CA should have a self-signed certificate", () => {
+        fs.existsSync(rootCA.caCertificate).should.eql(true);
+        const rootDer = readCertificate(rootCA.caCertificate);
+        const rootInfo = exploreCertificate(rootDer);
+
+        // Root CA: issuer == subject
+        (rootInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+        (rootInfo.tbsCertificate.subject.commonName ?? "").should.eql("Test Root CA");
+    });
+
+    it("T8b - Intermediate CAs should be signed by Root CA", () => {
+        // Intermediate CA #1
+        const int1Der = readCertificate(intermediateCA1.caCertificate);
+        const int1Info = exploreCertificate(int1Der);
+        (int1Info.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 1");
+        (int1Info.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
+        // Intermediate CA #2
+        const int2Der = readCertificate(intermediateCA2.caCertificate);
+        const int2Info = exploreCertificate(int2Der);
+        (int2Info.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 2");
+        (int2Info.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+    });
+
+    it("T8c - End-entity cert signed by Intermediate CA #1 should have 2-element chain", async () => {
+        // Generate end-entity key + CSR
+        const endEntityManager = new CertificateManager({
+            location: path.join(testData.tmpFolder, "EndEntity1")
+        });
+        await endEntityManager.initialize();
+
+        const csrFile = await endEntityManager.createCertificateRequest({
+            applicationUri: "urn:test:hierarchy:app1",
+            dns: ["app1.example.com"],
+            subject: "/CN=App1",
+            validity: 365
+        });
+
+        // Sign with Intermediate CA #1
+        const certFile = path.join(testData.tmpFolder, "app1_cert.pem");
+        await intermediateCA1.signCertificateRequest(certFile, csrFile, {
+            validity: 365
+        });
+
+        // The signed cert file contains end-entity + intermediate CA cert
+        const chainDer = readCertificate(certFile);
+        const elements = split_der(chainDer);
+        elements.length.should.eql(2, "chain should have end-entity + intermediate CA cert");
+
+        // First element: end-entity cert issued by Intermediate CA 1
+        const endEntityInfo = exploreCertificate(elements[0]);
+        (endEntityInfo.tbsCertificate.subject.commonName ?? "").should.eql("App1");
+        (endEntityInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 1");
+
+        // Second element: Intermediate CA 1 cert issued by Root CA
+        const intCAInfo = exploreCertificate(elements[1]);
+        (intCAInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 1");
+        (intCAInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
+        await endEntityManager.dispose();
+    });
+
+    it("T8d - generateKeyPairAndSignDER from Intermediate CA #2 should produce valid chain", async () => {
+        const result = await intermediateCA2.generateKeyPairAndSignDER({
+            applicationUri: "urn:test:hierarchy:app2",
+            dns: ["app2.example.com"],
+            subject: "/CN=App2",
+            validity: 365
+        });
+
+        Buffer.isBuffer(result.certificateDer).should.eql(true);
+        should.exist(result.privateKey);
+
+        // The certificate chain should contain end-entity + intermediate CA cert
+        const elements = split_der(result.certificateDer);
+        elements.length.should.eql(2, "chain should have end-entity + intermediate CA cert");
+
+        // Verify issuer chain: App2 -> Intermediate CA 2 -> Test Root CA
+        const endEntityInfo = exploreCertificate(elements[0]);
+        (endEntityInfo.tbsCertificate.subject.commonName ?? "").should.eql("App2");
+        (endEntityInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 2");
+
+        const intCAInfo = exploreCertificate(elements[1]);
+        (intCAInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 2");
+        (intCAInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
+        // Certificate and private key should match
+        certificateMatchesPrivateKey(result.certificateDer, result.privateKey).should.eql(true);
+    });
+
+    it("T8e - lifecycle: restart after install returns status 'ready'", async () => {
+        // Simulate restart: new object, same directory
+        const restartedCA = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "IntermediateCA1"),
+            subject: "/CN=Intermediate CA 1/O=TestOrg"
+        });
+
+        const result = await restartedCA.initializeCSR();
+        result.status.should.eql("ready", "restart after install → ready");
+
+        // The restarted CA can still sign certificates
+        const signed = await restartedCA.generateKeyPairAndSignDER({
+            applicationUri: "urn:test:hierarchy:restart",
+            dns: ["restart.example.com"],
+            subject: "/CN=RestartApp",
+            validity: 365
+        });
+        Buffer.isBuffer(signed.certificateDer).should.eql(true);
+        const info = exploreCertificate(signed.certificateDer);
+        (info.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 1");
+    });
+
+    it("T8f - lifecycle: restart before install returns status 'pending'", async () => {
+        // Create a fresh intermediate CA — initializeCSR but do NOT install cert
+        const pendingCA = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "PendingCA"),
+            subject: "/CN=Pending CA/O=TestOrg"
+        });
+        const firstResult = await pendingCA.initializeCSR();
+        firstResult.status.should.eql("created");
+
+        // Simulate restart: new object, same directory, cert NOT installed
+        const restartedCA = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "PendingCA"),
+            subject: "/CN=Pending CA/O=TestOrg"
+        });
+        const secondResult = await restartedCA.initializeCSR();
+        secondResult.status.should.eql("pending", "restart before install → pending");
+        // The CSR path should be the same as the first call
+        if (secondResult.status === "pending" && firstResult.status === "created") {
+            path.basename(secondResult.csrPath).should.eql(path.basename(firstResult.csrPath));
+        }
+    });
+
+    it("T8g - renewCSR() should return 'expired' when threshold exceeds remaining validity", async () => {
+        // Use a huge threshold so the cert always appears "about to expire"
+        const result = await intermediateCA1.renewCSR(999999);
+        result.status.should.eql("expired");
+        if (result.status === "expired") {
+            // The CSR should be regenerated for renewal
+            fs.existsSync(result.csrPath).should.eql(true);
+            // expiryDate should be a Date in the future (cert was valid)
+            result.expiryDate.should.be.instanceOf(Date);
+        }
+    });
+
+    it("T8h - renewCSR() should return 'ready' when cert is not close to expiry", async () => {
+        // With threshold = 0 days, the cert should not be considered expiring
+        const result = await intermediateCA1.renewCSR(0);
+        result.status.should.eql("ready");
+    });
+
+    it("T8i - full runtime renewal flow: renewCSR → sign → install → sign cert", async () => {
+        // Step 1: detect expiry (use huge threshold to trigger)
+        const renewResult = await intermediateCA1.renewCSR(999999);
+        renewResult.status.should.eql("expired");
+        if (renewResult.status !== "expired") return;
+
+        // Step 2: Root CA re-signs the CSR
+        const renewedCert = path.join(testData.tmpFolder, "int1_renewed.pem");
+        await rootCA.signCACertificateRequest(renewedCert, renewResult.csrPath, { validity: 3650 });
+
+        // Step 3: install the renewed certificate
+        const installResult = await intermediateCA1.installCACertificate(renewedCert);
+        installResult.status.should.eql("success");
+
+        // Step 4: verify the renewed CA can sign end-entity certs
+        const result = await intermediateCA1.generateKeyPairAndSignDER({
+            applicationUri: "urn:test:hierarchy:renewed",
+            dns: ["renewed.example.com"],
+            subject: "/CN=RenewedApp",
+            validity: 365
+        });
+        Buffer.isBuffer(result.certificateDer).should.eql(true);
+
+        const info = exploreCertificate(result.certificateDer);
+        (info.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 1");
+
+        // Step 5: after renewal, initializeCSR should return "ready"
+        const postRenewal = await intermediateCA1.initializeCSR();
+        postRenewal.status.should.eql("ready");
+    });
+
+    it("T8j - verify full trust chain: end-entity → intermediate → root", async () => {
+        // Sign a cert with intermediate CA #1
+        const result = await intermediateCA1.generateKeyPairAndSignDER({
+            applicationUri: "urn:test:hierarchy:chain",
+            dns: ["chain.example.com"],
+            subject: "/CN=ChainApp",
+            validity: 365
+        });
+
+        // The cert chain in the DER output = [endEntity, intermediateCA]
+        const elements = split_der(result.certificateDer);
+        elements.length.should.eql(2, "chain = end-entity + intermediate CA");
+
+        // Verify link 1: end-entity issued by intermediate CA
+        const endEntityInfo = exploreCertificate(elements[0]);
+        const intermediateInfo = exploreCertificate(elements[1]);
+        (endEntityInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Intermediate CA 1");
+        (intermediateInfo.tbsCertificate.subject.commonName ?? "").should.eql("Intermediate CA 1");
+
+        // Verify link 2: intermediate CA issued by root CA
+        (intermediateInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
+        // Verify link 3: root CA cert exists and is self-signed (trust anchor)
+        const rootDer = readCertificate(rootCA.caCertificate);
+        const rootInfo = exploreCertificate(rootDer);
+        (rootInfo.tbsCertificate.subject.commonName ?? "").should.eql("Test Root CA");
+        (rootInfo.tbsCertificate.issuer.commonName ?? "").should.eql("Test Root CA");
+
+        // Per OPC UA Part 6 §6.2.6:
+        //   - Both partial and complete chains are valid
+        //   - "If the root CA is sent as part of the chain, it is
+        //      last Certificate appended to the ByteString"
+        //   - Our current output is a *partial* chain (without root),
+        //     which is spec-compliant. Including the root is optional.
     });
 });

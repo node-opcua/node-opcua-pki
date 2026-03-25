@@ -25,6 +25,9 @@ export {
     CertificateAuthority,
     type CertificateAuthorityOptions,
     type GenerateKeyPairAndSignOptions,
+    type GenerateKeyPairAndSignPFXOptions,
+    type InitializeCSRResult,
+    type InstallCACertificateResult,
     type SignCertificateOptions
 } from "./ca/certificate_authority";
 export * from "./misc/subject";

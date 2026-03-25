@@ -28,6 +28,7 @@ import path from "node:path";
 import chalk from "chalk";
 import {
     CertificatePurpose,
+    certificateMatchesPrivateKey,
     convertPEMtoDER,
     exploreCertificate,
     exploreCertificateSigningRequest,
@@ -40,6 +41,7 @@ import {
     type SubjectOptions,
     toPem
 } from "node-opcua-crypto";
+import { createPFX } from "../pki/toolbox_pfx";
 import {
     adjustApplicationUri,
     adjustDate,
@@ -234,19 +236,45 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // xx execute("cp private/cakey.pem private/cakey.pem.org");
     // xx execute(openssl_path + " rsa -in private/cakey.pem.org -out private/cakey.pem -passin pass:"+paraphrase);
 
-    displayTitle("Generate CA Certificate (self-signed)");
-    await execute_openssl(
-        " x509 -sha256 -req -days 3650 " +
-            " -text " +
-            " -extensions v3_ca" +
-            " -extfile " +
-            q(n(configFile)) +
-            " -in private/cakey.csr " +
-            " -signkey " +
-            q(n(privateKeyFilename)) +
-            " -out public/cacert.pem",
-        options
-    );
+    const issuerCA = certificateAuthority._issuerCA;
+    if (issuerCA) {
+        // Subordinate (intermediate) CA — signed by the parent CA
+        displayTitle("Generate CA Certificate (signed by issuer CA)");
+        const issuerCert = path.resolve(issuerCA.caCertificate);
+        const issuerKey = path.resolve(issuerCA.rootDir, "private/cakey.pem");
+        const issuerSerial = path.resolve(issuerCA.rootDir, "serial");
+        await execute_openssl(
+            " x509 -sha256 -req -days 3650 " +
+                " -text " +
+                " -extensions v3_ca" +
+                " -extfile " +
+                q(n(configFile)) +
+                " -in private/cakey.csr " +
+                " -CA " +
+                q(n(issuerCert)) +
+                " -CAkey " +
+                q(n(issuerKey)) +
+                " -CAserial " +
+                q(n(issuerSerial)) +
+                " -out public/cacert.pem",
+            options
+        );
+    } else {
+        // Root CA — self-signed
+        displayTitle("Generate CA Certificate (self-signed)");
+        await execute_openssl(
+            " x509 -sha256 -req -days 3650 " +
+                " -text " +
+                " -extensions v3_ca" +
+                " -extfile " +
+                q(n(configFile)) +
+                " -in private/cakey.csr " +
+                " -signkey " +
+                q(n(privateKeyFilename)) +
+                " -out public/cacert.pem",
+            options
+        );
+    }
     displaySubtitle("generate initial CRL (Certificate Revocation List)");
     await regenerateCrl(certificateAuthority.revocationList, configOption, options);
     displayTitle("Create Certificate Authority (CA) ---> DONE");
@@ -261,6 +289,30 @@ async function regenerateCrl(revocationList: string, configOption: string, optio
     displaySubtitle("Display (Certificate Revocation List)");
     await execute_openssl(`crl  -in ${q(n(revocationList))} -text  -noout`, options);
 }
+
+/**
+ * Result of {@link CertificateAuthority.initializeCSR}.
+ *
+ * - `"ready"` — the CA certificate already exists and is valid.
+ * - `"pending"` — key + CSR exist but no cert; waiting for external signing.
+ * - `"created"` — a fresh key + CSR were just generated.
+ * - `"expired"` — the CA certificate has expired (or will expire within
+ *   the configured threshold). A new CSR has been generated for renewal
+ *   while preserving the existing private key.
+ */
+export type InitializeCSRResult =
+    | { status: "ready" }
+    | { status: "pending"; csrPath: string }
+    | { status: "created"; csrPath: string }
+    | { status: "expired"; csrPath: string; expiryDate: Date };
+
+/**
+ * Result of {@link CertificateAuthority.installCACertificate}.
+ *
+ * - `"success"` — the certificate was installed and CRL generated.
+ * - `"error"` — the certificate was rejected (see `reason`).
+ */
+export type InstallCACertificateResult = { status: "success" } | { status: "error"; reason: string; message: string };
 
 /**
  * Options for creating a {@link CertificateAuthority}.
@@ -278,6 +330,12 @@ export interface CertificateAuthorityOptions {
      * @defaultValue {@link defaultSubject}
      */
     subject?: string | SubjectOptions;
+    /**
+     * Parent CA that will sign this CA's certificate.
+     * If omitted, the CA is self-signed (root CA).
+     * The parent CA must be initialized before this CA.
+     */
+    issuerCA?: CertificateAuthority;
 }
 
 /**
@@ -394,6 +452,20 @@ export interface GenerateKeyPairAndSignOptions {
     keySize?: KeySize;
 }
 
+/**
+ * Options for {@link CertificateAuthority.generateKeyPairAndSignPFX}.
+ *
+ * Extends the DER options with an optional `passphrase` to protect
+ * the PFX bundle.
+ */
+export interface GenerateKeyPairAndSignPFXOptions extends GenerateKeyPairAndSignOptions {
+    /**
+     * Passphrase to protect the PFX file.
+     * If omitted, the PFX is created without a password.
+     */
+    passphrase?: string;
+}
+
 export class CertificateAuthority {
     /** RSA key size used when generating the CA private key. */
     public readonly keySize: KeySize;
@@ -402,12 +474,16 @@ export class CertificateAuthority {
     /** X.500 subject of the CA certificate. */
     public readonly subject: Subject;
 
+    /** @internal Parent CA (undefined for root CAs). */
+    readonly _issuerCA?: CertificateAuthority;
+
     constructor(options: CertificateAuthorityOptions) {
         assert(Object.prototype.hasOwnProperty.call(options, "location"));
         assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
         this.location = options.location;
         this.keySize = options.keySize || 2048;
         this.subject = new Subject(options.subject || defaultSubject);
+        this._issuerCA = options.issuerCA;
     }
 
     /** Absolute path to the CA root directory (alias for {@link location}). */
@@ -782,6 +858,77 @@ export class CertificateAuthority {
     }
 
     /**
+     * Generate a new RSA key pair, create an internal CSR, sign it
+     * with this CA, and return the result as a PKCS#12 (PFX)
+     * buffer bundling the certificate, private key, and CA chain.
+     *
+     * The private key is **never stored** by the CA — it exists only
+     * in a temporary directory that is cleaned up after the operation.
+     *
+     * @param options - key generation, certificate, and PFX options
+     * @returns the PFX as a `Buffer`
+     */
+    public async generateKeyPairAndSignPFX(options: GenerateKeyPairAndSignPFXOptions): Promise<Buffer> {
+        const keySize = options.keySize ?? 2048;
+        const validity = options.validity ?? 365;
+        const startDate = options.startDate ?? new Date();
+        const passphrase = options.passphrase ?? "";
+        const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-keygen-pfx-"));
+
+        try {
+            // 1. Generate ephemeral private key
+            const privateKeyFile = path.join(tmpDir, "private_key.pem");
+            await generatePrivateKeyFile(privateKeyFile, keySize);
+
+            // 2. Create a minimal OpenSSL config for CSR generation
+            const configFile = path.join(tmpDir, "openssl.cnf");
+            await fs.promises.writeFile(configFile, configurationFileSimpleTemplate, "utf-8");
+
+            // 3. Create CSR using the ephemeral key
+            const csrFile = path.join(tmpDir, "request.csr");
+            await createCertificateSigningRequestWithOpenSSL(csrFile, {
+                rootDir: tmpDir,
+                configFile,
+                privateKey: privateKeyFile,
+                applicationUri: options.applicationUri,
+                subject: options.subject,
+                dns: options.dns ?? [],
+                ip: options.ip ?? [],
+                purpose: CertificatePurpose.ForApplication
+            });
+
+            // 4. Sign the CSR with this CA
+            const certFile = path.join(tmpDir, "certificate.pem");
+            await this.signCertificateRequest(certFile, csrFile, {
+                applicationUri: options.applicationUri,
+                dns: options.dns,
+                ip: options.ip,
+                startDate,
+                validity
+            });
+
+            // 5. Bundle into PFX (include CA cert chain)
+            const pfxFile = path.join(tmpDir, "bundle.pfx");
+            await createPFX({
+                certificateFile: certFile,
+                privateKeyFile,
+                outputFile: pfxFile,
+                passphrase,
+                caCertificateFiles: [this.caCertificate]
+            });
+
+            // 6. Read the PFX buffer
+            return await fs.promises.readFile(pfxFile);
+        } finally {
+            // 7. Securely clean up — private key is never persisted
+            await fs.promises.rm(tmpDir, {
+                recursive: true,
+                force: true
+            });
+        }
+    }
+
+    /**
      * Revoke a DER-encoded certificate and regenerate the CRL.
      *
      * Extracts the serial number from the certificate, then
@@ -819,6 +966,248 @@ export class CertificateAuthority {
      */
     public async initialize(): Promise<void> {
         await construct_CertificateAuthority(this);
+    }
+
+    /**
+     * Initialize the CA directory structure and generate the
+     * private key + CSR **without signing**.
+     *
+     * Use this when the CA certificate will be signed by an
+     * external (third-party) root CA.  After receiving the signed
+     * certificate, call {@link installCACertificate} to complete
+     * the setup.
+     *
+     * **Idempotent / restart-safe:**
+     * - If the CA certificate exists and is valid → `{ status: "ready" }`
+     * - If the CA certificate has expired → `{ status: "expired", csrPath, expiryDate }`
+     *   (a new CSR is generated, preserving the existing private key)
+     * - If key + CSR exist but no cert (restart before install) →
+     *   `{ status: "pending", csrPath }` without regenerating
+     * - Otherwise → generates key + CSR → `{ status: "created", csrPath }`
+     *
+     * @returns an {@link InitializeCSRResult} describing the CA state
+     */
+    public async initializeCSR(): Promise<InitializeCSRResult> {
+        const caRootDir = path.resolve(this.rootDir);
+
+        // Ensure directory structure always exists
+        mkdirRecursiveSync(caRootDir);
+        for (const dir of ["private", "public", "certs", "crl", "conf"]) {
+            mkdirRecursiveSync(path.join(caRootDir, dir));
+        }
+
+        const caCertFile = path.join(caRootDir, "public/cacert.pem");
+        const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
+        const csrFile = path.join(caRootDir, "private/cakey.csr");
+
+        // ── Case 1: cert already exists ──
+        if (fs.existsSync(caCertFile)) {
+            // Check if the certificate has expired
+            const certDer = convertPEMtoDER(readCertificatePEM(caCertFile));
+            const certInfo = exploreCertificate(certDer);
+            const notAfter = certInfo.tbsCertificate.validity.notAfter;
+            if (notAfter.getTime() < Date.now()) {
+                // Certificate has expired — regenerate CSR for renewal
+                debugLog("CA certificate has expired — generating renewal CSR");
+                await this._generateCSR(caRootDir, privateKeyFile, csrFile);
+                return { status: "expired", csrPath: csrFile, expiryDate: notAfter };
+            }
+            debugLog("CA certificate already exists and is valid — ready");
+            return { status: "ready" };
+        }
+
+        // ── Case 2: key + CSR exist but no cert → pending state ──
+        //    (restart between initializeCSR and installCACertificate)
+        if (fs.existsSync(privateKeyFile) && fs.existsSync(csrFile)) {
+            debugLog("CA key + CSR already exist — pending external signing");
+            return { status: "pending", csrPath: csrFile };
+        }
+
+        // ── Case 3: fresh setup — generate key + CSR ──
+        // Create default files (serial, crlnumber, index.txt)
+        const serial = path.join(caRootDir, "serial");
+        if (!fs.existsSync(serial)) {
+            await fs.promises.writeFile(serial, "1000");
+        }
+        const crlNumber = path.join(caRootDir, "crlnumber");
+        if (!fs.existsSync(crlNumber)) {
+            await fs.promises.writeFile(crlNumber, "1000");
+        }
+        const indexFile = path.join(caRootDir, "index.txt");
+        if (!fs.existsSync(indexFile)) {
+            await fs.promises.writeFile(indexFile, "");
+        }
+        const indexFileAttr = path.join(caRootDir, "index.txt.attr");
+        if (!fs.existsSync(indexFileAttr)) {
+            await fs.promises.writeFile(indexFileAttr, "unique_subject = no");
+        }
+
+        // Write OpenSSL config
+        const caConfigFile = this.configFile;
+        let data = configurationFileTemplate;
+        data = makePath(data.replace(/%%ROOT_FOLDER%%/, caRootDir));
+        await fs.promises.writeFile(caConfigFile, data);
+
+        // Generate private key
+        if (!fs.existsSync(privateKeyFile)) {
+            await generatePrivateKeyFile(privateKeyFile, this.keySize);
+        }
+
+        // Generate CSR
+        await this._generateCSR(caRootDir, privateKeyFile, csrFile);
+        return { status: "created", csrPath: csrFile };
+    }
+
+    /**
+     * Check whether the CA certificate needs renewal and, if so,
+     * generate a new CSR for re-signing by the external root CA.
+     *
+     * Use this while the CA is running to detect upcoming expiry
+     * **before** it actually expires. The existing private key is
+     * preserved so previously issued certs remain valid.
+     *
+     * @param thresholdDays - number of days before expiry at which
+     *   to trigger renewal (default: 30)
+     * @returns an {@link InitializeCSRResult} — `"expired"` if
+     *   renewal is needed, `"ready"` if the cert is still valid
+     */
+    public async renewCSR(thresholdDays = 30): Promise<InitializeCSRResult> {
+        const caRootDir = path.resolve(this.rootDir);
+        const caCertFile = path.join(caRootDir, "public/cacert.pem");
+        const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
+        const csrFile = path.join(caRootDir, "private/cakey.csr");
+
+        if (!fs.existsSync(caCertFile)) {
+            // No cert at all — delegate to initializeCSR
+            return this.initializeCSR();
+        }
+
+        const certDer = convertPEMtoDER(readCertificatePEM(caCertFile));
+        const certInfo = exploreCertificate(certDer);
+        const notAfter = certInfo.tbsCertificate.validity.notAfter;
+
+        const thresholdMs = thresholdDays * 24 * 60 * 60 * 1000;
+        if (notAfter.getTime() - Date.now() < thresholdMs) {
+            debugLog(`CA certificate expires within ${thresholdDays} days — generating renewal CSR`);
+            await this._generateCSR(caRootDir, privateKeyFile, csrFile);
+            return { status: "expired", csrPath: csrFile, expiryDate: notAfter };
+        }
+
+        return { status: "ready" };
+    }
+
+    /**
+     * Generate a CSR using the existing private key.
+     * @internal
+     */
+    private async _generateCSR(caRootDir: string, privateKeyFile: string, csrFile: string): Promise<void> {
+        const subjectOpt = ` -subj "${this.subject.toString()}" `;
+        processAltNames({} as Params);
+        const options = { cwd: caRootDir };
+        const configFile = generateStaticConfig("conf/caconfig.cnf", options);
+        const configOption = ` -config ${q(n(configFile))}`;
+
+        await execute_openssl(
+            "req -new" +
+                " -sha256 " +
+                " -text " +
+                " -extensions v3_ca_req" +
+                configOption +
+                " -key " +
+                q(n(privateKeyFile)) +
+                " -out " +
+                q(n(csrFile)) +
+                " " +
+                subjectOpt,
+            options
+        );
+    }
+
+    /**
+     * Install an externally-signed CA certificate and generate
+     * the initial CRL.
+     *
+     * Call this after {@link initializeCSR} once the external
+     * root CA has signed the CSR.
+     *
+     * **Safety checks:**
+     * - Verifies that the certificate's public key matches the
+     *   CA private key before installing.
+     *
+     * @param signedCertFile - path to the PEM-encoded signed
+     *   CA certificate (issued by the external root CA)
+     * @returns an {@link InstallCACertificateResult} with
+     *   `status: "success"` or `status: "error"` and a `reason`
+     */
+    public async installCACertificate(signedCertFile: string): Promise<InstallCACertificateResult> {
+        const caRootDir = path.resolve(this.rootDir);
+        const caCertFile = path.join(caRootDir, "public/cacert.pem");
+        const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
+
+        // Verify the certificate matches the private key
+        const certPem = readCertificatePEM(signedCertFile);
+        const certDer = convertPEMtoDER(certPem);
+        const privateKey = readPrivateKey(privateKeyFile);
+        if (!certificateMatchesPrivateKey(certDer, privateKey)) {
+            return {
+                status: "error",
+                reason: "certificate_key_mismatch",
+                message:
+                    "The provided certificate does not match the CA " +
+                    "private key. Ensure the certificate was signed " +
+                    "from the CSR generated by initializeCSR()."
+            };
+        }
+
+        // Copy the signed certificate into place
+        await fs.promises.copyFile(signedCertFile, caCertFile);
+
+        // Generate initial CRL
+        const options = { cwd: caRootDir };
+        const configFile = generateStaticConfig("conf/caconfig.cnf", options);
+        const configOption = ` -config ${q(n(configFile))}`;
+        await regenerateCrl(this.revocationList, configOption, options);
+
+        return { status: "success" };
+    }
+
+    /**
+     * Sign a CSR with CA extensions (`v3_ca`), producing a
+     * subordinate CA certificate.
+     *
+     * Unlike {@link signCertificateRequest} which signs with
+     * end-entity extensions (SANs, etc.), this method signs
+     * with `basicConstraints = CA:TRUE` and `keyUsage =
+     * keyCertSign, cRLSign`.
+     *
+     * @param certFile - output path for the signed CA cert (PEM)
+     * @param csrFile - path to the subordinate CA's CSR
+     * @param params - signing parameters
+     */
+    public async signCACertificateRequest(certFile: string, csrFile: string, params: { validity?: number }): Promise<void> {
+        const caRootDir = path.resolve(this.rootDir);
+        const options = { cwd: caRootDir };
+        const configFile = generateStaticConfig("conf/caconfig.cnf", options);
+        const validity = params.validity ?? 3650;
+
+        await execute_openssl(
+            ` x509 -sha256 -req -days ${validity}` +
+                " -text " +
+                " -extensions v3_ca" +
+                " -extfile " +
+                q(n(configFile)) +
+                " -in " +
+                q(n(csrFile)) +
+                " -CA " +
+                q(n(this.caCertificate)) +
+                " -CAkey " +
+                q(n(path.join(caRootDir, "private/cakey.pem"))) +
+                " -CAserial " +
+                q(n(path.join(caRootDir, "serial"))) +
+                " -out " +
+                q(n(certFile)),
+            options
+        );
     }
 
     /**
