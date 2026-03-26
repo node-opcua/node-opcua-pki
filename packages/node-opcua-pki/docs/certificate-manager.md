@@ -152,14 +152,73 @@ cm.on("certificateAdded", ({ store, fingerprint }) => {
 ```text
 <location>/
   ├── issuers/
-  │   ├── certs/       CA certificates
-  │   └── crl/         Certificate Revocation Lists
+  │   ├── certs/       CA certificates (chain building ONLY — not trusted)
+  │   └── crl/         CRLs for CAs in issuers/certs
   ├── own/
-  │   ├── certs/       Generated public certificates
+  │   ├── certs/       Application's own certificates
   │   └── private/
   │       └── private_key.pem
   ├── rejected/        Rejected certificates
   └── trusted/
-      ├── certs/       Trusted X.509 v3 certificates
-      └── crl/         CRLs for trusted certificates
+      ├── certs/       Explicitly trusted certificates (leaf AND CA)
+      └── crl/         CRLs for CAs in trusted/certs
 ```
+
+---
+
+## OPC UA Part 12 Trust Semantics
+
+> [!IMPORTANT]
+> A CA certificate in `issuers/certs` is **only** used for chain building.
+> It does **not** grant trust. To trust certificates signed by a CA,
+> the CA certificate must **also** be in `trusted/certs`.
+
+### Folder Roles
+
+| Folder           | Role               | Used for                                         |
+| ---------------- | ------------------ | ------------------------------------------------ |
+| `trusted/certs`  | **Trust decision** | Explicitly trusted certs (leaf or CA)             |
+| `trusted/crl`    | Revocation check   | CRLs for CAs in `trusted/certs`                  |
+| `issuers/certs`  | **Chain building** | CA certs needed to complete chains (NOT trusted!) |
+| `issuers/crl`    | Revocation check   | CRLs for CAs in `issuers/certs`                  |
+
+### Certificate Verification Flow
+
+When `verifyCertificate(cert, { acceptCertificateWithValidIssuerChain: true })` is called:
+
+1. **Chain building** — `findIssuerCertificate()` searches `issuers/certs`
+   and `trusted/certs` for the CA that signed the certificate.
+2. **Issuer validation** — The issuer CA itself is recursively verified.
+3. **CRL check** — A matching CRL must exist in `issuers/crl` or `trusted/crl`.
+4. **Trust decision** — The issuer CA must be in `trusted/certs` for
+   `hasTrustedIssuer` to be `true`.
+
+If the CA is **only** in `issuers/certs`, the result is
+`BadCertificateUntrusted` — even with `acceptCertificateWithValidIssuerChain`.
+
+### Installing a CA Certificate (Correct Pattern)
+
+```typescript
+import { readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
+
+const caCert = readCertificate("path/to/ca_cert.der");
+const caCrl = readCertificateRevocationList("path/to/ca_crl.crl");
+
+// Step 1: Add to issuers store (chain building)
+// Step 2: Add to trusted store (trust decision) — via addInTrustList=true
+await cm.addIssuer(caCert, false, true);
+
+// Step 3: Install the CRL
+await cm.addRevocationList(caCrl, "issuers");
+```
+
+This is equivalent to the longer form:
+
+```typescript
+await cm.addIssuer(caCert);
+await cm.trustCertificate(caCert);
+await cm.addRevocationList(caCrl, "issuers");
+```
+
+After this setup, `checkCertificate(clientCert)` will return
+`StatusCodes.Good` for any valid, non-revoked certificate signed by this CA.
