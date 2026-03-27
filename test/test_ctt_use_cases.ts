@@ -6,7 +6,7 @@ import dir from "node-dir";
 import sinon from "sinon";
 import "should";
 
-import { makeSHA1Thumbprint, readCertificate, readCertificateChainAsync, split_der } from "node-opcua-crypto";
+import { makeSHA1Thumbprint, readCertificateChainAsync, split_der } from "node-opcua-crypto";
 import { CertificateManager, VerificationStatus } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
