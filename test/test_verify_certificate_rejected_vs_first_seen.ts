@@ -18,7 +18,7 @@
 import path from "node:path";
 import "should";
 
-import { type Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
+import { type Certificate, readCertificateChain, readCertificateRevocationList } from "node-opcua-crypto";
 import { CertificateAuthority, CertificateManager, type Filename, type KeySize, VerificationStatus } from "node-opcua-pki";
 
 import { beforeTest } from "./helpers";
@@ -29,7 +29,7 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
     let ca: CertificateAuthority;
     let helperPKI: CertificateManager;
     let certificateFile: Filename;
-    let caCertBuf: Certificate;
+    let caCertChain: Certificate[] = [];
 
     /** Helper: create a fresh CertificateManager with issuer, CRL, and trusted CA */
     async function createCMWithTrustedIssuer(name: string): Promise<CertificateManager> {
@@ -38,8 +38,11 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
             location: path.join(testData.tmpFolder, name)
         });
         await cm.initialize();
-        await cm.addIssuer(caCertBuf);
-        await cm.trustCertificate(caCertBuf);
+
+        for (const cert of caCertChain) {
+            await cm.addIssuer(cert);
+            await cm.trustCertificate(cert);
+        }
         const crl = await readCertificateRevocationList(ca.revocationList);
         await cm.addRevocationList(crl);
         return cm;
@@ -80,7 +83,7 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
             applicationUri: "urn:test:options"
         });
 
-        caCertBuf = readCertificate(ca.caCertificate);
+        caCertChain = readCertificateChain(ca.caCertificate);
         await helperPKI.dispose();
     });
 
@@ -95,9 +98,9 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
     describe("strict mode (default)", () => {
         it("S1 - first-seen cert with trusted issuer → BadCertificateUntrusted", async () => {
             const cm = await createCMWithTrustedIssuer("STRICT_1");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(cert);
+            const status = await cm.verifyCertificate(certChain);
             status.should.eql(VerificationStatus.BadCertificateUntrusted);
 
             await cm.dispose();
@@ -105,10 +108,10 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("S2 - explicitly trusted cert → Good", async () => {
             const cm = await createCMWithTrustedIssuer("STRICT_2");
-            const cert = readCertificate(certificateFile);
-            await cm.trustCertificate(cert);
+            const certChain = readCertificateChain(certificateFile);
+            await cm.trustCertificate(certChain[0]);
 
-            const status = await cm.verifyCertificate(cert);
+            const status = await cm.verifyCertificate(certChain);
             status.should.eql(VerificationStatus.Good);
 
             await cm.dispose();
@@ -116,10 +119,10 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("S3 - explicitly rejected cert → BadCertificateUntrusted", async () => {
             const cm = await createCMWithTrustedIssuer("STRICT_3");
-            const cert = readCertificate(certificateFile);
-            await cm.rejectCertificate(cert);
+            const certChain = readCertificateChain(certificateFile);
+            await cm.rejectCertificate(certChain[0]);
 
-            const status = await cm.verifyCertificate(cert);
+            const status = await cm.verifyCertificate(certChain);
             status.should.eql(VerificationStatus.BadCertificateUntrusted);
 
             await cm.dispose();
@@ -127,13 +130,13 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("S4 - auto-rejected cert (by isCertificateTrusted) → BadCertificateUntrusted", async () => {
             const cm = await createCMWithTrustedIssuer("STRICT_4");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
             // auto-reject
-            const trust = await cm.isCertificateTrusted(cert);
+            const trust = await cm.isCertificateTrusted(certChain[0]);
             trust.should.eql("BadCertificateUntrusted");
 
-            const status = await cm.verifyCertificate(cert);
+            const status = await cm.verifyCertificate(certChain);
             status.should.eql(VerificationStatus.BadCertificateUntrusted);
 
             await cm.dispose();
@@ -141,9 +144,9 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("S5 - first-seen cert with NO issuer → BadCertificateChainIncomplete", async () => {
             const cm = await createCMWithoutIssuer("STRICT_5");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(cert);
+            const status = await cm.verifyCertificate(certChain);
             status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
             await cm.dispose();
@@ -151,9 +154,9 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("S6 - passing empty options {} is the same as strict mode", async () => {
             const cm = await createCMWithTrustedIssuer("STRICT_6");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(cert, {});
+            const status = await cm.verifyCertificate(certChain, {});
             status.should.eql(VerificationStatus.BadCertificateUntrusted);
 
             await cm.dispose();
@@ -169,9 +172,9 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("R1 - first-seen cert with trusted issuer → Good", async () => {
             const cm = await createCMWithTrustedIssuer("RELAXED_1");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(cert, relaxed);
+            const status = await cm.verifyCertificate(certChain, relaxed);
             status.should.eql(VerificationStatus.Good);
 
             await cm.dispose();
@@ -179,10 +182,10 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("R2 - explicitly trusted cert → Good", async () => {
             const cm = await createCMWithTrustedIssuer("RELAXED_2");
-            const cert = readCertificate(certificateFile);
-            await cm.trustCertificate(cert);
+            const certChain = readCertificateChain(certificateFile);
+            await cm.trustCertificate(certChain[0]);
 
-            const status = await cm.verifyCertificate(cert, relaxed);
+            const status = await cm.verifyCertificate(certChain, relaxed);
             status.should.eql(VerificationStatus.Good);
 
             await cm.dispose();
@@ -190,10 +193,10 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("R3 - explicitly rejected cert WITH trusted issuer → Good (issuer chain overrides)", async () => {
             const cm = await createCMWithTrustedIssuer("RELAXED_3");
-            const cert = readCertificate(certificateFile);
-            await cm.rejectCertificate(cert);
+            const certChain = readCertificateChain(certificateFile);
+            await cm.rejectCertificate(certChain[0]);
 
-            const status = await cm.verifyCertificate(cert, relaxed);
+            const status = await cm.verifyCertificate(certChain, relaxed);
             status.should.eql(VerificationStatus.Good);
 
             await cm.dispose();
@@ -201,12 +204,12 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("R4 - auto-rejected cert with trusted issuer → Good", async () => {
             const cm = await createCMWithTrustedIssuer("RELAXED_4");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
-            const trust = await cm.isCertificateTrusted(cert);
+            const trust = await cm.isCertificateTrusted(certChain[0]);
             trust.should.eql("BadCertificateUntrusted");
 
-            const status = await cm.verifyCertificate(cert, relaxed);
+            const status = await cm.verifyCertificate(certChain, relaxed);
             status.should.eql(VerificationStatus.Good);
 
             await cm.dispose();
@@ -214,9 +217,9 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("R5 - first-seen cert with NO issuer → BadCertificateChainIncomplete", async () => {
             const cm = await createCMWithoutIssuer("RELAXED_5");
-            const cert = readCertificate(certificateFile);
+            const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(cert, relaxed);
+            const status = await cm.verifyCertificate(certChain, relaxed);
             status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
             await cm.dispose();
@@ -224,10 +227,10 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
 
         it("R6 - rejected cert with NO issuer → BadCertificateChainIncomplete", async () => {
             const cm = await createCMWithoutIssuer("RELAXED_6");
-            const cert = readCertificate(certificateFile);
-            await cm.rejectCertificate(cert);
+            const certChain = readCertificateChain(certificateFile);
+            await cm.rejectCertificate(certChain[0]);
 
-            const status = await cm.verifyCertificate(cert, relaxed);
+            const status = await cm.verifyCertificate(certChain, relaxed);
             status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
             await cm.dispose();

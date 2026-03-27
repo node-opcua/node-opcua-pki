@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import "should";
 
-import { readCertificate } from "node-opcua-crypto";
+import { readCertificateChainAsync } from "node-opcua-crypto";
 import { CertificateManager, type CertificateManagerOptions } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
@@ -21,8 +21,8 @@ describe("CRL Management - addRevocationList target and clearRevocationLists", f
         await certificateManager.initialize();
 
         // Add issuer CA certificate so CRL verification works
-        const caCert = readCertificate(caCertificateFilename);
-        await certificateManager.addIssuer(caCert, false);
+        const caCert = await readCertificateChainAsync(caCertificateFilename);
+        await certificateManager.addIssuer(caCert[0], false);
     });
 
     afterEach(async () => {

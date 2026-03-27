@@ -201,7 +201,7 @@ If the CA is **only** in `issuers/certs`, the result is
 ```typescript
 import { readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
 
-const caCert = readCertificate("path/to/ca_cert.der");
+const caCert = readCertificateChain("path/to/ca_cert.der");
 const caCrl = readCertificateRevocationList("path/to/ca_crl.crl");
 
 // Step 1: Add to issuers store (chain building)

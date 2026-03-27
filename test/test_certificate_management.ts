@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { makeSHA1Thumbprint, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
+import { type Certificate, makeSHA1Thumbprint, readCertificateChainAsync, readCertificateRevocationList } from "node-opcua-crypto";
 import { CertificateAuthority, CertificateManager, type CertificateManagerOptions, VerificationStatus } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
@@ -8,7 +8,6 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
     const testData = beforeTest(this);
 
     let caCertFilename: string;
-    let caCertificateWithCrlFilename: string;
     let crlFilename: string;
 
     // A second cert to use as a "trusted application certificate"
@@ -25,7 +24,6 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         await theCertificateAuthority.constructCACertificateWithCRL();
 
         caCertFilename = theCertificateAuthority.caCertificate;
-        caCertificateWithCrlFilename = theCertificateAuthority.caCertificateWithCrl;
         crlFilename = theCertificateAuthority.revocationList;
     };
     before(async () => {
@@ -56,19 +54,19 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should return true after an issuer is added", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(caCert[0]).toString("hex");
             const result = await cm.hasIssuer(thumbprint);
             result.should.be.true();
         });
 
         it("should return true regardless of thumbprint case", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(caCert[0]).toString("hex");
             // Test with uppercase
             (await cm.hasIssuer(thumbprint.toUpperCase())).should.be.true();
             // Test with lowercase
@@ -76,10 +74,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should return false for a trusted certificate thumbprint", async () => {
-            const cert = readCertificate(caCertFilename);
-            await cm.trustCertificate(cert);
+            const cert = await readCertificateChainAsync(caCertFilename);
+            await cm.trustCertificate(cert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(cert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(cert[0]).toString("hex");
             // It's trusted, not an issuer
             (await cm.hasIssuer(thumbprint)).should.be.false();
         });
@@ -88,8 +86,24 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
     describe("Odd cases", () => {
         it("certificate within a valid chaine shall be stored with the thumbprint of the leaf chain element", () => {});
         it("verifyCertificate - should return InvalidCertifiicate if the DER contains a IssuerCertificate and its CRL ", async () => {
-            const caCertWithCrl = readCertificate(caCertificateWithCrlFilename);
+            // Construct a malformed DER buffer: valid CA certificate + CRL data appended.
+            // readCertificate() now only extracts the first PEM certificate block,
+            // so we must build this manually to test the "garbage-after-cert" case.
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            const crl = await readCertificateRevocationList(crlFilename);
+            const caCertWithCrl = Buffer.concat([caCert[0], crl]) as Certificate;
             await cm.trustCertificate(caCertWithCrl);
+            const status = await cm.verifyCertificate(caCertWithCrl, { acceptCertificateWithValidIssuerChain: true });
+            status.should.eql(VerificationStatus.BadCertificateInvalid);
+        });
+        it("verifyCertificate B - should return InvalidCertifiicate if the DER contains a IssuerCertificate and its CRL ", async () => {
+            // Construct a malformed DER buffer: valid CA certificate + CRL data appended.
+            // readCertificate() now only extracts the first PEM certificate block,
+            // so we must build this manually to test the "garbage-after-cert" case.
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            const crl = await readCertificateRevocationList(crlFilename);
+            const caCertWithCrl = [caCert[0], crl];
+            await cm.trustCertificate(caCertWithCrl[0]);
             const status = await cm.verifyCertificate(caCertWithCrl, { acceptCertificateWithValidIssuerChain: true });
             status.should.eql(VerificationStatus.BadCertificateInvalid);
         });
@@ -104,10 +118,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should remove a trusted certificate and return its buffer", async () => {
-            const cert = readCertificate(caCertFilename);
-            await cm.trustCertificate(cert);
+            const cert = await readCertificateChainAsync(caCertFilename);
+            await cm.trustCertificate(cert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(cert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(cert[0]).toString("hex");
 
             // Verify it's trusted
             const statusBefore = await cm.verifyCertificate(cert, { acceptCertificateWithValidIssuerChain: true });
@@ -127,8 +141,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             let found = false;
             for (const file of matching) {
                 try {
-                    const c = readCertificate(path.join(cm.trustedFolder, file));
-                    if (makeSHA1Thumbprint(c).toString("hex") === thumbprint) {
+                    const c = await readCertificateChainAsync(path.join(cm.trustedFolder, file));
+                    if (makeSHA1Thumbprint(c[0]).toString("hex") === thumbprint) {
                         found = true;
                     }
                 } catch (_e) {
@@ -139,10 +153,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should not affect issuer certificates", async () => {
-            const cert = readCertificate(caCertFilename);
-            await cm.addIssuer(cert);
+            const cert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(cert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(cert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(cert[0]).toString("hex");
 
             // Try removing as trusted — should not find it
             const result = await cm.removeTrustedCertificate(thumbprint);
@@ -162,10 +176,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should remove an issuer and return its buffer", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(caCert[0]).toString("hex");
             (await cm.hasIssuer(thumbprint)).should.be.true();
 
             const removed = await cm.removeIssuer(thumbprint);
@@ -181,8 +195,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 const ext = path.extname(file).toLowerCase();
                 if (ext === ".pem" || ext === ".der") {
                     try {
-                        const c = readCertificate(path.join(cm.issuersCertFolder, file));
-                        if (makeSHA1Thumbprint(c).toString("hex") === thumbprint) {
+                        const c = await readCertificateChainAsync(path.join(cm.issuersCertFolder, file));
+                        if (makeSHA1Thumbprint(c[0]).toString("hex") === thumbprint) {
                             found = true;
                         }
                     } catch (_e) {
@@ -194,10 +208,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should not affect trusted certificates", async () => {
-            const cert = readCertificate(caCertFilename);
-            await cm.trustCertificate(cert);
+            const cert = await readCertificateChainAsync(caCertFilename);
+            await cm.trustCertificate(cert[0]);
 
-            const thumbprint = makeSHA1Thumbprint(cert).toString("hex");
+            const thumbprint = makeSHA1Thumbprint(cert[0]).toString("hex");
 
             // Try removing as issuer — should not find it
             const result = await cm.removeIssuer(thumbprint);
@@ -213,14 +227,15 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
 
     describe("removeRevocationListsForIssuer", () => {
         it("should not fail when no CRLs exist", async () => {
-            const caCert = readCertificate(caCertFilename);
+            const caCert = await readCertificateChainAsync(caCertFilename);
             // No CRLs added — should not throw
-            await cm.removeRevocationListsForIssuer(caCert);
+            await cm.removeRevocationListsForIssuer(caCert[0]);
         });
 
         it("should remove CRLs from issuers/crl for a given issuer", async () => {
-            const caCert = readCertificate(caCertFilename);
-            const verif = await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            caCert.length.should.eql(1);
+            const verif = await cm.addIssuer(caCert[0]);
             verif.should.eql(VerificationStatus.Good);
 
             // add crl
@@ -233,7 +248,7 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             before.length.should.be.greaterThan(0);
 
             // Remove CRLs for this issuer
-            await cm.removeRevocationListsForIssuer(caCert, "issuers");
+            await cm.removeRevocationListsForIssuer(caCert[0], "issuers");
 
             // Verify CRL is gone
             const after = fs.readdirSync(cm.issuersCrlFolder).filter((f) => f.endsWith(".pem") || f.endsWith(".crl"));
@@ -241,8 +256,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should remove CRLs from trusted/crl for a given issuer", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
             const crl = await readCertificateRevocationList(crlFilename);
             await cm.addRevocationList(crl, "trusted");
@@ -252,7 +267,7 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             before.length.should.be.greaterThan(0);
 
             // Remove CRLs for this issuer from trusted only
-            await cm.removeRevocationListsForIssuer(caCert, "trusted");
+            await cm.removeRevocationListsForIssuer(caCert[0], "trusted");
 
             // Verify trusted CRL is gone
             const after = fs.readdirSync(cm.crlFolder).filter((f) => f.endsWith(".pem") || f.endsWith(".crl"));
@@ -260,8 +275,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should remove CRLs from both folders with target 'all'", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
             const crl = await readCertificateRevocationList(crlFilename);
             await cm.addRevocationList(crl, "issuers");
@@ -276,7 +291,7 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 .length.should.be.greaterThan(0);
 
             // Remove all CRLs for this issuer
-            await cm.removeRevocationListsForIssuer(caCert, "all");
+            await cm.removeRevocationListsForIssuer(caCert[0], "all");
 
             // Both folders should be empty
             fs.readdirSync(cm.issuersCrlFolder)
@@ -288,8 +303,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
         });
 
         it("should only remove CRLs for the specified issuer, not others", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
             const crl = await readCertificateRevocationList(crlFilename);
             await cm.addRevocationList(crl, "issuers");
@@ -313,8 +328,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             // removeRevocationListsForIssuer with this cert should NOT
             // remove the caCert's CRL
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
-            const ownCert = readCertificate(ownCertFile);
-            await cm.removeRevocationListsForIssuer(ownCert, "issuers");
+            const ownCert = await readCertificateChainAsync(ownCertFile);
+            await cm.removeRevocationListsForIssuer(ownCert[0], "issuers");
 
             // CRL for original CA should still be there
             const after = fs.readdirSync(cm.issuersCrlFolder).filter((f) => f.endsWith(".pem") || f.endsWith(".crl"));
@@ -327,9 +342,9 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
     describe("addTrustedCertificateFromChain", () => {
         it("should accept and trust a valid single certificate", async () => {
             // Use the CA cert as a stand-in for a valid single cert
-            const cert = readCertificate(caCertFilename);
+            const cert = await readCertificateChainAsync(caCertFilename);
 
-            const status = await cm.addTrustedCertificateFromChain(cert);
+            const status = await cm.addTrustedCertificateFromChain(cert[0]);
             status.should.eql("Good");
         });
 
@@ -350,22 +365,22 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             });
 
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
-            const ownCert = readCertificate(ownCertFile);
+            const ownCert = await readCertificateChainAsync(ownCertFile);
 
-            const status = await cm.addTrustedCertificateFromChain(ownCert);
+            const status = await cm.addTrustedCertificateFromChain(ownCert[0]);
             status.should.eql("Good");
 
             // Verify it's now trusted
-            const trustedStatus = await cm.isCertificateTrusted(ownCert);
+            const trustedStatus = await cm.isCertificateTrusted(ownCert[0]);
             trustedStatus.should.eql("Good");
         });
 
         const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
         it("XX should not modify the issuer store when trusting a leaf certificate", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
-            const caThumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+            const caThumbprint = makeSHA1Thumbprint(caCert[0]).toString("hex");
             (await cm.hasIssuer(caThumbprint)).should.be.true("issuer should exist before");
 
             // Trust a self-signed cert via addTrustedCertificateFromChain
@@ -377,9 +392,9 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 validity: 365
             });
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
-            const ownCert = readCertificate(ownCertFile);
+            const ownCert = await readCertificateChainAsync(ownCertFile);
 
-            const status = await cm.addTrustedCertificateFromChain(ownCert);
+            const status = await cm.addTrustedCertificateFromChain(ownCert[0]);
             status.should.eql("Good");
 
             await wait(1000);
@@ -395,10 +410,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             // Simulate what writeTrustedCertificateList does:
             // write an issuer cert directly to disk, bypassing
             // the CertificateManager's in-memory _thumbs index.
-            const caCert = readCertificate(caCertFilename);
+            const caCert = await readCertificateChainAsync(caCertFilename);
             const issuerFolder = cm.issuersCertFolder;
             const destFile = path.join(issuerFolder, "manually_added_ca.der");
-            fs.writeFileSync(destFile, caCert);
+            fs.writeFileSync(destFile, caCert[0]);
 
             // Build a "chain" by concatenating a self-signed leaf
             // with the CA cert (the issuer check only looks at
@@ -411,10 +426,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 validity: 365
             });
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
-            const leafCert = readCertificate(ownCertFile);
+            const leafCert = await readCertificateChainAsync(ownCertFile);
 
             // Concatenate leaf + CA to form a chain buffer
-            const chainBuffer = Buffer.concat([leafCert, caCert]);
+            const chainBuffer = Buffer.concat([leafCert[0], caCert[0]]);
 
             // Without _readCertificates(), this would return
             // BadCertificateChainIncomplete because the CA
@@ -423,7 +438,7 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             status.should.eql("Good");
 
             // Leaf should now be trusted
-            const trustedStatus = await cm.isCertificateTrusted(leafCert);
+            const trustedStatus = await cm.isCertificateTrusted(leafCert[0]);
             trustedStatus.should.eql("Good");
         });
     });
@@ -432,8 +447,8 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
 
     describe("isIssuerInUseByTrustedCertificate", () => {
         it("should return false when no certificates are trusted", async () => {
-            const caCert = readCertificate(caCertFilename);
-            const result = await cm.isIssuerInUseByTrustedCertificate(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            const result = await cm.isIssuerInUseByTrustedCertificate(caCert[0]);
             result.should.be.false();
         });
 
@@ -447,18 +462,18 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 validity: 365
             });
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
-            const ownCert = readCertificate(ownCertFile);
-            await cm.trustCertificate(ownCert);
+            const ownCert = await readCertificateChainAsync(ownCertFile);
+            await cm.trustCertificate(ownCert[0]);
 
             // caCert did not sign ownCert
-            const caCert = readCertificate(caCertFilename);
-            const result = await cm.isIssuerInUseByTrustedCertificate(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            const result = await cm.isIssuerInUseByTrustedCertificate(caCert[0]);
             result.should.be.false();
         });
 
         it("X1 should return true when issuer signed a trusted certificate", async () => {
-            const caCert = readCertificate(caCertFilename);
-            await cm.addIssuer(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
 
             // Create a certificate signed by our test CA
             const appCm = new CertificateManager({
@@ -480,10 +495,10 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 validity: 365
             });
 
-            const signedCert = readCertificate(signedCertFile);
-            await cm.trustCertificate(signedCert);
+            const signedCert = await readCertificateChainAsync(signedCertFile);
+            await cm.trustCertificate(signedCert[0]);
 
-            const result = await cm.isIssuerInUseByTrustedCertificate(caCert);
+            const result = await cm.isIssuerInUseByTrustedCertificate(caCert[0]);
             result.should.be.true("CA should be in use after trusting a cert it signed");
 
             await appCm.dispose();
@@ -503,28 +518,28 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
                 validity: 365
             });
             const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
-            const ownCert = readCertificate(ownCertFile);
+            const ownCert = await readCertificateChainAsync(ownCertFile);
 
             // Write directly to trusted folder (bypass CM API)
             const destFile = path.join(cm.trustedFolder, "externally_added.der");
-            fs.writeFileSync(destFile, ownCert);
+            fs.writeFileSync(destFile, ownCert[0]);
 
             // Before reload: CM doesn't know about it
-            const statusBefore = await cm.isCertificateTrusted(ownCert);
+            const statusBefore = await cm.isCertificateTrusted(ownCert[0]);
             statusBefore.should.eql("BadCertificateUntrusted");
 
             // After reload: CM picks it up
             await cm.reloadCertificates();
-            const statusAfter = await cm.isCertificateTrusted(ownCert);
+            const statusAfter = await cm.isCertificateTrusted(ownCert[0]);
             statusAfter.should.eql("Good");
         });
 
         it("should detect externally deleted trusted certificates", async () => {
             // Add a cert via CM API
-            const caCert = readCertificate(caCertFilename);
-            await cm.trustCertificate(caCert);
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.trustCertificate(caCert[0]);
 
-            const statusBefore = await cm.isCertificateTrusted(caCert);
+            const statusBefore = await cm.isCertificateTrusted(caCert[0]);
             statusBefore.should.eql("Good");
 
             // Delete the file directly from disk
@@ -536,22 +551,22 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             }
 
             // Before reload: CM still thinks it's trusted (stale)
-            const statusStale = await cm.isCertificateTrusted(caCert);
+            const statusStale = await cm.isCertificateTrusted(caCert[0]);
             statusStale.should.eql("Good");
 
             // After reload: CM sees deletion
             await cm.reloadCertificates();
-            const statusAfter = await cm.isCertificateTrusted(caCert);
+            const statusAfter = await cm.isCertificateTrusted(caCert[0]);
             statusAfter.should.eql("BadCertificateUntrusted");
         });
 
         it("should pick up externally added issuers", async () => {
-            const caCert = readCertificate(caCertFilename);
-            const thumbprint = makeSHA1Thumbprint(caCert).toString("hex");
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            const thumbprint = makeSHA1Thumbprint(caCert[0]).toString("hex");
 
             // Bypass CM API: write issuer directly to disk
             const destFile = path.join(cm.issuersCertFolder, "external_issuer.der");
-            fs.writeFileSync(destFile, caCert);
+            fs.writeFileSync(destFile, caCert[0]);
 
             // Before reload: CM doesn't know about it
             (await cm.hasIssuer(thumbprint)).should.be.false();

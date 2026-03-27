@@ -8,7 +8,7 @@ import {
     exploreCertificate,
     identifyDERContent,
     makeSHA1Thumbprint,
-    readCertificate,
+    readCertificateChainAsync,
     readPrivateKey
 } from "node-opcua-crypto";
 import {
@@ -127,8 +127,8 @@ describe("PFX (PKCS#12) Toolbox", function () {
             // Parse the extracted PEM back to DER and compare
             // thumbprints with the original
             const extractedDer = convertPEMtoDER(pem);
-            const originalCert = readCertificate(certFile);
-            const originalThumbprint = makeSHA1Thumbprint(originalCert).toString("hex");
+            const originalCert = await readCertificateChainAsync(certFile);
+            const originalThumbprint = makeSHA1Thumbprint(originalCert[0]).toString("hex");
             const extractedThumbprint = makeSHA1Thumbprint(extractedDer).toString("hex");
 
             extractedThumbprint.should.eql(originalThumbprint, "extracted certificate thumbprint should match the original");
@@ -146,7 +146,8 @@ describe("PFX (PKCS#12) Toolbox", function () {
             // Verify subject matches original
             const extractedDer = convertPEMtoDER(pem);
             const extractedInfo = exploreCertificate(extractedDer);
-            const originalInfo = exploreCertificate(readCertificate(certFile));
+            const chain = await readCertificateChainAsync(certFile);
+            const originalInfo = exploreCertificate(chain[0]);
 
             const extractedCN = extractedInfo.tbsCertificate.subject.commonName || "";
             const originalCN = originalInfo.tbsCertificate.subject.commonName || "";
@@ -215,8 +216,8 @@ describe("PFX (PKCS#12) Toolbox", function () {
 
             // The extracted CA cert thumbprint must match the original
             const extractedCaDer = convertPEMtoDER(pem);
-            const originalCaCert = readCertificate(caCertFile);
-            const originalCaThumbprint = makeSHA1Thumbprint(originalCaCert).toString("hex");
+            const originalCaCert = await readCertificateChainAsync(caCertFile);
+            const originalCaThumbprint = makeSHA1Thumbprint(originalCaCert[0]).toString("hex");
             const extractedCaThumbprint = makeSHA1Thumbprint(extractedCaDer).toString("hex");
 
             extractedCaThumbprint.should.eql(originalCaThumbprint, "extracted CA certificate thumbprint should match the original");
@@ -325,9 +326,9 @@ describe("PFX (PKCS#12) Toolbox", function () {
     describe("round-trip", () => {
         it("should preserve certificate identity through PFX round-trip", async () => {
             // Read the original certificate
-            const originalCert = readCertificate(certFile);
-            const originalInfo = exploreCertificate(originalCert);
-            const originalThumbprint = makeSHA1Thumbprint(originalCert).toString("hex");
+            const originalCert = await readCertificateChainAsync(certFile);
+            const originalInfo = exploreCertificate(originalCert[0]);
+            const originalThumbprint = makeSHA1Thumbprint(originalCert[0]).toString("hex");
 
             // Extract from PFX
             const extractedPem = await extractCertificateFromPFX({ pfxFile });

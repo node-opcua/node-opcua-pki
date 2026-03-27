@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import "should";
 
-import { type Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
+import { type Certificate, readCertificateChain, readCertificateRevocationList } from "node-opcua-crypto";
 import {
     CertificateAuthority,
     type CertificateAuthorityOptions,
@@ -136,7 +136,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
         let cert2: Certificate;
         let cert3: Certificate;
         let certificate_valid_untrusted_A: Certificate;
-        let caCertificateBuf: Buffer;
+        let caCertificateChain: Certificate[];
 
         before(async () => {
             const optionsPKI2 = { location: path.join(testData.tmpFolder, "TEST_PKI2") };
@@ -144,8 +144,8 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             localCertificateManager = new CertificateManager(optionsPKI2);
             await localCertificateManager.initialize();
 
-            caCertificateBuf = readCertificate(certificateAuthority.caCertificate);
-            const status = await localCertificateManager.addIssuer(caCertificateBuf);
+            caCertificateChain = readCertificateChain(certificateAuthority.caCertificate);
+            const status = await localCertificateManager.addIssuers(caCertificateChain);
             status.should.eql("Good");
 
             const crl = await readCertificateRevocationList(certificateAuthority.revocationList);
@@ -153,16 +153,16 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             status1.should.eql("Good");
 
             // get certificate
-            cert1 = readCertificate(certificate_out_of_date);
+            cert1 = readCertificateChain(certificate_out_of_date)[0];
             await localCertificateManager.trustCertificate(cert1);
 
-            cert2 = readCertificate(certificate_not_yet_active);
+            cert2 = readCertificateChain(certificate_not_yet_active)[0];
             await localCertificateManager.trustCertificate(cert2);
 
-            cert3 = readCertificate(certificate_valid);
+            cert3 = readCertificateChain(certificate_valid)[0];
             await localCertificateManager.trustCertificate(cert3);
 
-            certificate_valid_untrusted_A = readCertificate(certificate_valid_untrusted);
+            certificate_valid_untrusted_A = readCertificateChain(certificate_valid_untrusted)[0];
             await localCertificateManager.rejectCertificate(certificate_valid_untrusted_A);
         });
 
@@ -204,7 +204,7 @@ describe("test certificate validation", function (this: Mocha.Suite) {
             if (!issuerCertificate) {
                 throw new Error("Cannot find issuer certificate");
             }
-            issuerCertificate?.toString("hex").should.eql(caCertificateBuf.toString("hex"));
+            issuerCertificate?.toString("hex").should.eql(caCertificateChain[0].toString("hex"));
         });
     });
 });

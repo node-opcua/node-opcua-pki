@@ -6,7 +6,7 @@ import dir from "node-dir";
 import sinon from "sinon";
 import "should";
 
-import { makeSHA1Thumbprint, readCertificate, split_der } from "node-opcua-crypto";
+import { makeSHA1Thumbprint, readCertificate, readCertificateChainAsync, split_der } from "node-opcua-crypto";
 import { CertificateManager, VerificationStatus } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
@@ -263,9 +263,9 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
     });
 
     async function test_verify(certFilename: string, certificateManager: CertificateManager) {
-        const certificate = readCertificate(certFilename);
-        const nbInChain = split_der(certificate).length;
-        const status = await certificateManager.verifyCertificate(certificate);
+        const certificate = await readCertificateChainAsync(certFilename);
+        const nbInChain = split_der(certificate[0]).length;
+        const status = await certificateManager.verifyCertificate(certificate[0]);
         const flags = getFlags(certFilename);
 
         // tslint:disable-next-line: no-console
@@ -274,7 +274,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             flagsToString(flags),
             status.toString().padEnd(37),
             nbInChain,
-            makeSHA1Thumbprint(certificate).toString("hex").substring(0, 10)
+            makeSHA1Thumbprint(certificate[0]).toString("hex").substring(0, 10)
         );
         if (flags.certFlags.validity === TimeValidity.expired || flags.certFlags.validity === TimeValidity.not_yet_valid) {
             if (flags.certFlags.trusted) {
@@ -393,11 +393,11 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         const file2R = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_ca2T_usrTR.der");
         const _file3 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1TC_ca2I_appT.der");
 
-        const cert1 = await readCertificate(file1);
-        (await applicationPKI.isCertificateRevoked(cert1)).should.eql("Good");
+        const cert1 = await readCertificateChainAsync(file1);
+        (await applicationPKI.isCertificateRevoked(cert1[0])).should.eql("Good");
 
-        const cert2R = await readCertificate(file2R);
-        const isRevoked2 = await applicationPKI.isCertificateRevoked(cert2R);
+        const cert2R = await readCertificateChainAsync(file2R);
+        const isRevoked2 = await applicationPKI.isCertificateRevoked(cert2R[0]);
         isRevoked2.should.eql(VerificationStatus.BadCertificateRevoked);
 
         await applicationPKI.dispose();
@@ -410,9 +410,9 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
 
         const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1TC_ca2I_appT.der");
 
-        const certificate = await readCertificate(file1);
-        (await applicationPKI.isCertificateRevoked(certificate)).should.eql("Good");
-        const status = await applicationPKI.verifyCertificate(certificate);
+        const certificate = await readCertificateChainAsync(file1);
+        (await applicationPKI.isCertificateRevoked(certificate[0])).should.eql("Good");
+        const status = await applicationPKI.verifyCertificate(certificate[0]);
         status.should.eql(VerificationStatus.BadCertificateIssuerRevocationUnknown);
 
         await applicationPKI.dispose();
@@ -425,9 +425,9 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
 
         const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_usrU.der");
 
-        const certificate = await readCertificate(file1);
-        (await userPKI.isCertificateRevoked(certificate)).should.eql(VerificationStatus.Good);
-        const status = await userPKI.verifyCertificate(certificate);
+        const certificate = await readCertificateChainAsync(file1);
+        (await userPKI.isCertificateRevoked(certificate[0])).should.eql(VerificationStatus.Good);
+        const status = await userPKI.verifyCertificate(certificate[0]);
         status.should.eql(VerificationStatus.BadCertificateUntrusted); //
 
         await userPKI.dispose();

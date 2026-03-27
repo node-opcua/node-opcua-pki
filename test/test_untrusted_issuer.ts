@@ -12,10 +12,8 @@
 
 import path from "node:path";
 import "should";
-
-import { type Certificate, readCertificate, readCertificateRevocationList } from "node-opcua-crypto";
+import { type Certificate, readCertificateChain, readCertificateRevocationList } from "node-opcua-crypto";
 import { CertificateAuthority, CertificateManager, type Filename, type KeySize, VerificationStatus } from "node-opcua-pki";
-
 import { beforeTest } from "./helpers";
 
 describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: Mocha.Suite) {
@@ -24,7 +22,7 @@ describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: M
     let ca: CertificateAuthority;
     let helperPKI: CertificateManager;
     let certificateFile: Filename;
-    let caCertBuf: Certificate;
+    let caCertChain: Certificate[];
 
     before(async () => {
         // Create a CA and a helper PKI to generate a CA-signed certificate
@@ -52,7 +50,7 @@ describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: M
             applicationUri: "urn:test:untrusted-issuer"
         });
 
-        caCertBuf = readCertificate(ca.caCertificate);
+        caCertChain = readCertificateChain(ca.caCertificate);
         await helperPKI.dispose();
     });
 
@@ -71,15 +69,15 @@ describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: M
         });
         await cm.initialize();
 
-        const cert = readCertificate(certificateFile);
+        const certChain = readCertificateChain(certificateFile);
 
         // isCertificateTrusted only checks the trust store
-        const isTrusted = await cm.isCertificateTrusted(cert);
+        const isTrusted = await cm.isCertificateTrusted(certChain[0]);
         isTrusted.should.eql("BadCertificateUntrusted");
 
         // verifyCertificate performs full chain validation →
         // chain is incomplete because the issuer is missing
-        const status = await cm.verifyCertificate(cert);
+        const status = await cm.verifyCertificate(certChain[0]);
         status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
         await cm.dispose();
@@ -96,12 +94,12 @@ describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: M
         });
         await cm.initialize();
 
-        const cert = readCertificate(certificateFile);
-        await cm.trustCertificate(cert);
+        const certChain = readCertificateChain(certificateFile);
+        await cm.trustCertificate(certChain[0]);
 
         // Even though the leaf certificate is trusted, the chain
         // cannot be verified because the issuer is missing.
-        const status = await cm.verifyCertificate(cert);
+        const status = await cm.verifyCertificate(certChain[0]);
         status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
         await cm.dispose();
@@ -119,16 +117,18 @@ describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: M
         });
         await cm.initialize();
 
-        const cert = readCertificate(certificateFile);
-        await cm.trustCertificate(cert);
+        const certChain = readCertificateChain(certificateFile);
+        await cm.trustCertificate(certChain[0]);
 
         // Add the issuer certificate (but do NOT add the CRL)
-        await cm.addIssuer(caCertBuf);
-        await cm.trustCertificate(caCertBuf);
+        for (const caCert of caCertChain) {
+            await cm.addIssuer(caCert);
+            await cm.trustCertificate(caCert);
+        }
 
         // Chain is now complete, but CRL is missing →
         // revocation status cannot be determined
-        const status = await cm.verifyCertificate(cert);
+        const status = await cm.verifyCertificate(certChain[0]);
         status.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
 
         await cm.dispose();
@@ -146,17 +146,19 @@ describe("verifyCertificate: when issuer (CA) is NOT trusted", function (this: M
         });
         await cm.initialize();
 
-        const cert = readCertificate(certificateFile);
-        await cm.trustCertificate(cert);
+        const certChain = readCertificateChain(certificateFile);
+        await cm.trustCertificate(certChain[0]);
 
         // Add the CA cert and its CRL
-        await cm.addIssuer(caCertBuf);
-        await cm.trustCertificate(caCertBuf);
+        for (const caCert of caCertChain) {
+            await cm.addIssuer(caCert);
+            await cm.trustCertificate(caCert);
+        }
 
         const crl = await readCertificateRevocationList(ca.revocationList);
         await cm.addRevocationList(crl);
 
-        const status = await cm.verifyCertificate(cert);
+        const status = await cm.verifyCertificate(certChain[0]);
         status.should.eql(VerificationStatus.Good);
 
         await cm.dispose();

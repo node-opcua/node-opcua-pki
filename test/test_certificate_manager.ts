@@ -6,7 +6,7 @@ Error.stackTraceLimit = Infinity;
 import fs from "node:fs";
 import path from "node:path";
 import "should";
-import { readCertificate } from "node-opcua-crypto";
+import { readCertificateChainAsync } from "node-opcua-crypto";
 import { CertificateManager, type Filename, VerificationStatus } from "node-opcua-pki";
 import { quote } from "node-opcua-pki-priv/toolbox/common";
 import { makePath } from "node-opcua-pki-priv/toolbox/common2";
@@ -276,13 +276,13 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
 
         const sample_certificate3_pem = path.join(__dirname, "fixtures/sample_server_selfSigned1.pem");
 
-        const certificate = await readCertificate(sample_certificate3_pem);
-        await cm.trustCertificate(certificate);
+        const certificateChain = await readCertificateChainAsync(sample_certificate3_pem);
+        await cm.trustCertificate(certificateChain[0]);
 
-        const status = await cm.verifyCertificate(certificate);
+        const status = await cm.verifyCertificate(certificateChain);
         console.log("status ", status.toString());
 
-        const verificationStatus = await cm.verifyCertificate(certificate);
+        const verificationStatus = await cm.verifyCertificate(certificateChain);
         console.log("verificationStatus ", verificationStatus.toString());
     });
 

@@ -3,7 +3,7 @@ import path from "node:path";
 import sinon from "sinon";
 import "should";
 
-import { readCertificate } from "node-opcua-crypto";
+import { readCertificateChain } from "node-opcua-crypto";
 import { CertificateManager, type CertificateManagerOptions } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
@@ -34,7 +34,7 @@ describe("Check Validate Certificate", function () {
         const cert2Filename = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_appTR.der");
 
         // installing the CA certificate
-        const caCert = readCertificate(caCertificateFilename);
+        const caCert = readCertificateChain(caCertificateFilename)[0];
         let caCertStatus = await certificateManager.verifyCertificate(caCert);
         caCertStatus.should.eql("BadCertificateUntrusted");
 
