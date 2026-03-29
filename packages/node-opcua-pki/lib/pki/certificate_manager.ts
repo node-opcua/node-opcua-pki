@@ -29,7 +29,6 @@ import {
     readCertificateRevocationList,
     split_der,
     toPem,
-    verifyCertificateChain,
     verifyCertificateSignature
 } from "node-opcua-crypto";
 
@@ -125,6 +124,45 @@ export interface CertificateManagerEvents {
 }
 
 /**
+ * Options controlling certificate validation in
+ * {@link CertificateManager.addTrustedCertificateFromChain}.
+ *
+ * By default all checks are **strict** (secure). Set individual
+ * flags to `true` only in test/development environments.
+ */
+export interface AddCertificateValidationOptions {
+    /**
+     * Accept certificates whose validity period has expired
+     * or is not yet active.
+     * @defaultValue false
+     */
+    acceptExpiredCertificate?: boolean;
+
+    /**
+     * Accept certificates that have been revoked by their
+     * issuer's CRL.  When `false` (the default), a revoked
+     * certificate is rejected with `BadCertificateRevoked`.
+     * @defaultValue false
+     */
+    acceptRevokedCertificate?: boolean;
+
+    /**
+     * Do not fail when a CRL is missing for an issuer in the
+     * chain.  When `false` (the default), a missing CRL causes
+     * `BadCertificateRevocationUnknown`.
+     * @defaultValue false
+     */
+    ignoreMissingRevocationList?: boolean;
+
+    /**
+     * Maximum depth of the certificate chain (leaf + issuers).
+     * The leaf certificate counts as depth 1.
+     * @defaultValue 5
+     */
+    maxChainLength?: number;
+}
+
+/**
  * Options for creating a {@link CertificateManager}.
  */
 export interface CertificateManagerOptions {
@@ -135,6 +173,14 @@ export interface CertificateManagerOptions {
     keySize?: KeySize;
     /** Filesystem path where the PKI directory structure is stored. */
     location: string;
+
+    /**
+     * Validation options applied by
+     * {@link CertificateManager.addTrustedCertificateFromChain}.
+     *
+     * Defaults are secure — all checks enabled.
+     */
+    addCertificateValidationOptions?: AddCertificateValidationOptions;
 }
 
 /**
@@ -552,6 +598,7 @@ export class CertificateManager extends EventEmitter {
     #readCertificatesCalled = false;
     readonly #filenameToHash = new Map<string, string>();
     #initializingPromise?: Promise<void>;
+    readonly #addCertValidation: Required<AddCertificateValidationOptions>;
 
     readonly #thumbs: Thumbs = {
         rejected: new Map(),
@@ -581,6 +628,14 @@ export class CertificateManager extends EventEmitter {
 
         this.#location = makePath(options.location, "");
         this.keySize = options.keySize;
+
+        const v = options.addCertificateValidationOptions ?? {};
+        this.#addCertValidation = {
+            acceptExpiredCertificate: v.acceptExpiredCertificate ?? false,
+            acceptRevokedCertificate: v.acceptRevokedCertificate ?? false,
+            ignoreMissingRevocationList: v.ignoreMissingRevocationList ?? false,
+            maxChainLength: v.maxChainLength ?? 5
+        };
 
         mkdirRecursiveSync(options.location);
 
@@ -1386,56 +1441,170 @@ export class CertificateManager extends EventEmitter {
      * Validate a certificate (optionally with its chain) and add
      * the leaf certificate to the trusted store.
      *
-     * The certificate buffer may contain a single certificate or a
-     * full chain (leaf + issuer certificates concatenated in DER).
+     * Performs OPC UA Part 4, Table 100 validation:
+     *
+     * 1. **Certificate Structure** — parse the DER encoding.
+     * 2. **Build Certificate Chain** — walk from the leaf to a
+     *    self-signed root CA, using the provided chain and the
+     *    issuers store.
+     * 3. **Signature** — verify each certificate's signature
+     *    against its issuer.
+     * 4. **Issuer Presence** — every issuer in the chain must
+     *    already be registered in the issuers store (per GDS
+     *    7.8.2.6).
+     * 5. **Validity Period** — each certificate must be within
+     *    its validity window (overridable via
+     *    {@link AddCertificateValidationOptions.acceptExpiredCertificate}).
+     * 6. **Revocation Check** — each certificate is checked
+     *    against its issuer's CRL (overridable via
+     *    {@link AddCertificateValidationOptions.acceptRevokedCertificate}
+     *    and {@link AddCertificateValidationOptions.ignoreMissingRevocationList}).
+     *
      * Only the leaf certificate is added to the trusted store.
-     *
-     * When the chain contains issuer certificates, this method
-     * verifies that each issuer is already registered via
-     * {@link addIssuer} before trusting the leaf.
-     *
-     * If one of the certificates in the chain is not registered in the issuers store,
-     * the leaf certificate will be rejected.
      *
      * @param certificateChain - DER-encoded certificate or chain
      * @returns `VerificationStatus.Good` on success, or an error
      *  status indicating why the certificate was rejected.
      */
     public async addTrustedCertificateFromChain(certificateChain: Certificate | Certificate[]): Promise<VerificationStatus> {
-        const certificates = Array.isArray(certificateChain) ? certificateChain : split_der(certificateChain);
-        const leafCertificate = certificates[0];
-
-        // Structural validation — can we parse it?
+        // Top-level guard: never let an unexpected error escape.
+        // Every code path returns a VerificationStatus; unexpected
+        // throws (corrupt buffers, crypto failures, etc.) are
+        // caught here and mapped to BadCertificateInvalid.
         try {
-            exploreCertificate(leafCertificate);
+            return await this.#addTrustedCertificateFromChainImpl(certificateChain);
+        } catch (_err) {
+            warningLog("addTrustedCertificateFromChain: unexpected error", _err);
+            return VerificationStatus.BadCertificateInvalid;
+        }
+    }
+
+    async #addTrustedCertificateFromChainImpl(certificateChain: Certificate | Certificate[]): Promise<VerificationStatus> {
+        let certificates: Certificate[];
+        try {
+            certificates = Array.isArray(certificateChain) ? certificateChain : split_der(certificateChain);
+        } catch (_err) {
+            return VerificationStatus.BadCertificateInvalid;
+        }
+        if (certificates.length === 0) {
+            return VerificationStatus.BadCertificateInvalid;
+        }
+        const leafCertificate = certificates[0];
+        const opts = this.#addCertValidation;
+
+        // ── Step 1: Certificate Structure ────────────────────────
+        let leafInfo: CertificateInternals;
+        try {
+            leafInfo = exploreCertificate(leafCertificate);
         } catch (_err) {
             return VerificationStatus.BadCertificateInvalid;
         }
 
-        // Lightweight chain validation — verify the certificate
-        // structure and signature without trust-store side-effects
-        const result = await verifyCertificateChain([leafCertificate]);
-        if (result.status !== "Good") {
-            return VerificationStatus.BadCertificateInvalid;
-        }
+        // Re-scan the issuers folder to pick up certificates
+        // added directly to disk (e.g. by GDS push or external
+        // tooling) that the file-system watcher may not have
+        // delivered yet.
+        await this.#scanCertFolder(this.issuersCertFolder, this.#thumbs.issuers.certs);
 
-        // If a chain was provided, verify that every issuer in the
-        // chain is already registered in the issuers store.
-        // if one of the certificates in the chain is not registered in the issuers store,
-        // the certificate will be rejected.
-        if (certificates.length > 1) {
-            // Re-scan the issuers folder to pick up certificates
-            // added directly to disk (e.g. by GDS push or external
-            // tooling) that the file-system watcher may not have
-            // delivered yet.
-            await this.#scanCertFolder(this.issuersCertFolder, this.#thumbs.issuers.certs);
-            for (const issuerCert of certificates.slice(1)) {
-                const thumbprint = makeFingerprint(issuerCert);
-                if (!(await this.hasIssuer(thumbprint))) {
-                    // this issuer certificate is not registered in the issuers store
-                    // reject the leaf certificate
+        // ── Step 2–6: Walk the chain from leaf to root ───────────
+        // depth counts the number of certificates validated in the
+        // chain.  maxChainLength=1 → only self-signed certs;
+        // maxChainLength=2 → leaf + root CA; etc.
+        let currentCert = leafCertificate;
+        let currentInfo = leafInfo;
+        let depth = 0;
+
+        while (true) {
+            depth++;
+            if (depth > opts.maxChainLength) {
+                // Chain depth exceeded before reaching root
+                return VerificationStatus.BadSecurityChecksFailed;
+            }
+
+            // ── Step 5: Validity Period ──────────────────────────
+            if (!opts.acceptExpiredCertificate) {
+                let certDetails: ReturnType<typeof exploreCertificateInfo>;
+                try {
+                    certDetails = exploreCertificateInfo(currentCert);
+                } catch (_err) {
+                    return VerificationStatus.BadCertificateInvalid;
+                }
+                const now = new Date();
+                if (certDetails.notBefore.getTime() > now.getTime()) {
+                    return VerificationStatus.BadCertificateTimeInvalid;
+                }
+                if (certDetails.notAfter.getTime() <= now.getTime()) {
+                    return depth === 1
+                        ? VerificationStatus.BadCertificateTimeInvalid
+                        : VerificationStatus.BadCertificateIssuerTimeInvalid;
+                }
+            }
+
+            // ── Self-signed certificate ──────────────────────────
+            if (isSelfSigned2(currentInfo)) {
+                // Step 3: Verify self-signature
+                try {
+                    if (!verifyCertificateSignature(currentCert, currentCert)) {
+                        return VerificationStatus.BadCertificateInvalid;
+                    }
+                } catch (_err) {
+                    return VerificationStatus.BadCertificateInvalid;
+                }
+                // Self-signed certificates don't need revocation
+                // or issuer checks — we're at the root.
+                break;
+            }
+
+            // ── Step 2: Find issuer ──────────────────────────────
+            // First try findIssuerCertificate (checks issuers store
+            // and trusted store), then fall back to the chain.
+            let issuerCert = await this.findIssuerCertificate(currentCert);
+            if (!issuerCert) {
+                // The issuer is not in the issuers store — try
+                // the explicitly provided chain.
+                issuerCert = findIssuerCertificateInChain(currentCert, certificates);
+                if (!issuerCert || issuerCert === currentCert) {
                     return VerificationStatus.BadCertificateChainIncomplete;
                 }
+            }
+
+            // ── Step 3: Signature verification ───────────────────
+            try {
+                if (!verifyCertificateSignature(currentCert, issuerCert)) {
+                    return VerificationStatus.BadCertificateInvalid;
+                }
+            } catch (_err) {
+                return VerificationStatus.BadCertificateInvalid;
+            }
+
+            // ── Step 4: Issuer must be in the issuers store ──────
+            // Per GDS 7.8.2.6: "This Method will return a
+            // validation error if the Certificate is issued by a CA
+            // and the Certificate for the issuer is not in the
+            // TrustList"
+            const issuerThumbprint = makeFingerprint(issuerCert);
+            if (!(await this.hasIssuer(issuerThumbprint))) {
+                return VerificationStatus.BadCertificateChainIncomplete;
+            }
+
+            // ── Step 6: Revocation check ─────────────────────────
+            const revokedStatus = await this.isCertificateRevoked(currentCert, issuerCert);
+            if (revokedStatus === VerificationStatus.BadCertificateRevoked) {
+                if (!opts.acceptRevokedCertificate) {
+                    return VerificationStatus.BadCertificateRevoked;
+                }
+            } else if (revokedStatus === VerificationStatus.BadCertificateRevocationUnknown) {
+                if (!opts.ignoreMissingRevocationList) {
+                    return VerificationStatus.BadCertificateRevocationUnknown;
+                }
+            }
+
+            // Move up the chain
+            currentCert = issuerCert;
+            try {
+                currentInfo = exploreCertificate(currentCert);
+            } catch (_err) {
+                return VerificationStatus.BadCertificateInvalid;
             }
         }
 
