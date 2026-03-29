@@ -286,7 +286,7 @@ export enum VerificationStatus {
     Good = "Good"
 }
 
-function makeFingerprint(certificate: Certificate | Certificate[] | CertificateRevocationList): string {
+export function makeFingerprint(certificate: Certificate | Certificate[] | CertificateRevocationList): string {
     // When the buffer contains a certificate chain (multiple
     // concatenated DER structures), the thumbprint must be
     // computed on the leaf certificate only (first element).
@@ -740,7 +740,12 @@ export class CertificateManager extends EventEmitter {
     public async isCertificateTrusted(
         certificate: Certificate
     ): Promise<"Good" | "BadCertificateUntrusted" | "BadCertificateInvalid"> {
-        const fingerprint = makeFingerprint(certificate) as Thumbprint;
+        let fingerprint: Thumbprint;
+        try {
+            fingerprint = makeFingerprint(certificate) as Thumbprint;
+        } catch (_err) {
+            return "BadCertificateInvalid";
+        }
 
         if (this.#thumbs.trusted.has(fingerprint)) {
             return "Good";
