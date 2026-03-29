@@ -34,9 +34,6 @@ jobs:
       - name: nodejs
         run: node --version
 
-      - name: Install new version npm@10
-        run: npm install -g npm
-
       - name: Install deps
         run: npm install
 
