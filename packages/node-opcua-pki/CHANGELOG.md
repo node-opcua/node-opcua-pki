@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.12.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.11.1...v6.12.0) (2026-03-29)
+
+
+### Bug Fixes
+
+* **pki:** Handle Certificate[] natively in makeFingerprint ([bda68fb](https://github.com/node-opcua/node-opcua-pki/commit/bda68fb36f2d2773b207d4fc07094c4e311a629e))
+
+
+
+
+
 ## [6.11.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.11.0...v6.11.1) (2026-03-26)
 
 **Note:** Version bump only for package node-opcua-pki
