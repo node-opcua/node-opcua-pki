@@ -91,7 +91,7 @@ const config =
     "#nsCaPolicyUrl            =\n" +
     "#nsSslServerName          =\n" +
     "keyUsage                  = critical, digitalSignature, nonRepudiation," +
-    " keyEncipherment, dataEncipherment, keyAgreement, keyCertSign\n" +
+    " keyEncipherment, dataEncipherment, keyAgreement\n" +
     "extendedKeyUsage          = critical,serverAuth ,clientAuth\n" +
     "\n" +
     "[ v3_req ]\n" +
