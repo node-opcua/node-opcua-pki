@@ -146,7 +146,7 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
             const cm = await createCMWithoutIssuer("STRICT_5");
             const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(certChain);
+            const status = await cm.verifyCertificate([certChain[0]]);
             status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
             await cm.dispose();
@@ -219,7 +219,7 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
             const cm = await createCMWithoutIssuer("RELAXED_5");
             const certChain = readCertificateChain(certificateFile);
 
-            const status = await cm.verifyCertificate(certChain, relaxed);
+            const status = await cm.verifyCertificate([certChain[0]], relaxed);
             status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
             await cm.dispose();
@@ -230,7 +230,7 @@ describe("verifyCertificate: options and trust modes", function (this: Mocha.Sui
             const certChain = readCertificateChain(certificateFile);
             await cm.rejectCertificate(certChain[0]);
 
-            const status = await cm.verifyCertificate(certChain, relaxed);
+            const status = await cm.verifyCertificate([certChain[0]], relaxed);
             status.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
             await cm.dispose();

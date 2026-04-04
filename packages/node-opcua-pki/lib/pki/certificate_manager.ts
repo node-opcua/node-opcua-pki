@@ -286,11 +286,21 @@ export enum VerificationStatus {
     Good = "Good"
 }
 
+export function coerceCertificateChain(certificate: Certificate | Certificate[]): Certificate[] {
+    if (Array.isArray(certificate)) {
+        if (certificate.length === 0) return [];
+        return certificate.reduce((acc, cert) => {
+            return acc.concat(split_der(cert));
+        }, [] as Certificate[]);
+    }
+    return split_der(certificate);
+}
+
 export function makeFingerprint(certificate: Certificate | Certificate[] | CertificateRevocationList): string {
     // When the buffer contains a certificate chain (multiple
     // concatenated DER structures), the thumbprint must be
     // computed on the leaf certificate only (first element).
-    const chain = Array.isArray(certificate) ? certificate : split_der(certificate);
+    const chain = coerceCertificateChain(certificate as Certificate | Certificate[]);
     return makeSHA1Thumbprint(chain[0]).toString("hex");
 }
 function short(stringToShorten: string) {
@@ -404,7 +414,8 @@ export function isRootIssuer(certificate: Certificate): boolean {
  * @returns the matching issuer certificate, or `null` if not found
  */
 export function findIssuerCertificateInChain(certificate: Certificate | Certificate[], chain: Certificate[]): Certificate | null {
-    const firstCertificate = Array.isArray(certificate) ? certificate[0] : certificate;
+    const coercedCertificate = coerceCertificateChain(certificate);
+    const firstCertificate = coercedCertificate[0];
     if (!firstCertificate) {
         return null;
     }
@@ -423,7 +434,8 @@ export function findIssuerCertificateInChain(certificate: Certificate | Certific
         debugLog("Certificate has no extension 3");
         return null;
     }
-    const potentialIssuers = chain.filter((c) => {
+    const coercedChain = coerceCertificateChain(chain);
+    const potentialIssuers = coercedChain.filter((c) => {
         const info = exploreCertificate(c);
         return info.tbsCertificate.extensions && info.tbsCertificate.extensions.subjectKeyIdentifier === wantedIssuerKey;
     });
@@ -778,7 +790,7 @@ export class CertificateManager extends EventEmitter {
             // maximum level of certificate in chain reached !
             return VerificationStatus.BadSecurityChecksFailed;
         }
-        const chain = Array.isArray(certificateOrChain) ? certificateOrChain : [certificateOrChain];
+        const chain = coerceCertificateChain(certificateOrChain);
         debugLog("NB CERTIFICATE IN CHAIN = ", chain.length);
         const info = exploreCertificate(chain[0]);
 
@@ -848,7 +860,7 @@ export class CertificateManager extends EventEmitter {
                 hasValidIssuer = true;
 
                 // let detected if our certificate is in the revocation list
-                let revokedStatus = await this.isCertificateRevoked(certificateOrChain);
+                let revokedStatus = await this.isCertificateRevoked(chain, issuerCertificate);
                 if (revokedStatus === VerificationStatus.BadCertificateRevocationUnknown) {
                     if (options?.ignoreMissingRevocationList) {
                         // continue as if the certificate was not revoked
@@ -880,12 +892,12 @@ export class CertificateManager extends EventEmitter {
                     debugLog("Self-signed Certificate signature is not valid");
                     return VerificationStatus.BadSecurityChecksFailed;
                 }
-                const revokedStatus = await this.isCertificateRevoked(certificateOrChain);
+                const revokedStatus = await this.isCertificateRevoked(chain);
                 debugLog("revokedStatus of self signed certificate:", revokedStatus);
             }
         }
 
-        const status = await this.#checkRejectedOrTrusted(certificateOrChain);
+        const status = await this.#checkRejectedOrTrusted(chain[0]);
         if (status === "rejected") {
             if (!(options.acceptCertificateWithValidIssuerChain && hasValidIssuer && hasTrustedIssuer)) {
                 return VerificationStatus.BadCertificateUntrusted;
@@ -958,24 +970,18 @@ export class CertificateManager extends EventEmitter {
         certificate: Certificate | Certificate[],
         options: VerifyCertificateOptions
     ): Promise<VerificationStatus> {
-        // When the input is a single buffer, validate that every
-        // DER element it contains is a valid certificate.  A buffer
-        // with trailing non-certificate data (e.g. a CRL appended
-        // after a certificate) must be rejected early.
-        if (!Array.isArray(certificate)) {
+        const chain = coerceCertificateChain(certificate);
+        for (const element of chain) {
             try {
-                const derElements = split_der(certificate);
-                for (const element of derElements) {
-                    // exploreCertificateInfo will throw if the DER
-                    // element is not a valid X.509 certificate
-                    // (e.g. it is a CRL or other ASN.1 structure).
-                    exploreCertificateInfo(element);
-                }
+                // exploreCertificateInfo will throw if the DER
+                // element is not a valid X.509 certificate
+                // (e.g. it is a CRL or other ASN.1 structure).
+                exploreCertificateInfo(element);
             } catch (_err) {
                 return VerificationStatus.BadCertificateInvalid;
             }
         }
-        const status1 = await this.#innerVerifyCertificateAsync(certificate, false, 0, options);
+        const status1 = await this.#innerVerifyCertificateAsync(chain, false, 0, options);
         return status1;
     }
 
@@ -1487,7 +1493,7 @@ export class CertificateManager extends EventEmitter {
     async #addTrustedCertificateFromChainImpl(certificateChain: Certificate | Certificate[]): Promise<VerificationStatus> {
         let certificates: Certificate[];
         try {
-            certificates = Array.isArray(certificateChain) ? certificateChain : split_der(certificateChain);
+            certificates = coerceCertificateChain(certificateChain);
         } catch (_err) {
             return VerificationStatus.BadCertificateInvalid;
         }
@@ -1660,7 +1666,7 @@ export class CertificateManager extends EventEmitter {
      *
      */
     public async findIssuerCertificate(certificate: Certificate | Certificate[]): Promise<Certificate | null> {
-        const firstCertificate = Array.isArray(certificate) ? certificate[0] : certificate;
+        const firstCertificate = coerceCertificateChain(certificate)[0];
         const certInfo = exploreCertificate(firstCertificate);
 
         if (isSelfSigned2(certInfo)) {
@@ -1708,7 +1714,7 @@ export class CertificateManager extends EventEmitter {
      * @private
      */
     async #checkRejectedOrTrusted(certificate: Certificate | Certificate[]): Promise<CertificateStatus> {
-        const firstCertificate = Array.isArray(certificate) ? certificate[0] : certificate;
+        const firstCertificate = coerceCertificateChain(certificate)[0];
         const fingerprint = makeFingerprint(firstCertificate);
 
         debugLog("#checkRejectedOrTrusted fingerprint ", short(fingerprint));
@@ -1790,13 +1796,17 @@ export class CertificateManager extends EventEmitter {
         certificate: Certificate | Certificate[],
         issuerCertificate?: Certificate | null
     ): Promise<VerificationStatus> {
-        const firstCertificate = Array.isArray(certificate) ? certificate[0] : certificate;
+        const chain = coerceCertificateChain(certificate);
+        const firstCertificate = chain[0];
         if (isSelfSigned3(firstCertificate)) {
             return VerificationStatus.Good;
         }
 
         if (!issuerCertificate) {
             issuerCertificate = await this.findIssuerCertificate(firstCertificate);
+        }
+        if (!issuerCertificate) {
+            issuerCertificate = findIssuerCertificateInChain(firstCertificate, chain);
         }
         if (!issuerCertificate) {
             return VerificationStatus.BadCertificateChainIncomplete;

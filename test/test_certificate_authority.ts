@@ -8,13 +8,15 @@ import {
     certificateMatchesPrivateKey,
     exploreCertificate,
     exploreCertificateSigningRequest,
+    makeSHA1Thumbprint,
     readCertificateChain,
     readCertificateChainAsync,
     readCertificateRevocationList,
     readCertificateSigningRequest,
     readPrivateKey,
     rsaLengthPrivateKey,
-    split_der
+    split_der,
+    toPem
 } from "node-opcua-crypto";
 import {
     CertificateAuthority,
@@ -333,6 +335,67 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         (cn as string).should.eql("MyCommonName");
     });
 
+    it("T5a2 - signCertificateRequestFromDER() returns combined chain — callers must split before toPem", async () => {
+        // This test reproduces the exact bug that caused BadCertificateInvalid
+        // in GDS self-onboard: signCertificateRequestFromDER() returns
+        // combine_der([leaf, CA, ...]), not just the leaf. When the caller
+        // naively does toPem(combinedDER, "CERTIFICATE"), it creates a SINGLE
+        // PEM block wrapping the concatenated DER bytes. readCertificateChain()
+        // then sees one PEM block → returns [combinedDER] as element [0].
+        //
+        // The thumbprint of combinedDER ≠ thumbprint of leafDER, which causes
+        // the server secure channel to reject the client's thumbprint.
+
+        const csrFilename = await createCertificateRequest();
+        const csrDer = await readCertificateSigningRequest(csrFilename);
+
+        const signedCertDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 365
+        });
+
+        // 1. signCertificateRequestFromDER returns a COMBINED DER (leaf + CA chain)
+        const certs = split_der(signedCertDer);
+        certs.length.should.be.greaterThanOrEqual(2, "signCertificateRequestFromDER should return combined chain (leaf + CA)");
+
+        const leafDer = certs[0];
+        const leafThumbprint = makeSHA1Thumbprint(leafDer).toString("hex");
+        const combinedThumbprint = makeSHA1Thumbprint(signedCertDer).toString("hex");
+
+        // 2. PROVE THE BUG: thumbprints differ when computed on leaf vs combined
+        leafThumbprint.should.not.eql(combinedThumbprint, "leaf thumbprint must differ from combined-chain thumbprint");
+
+        // 3. DEMONSTRATE THE BUG: naive toPem(combinedDER) creates a SINGLE PEM block
+        //    wrapping the concatenated bytes — readCertificateChain sees only 1 cert
+        const buggyFile = path.join(testData.tmpFolder, "buggy_chain.pem");
+        // BUG: toPem wraps the ENTIRE combined DER as one PEM block
+        let buggyPem = toPem(signedCertDer, "CERTIFICATE");
+        // ... then the caller might add CA chain AGAIN
+        const caCertDer = theCertificateAuthority.getCACertificateDER();
+        buggyPem += toPem(caCertDer, "CERTIFICATE");
+        fs.writeFileSync(buggyFile, buggyPem, "ascii");
+
+        // readCertificateChain sees 2 PEM blocks, but the first contains
+        // the combined leaf+CA DER, and the second is the CA cert again
+        const buggyChain = readCertificateChain(buggyFile);
+        // The first element is the combined DER, NOT the leaf cert!
+        const buggyThumbprint = makeSHA1Thumbprint(buggyChain[0]).toString("hex");
+        buggyThumbprint.should.eql(combinedThumbprint, "buggy chain[0] thumbprint == combined thumbprint (NOT leaf!)");
+        buggyThumbprint.should.not.eql(leafThumbprint, "buggy chain[0] thumbprint != leaf thumbprint — this is the mismatch!");
+
+        // 4. DEMONSTRATE THE FIX: split_der first, then toPem each part
+        const fixedFile = path.join(testData.tmpFolder, "fixed_chain.pem");
+        let fixedPem = "";
+        for (const cert of certs) {
+            fixedPem += toPem(cert, "CERTIFICATE");
+        }
+        fs.writeFileSync(fixedFile, fixedPem, "ascii");
+
+        const fixedChain = readCertificateChain(fixedFile);
+        fixedChain.length.should.eql(certs.length, "fixed chain should have same number of certs as split_der");
+        const fixedThumbprint = makeSHA1Thumbprint(fixedChain[0]).toString("hex");
+        fixedThumbprint.should.eql(leafThumbprint, "fixed chain[0] thumbprint must equal leaf thumbprint");
+    });
+
     it("T5b - revokeCertificateDER() should revoke a DER certificate", async () => {
         // Sign a cert first
         const csrFilename = await createCertificateRequest();
@@ -611,7 +674,8 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
 
         const certificateFilename = await createCertificateFromCA();
         fs.existsSync(certificateFilename).should.eql(true);
-        const certificate = await readCertificateChainAsync(certificateFilename);
+        const certificateChain = await readCertificateChainAsync(certificateFilename);
+        certificateChain.length.should.eql(2);
 
         // ---- lets create a
         const pkiLocation = path.join(testData.tmpFolder, "somePKI1");
@@ -620,13 +684,43 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         });
         await cm.initialize();
 
-        const validate0 = await cm.verifyCertificate(certificate);
+        // the certificateChain alone without its issuer
+        // should be rejected because the chain is incomplete
+        const validate0 = await cm.verifyCertificate([certificateChain[0]]);
         validate0.should.eql(VerificationStatus.BadCertificateChainIncomplete);
 
+        // the certificateChain  should be rejected because
+        // the issuer is not trusted, and the revocation list is not known
+        const validate0b = await cm.verifyCertificate(certificateChain);
+        validate0b.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
+
+        // the certificateChain  should be rejected because
+        // although the chain is valid, the revocation list is not known
+        const validate0c = await cm.verifyCertificate(certificateChain, {
+            acceptCertificateWithValidIssuerChain: true,
+            acceptCertificateWithUntrustedIssuer: true
+        });
+        validate0c.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
+
+        // // the certificateChain  should be rejected because
+        // // although the chain is valid, the revocation list is not known, but that's ok
+        // const validate0d = await cm.verifyCertificate(certificateChain, {
+        //     acceptCertificateWithValidIssuerChain: true,
+        //     acceptCertificateWithUntrustedIssuer: true,
+        //     acceptCertificateWithoutCRL: true
+        // });
+        // validate0d.should.eql(VerificationStatus.Good);
+
+        // the certificateChain  should be rejected because
+        // although the chain is valid, the issuer is trusted,
+        // but the revocation list is not known
         const _status1 = await cm.addIssuers(caCertificateChain, true, true);
+        const validate1b = await cm.verifyCertificate(certificateChain);
+        validate1b.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
+
         const _status2 = await cm.addRevocationList(caCRLBefore);
 
-        const validate1 = await cm.verifyCertificate(certificate);
+        const validate1 = await cm.verifyCertificate(certificateChain);
         validate1.should.eql(VerificationStatus.BadCertificateUntrusted);
 
         await cm.dispose();
