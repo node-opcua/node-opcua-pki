@@ -340,11 +340,12 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         // in GDS self-onboard: signCertificateRequestFromDER() returns
         // combine_der([leaf, CA, ...]), not just the leaf. When the caller
         // naively does toPem(combinedDER, "CERTIFICATE"), it creates a SINGLE
-        // PEM block wrapping the concatenated DER bytes. readCertificateChain()
-        // then sees one PEM block → returns [combinedDER] as element [0].
+        // PEM block wrapping the concatenated DER bytes.
         //
-        // The thumbprint of combinedDER ≠ thumbprint of leafDER, which causes
-        // the server secure channel to reject the client's thumbprint.
+        // HISTORICAL NOTE: readCertificateChain() previously returned
+        // [combinedDER] as a single element. Since v5.3.4 it calls
+        // split_der() on the decoded DER buffer inside each PEM block,
+        // so even a "buggy" single-block PEM is now transparently fixed.
 
         const csrFilename = await createCertificateRequest();
         const csrDer = await readCertificateSigningRequest(csrFilename);
@@ -364,25 +365,26 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         // 2. PROVE THE BUG: thumbprints differ when computed on leaf vs combined
         leafThumbprint.should.not.eql(combinedThumbprint, "leaf thumbprint must differ from combined-chain thumbprint");
 
-        // 3. DEMONSTRATE THE BUG: naive toPem(combinedDER) creates a SINGLE PEM block
-        //    wrapping the concatenated bytes — readCertificateChain sees only 1 cert
+        // 3. VERIFY THE FIX: even a "buggy" PEM is now correctly split
+        //    by readCertificateChain (via split_der on the decoded DER)
         const buggyFile = path.join(testData.tmpFolder, "buggy_chain.pem");
-        // BUG: toPem wraps the ENTIRE combined DER as one PEM block
         let buggyPem = toPem(signedCertDer, "CERTIFICATE");
-        // ... then the caller might add CA chain AGAIN
         const caCertDer = theCertificateAuthority.getCACertificateDER();
         buggyPem += toPem(caCertDer, "CERTIFICATE");
         fs.writeFileSync(buggyFile, buggyPem, "ascii");
 
-        // readCertificateChain sees 2 PEM blocks, but the first contains
-        // the combined leaf+CA DER, and the second is the CA cert again
+        // readCertificateChain now internally calls split_der on each
+        // PEM block's DER, so it correctly separates the concatenated
+        // certs — buggyChain[0] should be the LEAF, not the combined.
         const buggyChain = readCertificateChain(buggyFile);
-        // The first element is the combined DER, NOT the leaf cert!
+        buggyChain.length.should.be.greaterThanOrEqual(2, "buggy PEM should now be split into individual certs");
         const buggyThumbprint = makeSHA1Thumbprint(buggyChain[0]).toString("hex");
-        buggyThumbprint.should.eql(combinedThumbprint, "buggy chain[0] thumbprint == combined thumbprint (NOT leaf!)");
-        buggyThumbprint.should.not.eql(leafThumbprint, "buggy chain[0] thumbprint != leaf thumbprint — this is the mismatch!");
+        buggyThumbprint.should.eql(
+            leafThumbprint,
+            "buggy chain[0] should now match leaf (fixed by split_der in readCertificateChain)"
+        );
 
-        // 4. DEMONSTRATE THE FIX: split_der first, then toPem each part
+        // 4. DEMONSTRATE THE EXPLICIT FIX: split_der first, then toPem each part
         const fixedFile = path.join(testData.tmpFolder, "fixed_chain.pem");
         let fixedPem = "";
         for (const cert of certs) {
@@ -697,8 +699,7 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         // the certificateChain  should be rejected because
         // although the chain is valid, the revocation list is not known
         const validate0c = await cm.verifyCertificate(certificateChain, {
-            acceptCertificateWithValidIssuerChain: true,
-            acceptCertificateWithUntrustedIssuer: true
+            acceptCertificateWithValidIssuerChain: true
         });
         validate0c.should.eql(VerificationStatus.BadCertificateRevocationUnknown);
 

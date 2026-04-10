@@ -308,10 +308,12 @@ function short(stringToShorten: string) {
 }
 // biome-ignore lint/suspicious/noControlCharactersInRegex: we need to filter control characters
 const forbiddenChars = /[\x00-\x1F<>:"/\\|?*]/g;
-function buildIdealCertificateName(certificate: Certificate): string {
-    const fingerprint = makeFingerprint(certificate);
+
+function buildIdealCertificateName(certificate: Certificate | Certificate[]): string {
+    const chain = coerceCertificateChain(certificate as Certificate | Certificate[]);
+    const fingerprint = makeFingerprint(chain);
     try {
-        const commonName = exploreCertificate(certificate).tbsCertificate.subject.commonName || "";
+        const commonName = exploreCertificate(chain[0]).tbsCertificate.subject.commonName || "";
         // commonName may contain invalid characters for a filename such as / or \ or :
         // that we need to replace with a valid character.
         // replace / or \ or : with _
@@ -679,19 +681,19 @@ export class CertificateManager extends EventEmitter {
     /**
      * Move a certificate to the rejected store.
      * If the certificate was previously trusted, it will be removed from the trusted folder.
-     * @param certificate - the DER-encoded certificate
+     * @param certificateOrChain - the DER-encoded certificate or certificate chain
      */
-    public async rejectCertificate(certificate: Certificate): Promise<void> {
-        await this.#moveCertificate(certificate, "rejected");
+    public async rejectCertificate(certificateOrChain: Certificate | Certificate[]): Promise<void> {
+        await this.#moveCertificate(certificateOrChain, "rejected");
     }
 
     /**
      * Move a certificate to the trusted store.
      * If the certificate was previously rejected, it will be removed from the rejected folder.
-     * @param certificate - the DER-encoded certificate
+     * @param certificateOrChain - the DER-encoded certificate or certificate chain
      */
-    public async trustCertificate(certificate: Certificate): Promise<void> {
-        await this.#moveCertificate(certificate, "trusted");
+    public async trustCertificate(certificateOrChain: Certificate | Certificate[]): Promise<void> {
+        await this.#moveCertificate(certificateOrChain, "trusted");
     }
 
     /**
@@ -750,35 +752,46 @@ export class CertificateManager extends EventEmitter {
      *   or `"BadCertificateInvalid"` if the certificate cannot be parsed.
      */
     public async isCertificateTrusted(
-        certificate: Certificate
+        certificateOrCertificateChain: Certificate | Certificate[]
     ): Promise<"Good" | "BadCertificateUntrusted" | "BadCertificateInvalid"> {
-        let fingerprint: Thumbprint;
         try {
-            fingerprint = makeFingerprint(certificate) as Thumbprint;
-        } catch (_err) {
-            return "BadCertificateInvalid";
-        }
-
-        if (this.#thumbs.trusted.has(fingerprint)) {
-            return "Good";
-        }
-
-        if (!this.#thumbs.rejected.has(fingerprint)) {
-            if (!this.untrustUnknownCertificate) {
-                return "Good";
+            const chain = coerceCertificateChain(certificateOrCertificateChain);
+            const leafCertificate = chain[0];
+            if (chain.length < 1) {
+                return "BadCertificateInvalid";
             }
-            // Verify structure before writing — don't persist invalid data
+            let fingerprint: Thumbprint;
             try {
-                exploreCertificateInfo(certificate);
+                fingerprint = makeFingerprint(chain[0]) as Thumbprint;
             } catch (_err) {
                 return "BadCertificateInvalid";
             }
-            const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
-            debugLog("certificate has never been seen before and is now rejected (untrusted) ", filename);
-            await fsWriteFile(filename, toPem(certificate, "CERTIFICATE"));
-            this.#thumbs.rejected.set(fingerprint, { certificate, filename });
+
+            if (this.#thumbs.trusted.has(fingerprint)) {
+                return "Good";
+            }
+
+            if (!this.#thumbs.rejected.has(fingerprint)) {
+                if (!this.untrustUnknownCertificate) {
+                    return "Good";
+                }
+                // Verify structure before writing — don't persist invalid data
+                try {
+                    exploreCertificateInfo(chain[0]);
+                } catch (_err) {
+                    return "BadCertificateInvalid";
+                }
+
+                const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(leafCertificate)}.pem`);
+                debugLog("certificate has never been seen before and is now rejected (untrusted) ", filename);
+
+                await fsWriteFile(filename, toPem(chain, "CERTIFICATE"));
+                this.#thumbs.rejected.set(fingerprint, { certificate: leafCertificate, filename });
+            }
+            return "BadCertificateUntrusted";
+        } catch (_err) {
+            return "BadCertificateInvalid";
         }
-        return "BadCertificateUntrusted";
     }
     async #innerVerifyCertificateAsync(
         certificateOrChain: Certificate | Certificate[],
@@ -1034,6 +1047,7 @@ export class CertificateManager extends EventEmitter {
         CertificateManager.#activeInstances.add(this);
         CertificateManager.#installProcessCleanup();
     }
+
     async #initialize(): Promise<void> {
         this.state = CertificateManagerState.Initializing;
         const pkiDir = this.#location;
@@ -1619,8 +1633,11 @@ export class CertificateManager extends EventEmitter {
             }
         }
 
-        // All checks passed — trust the leaf certificate
-        await this.trustCertificate(leafCertificate);
+        // All checks passed — trust the leaf certificate.
+        // Pass the full chain so the PEM on disk preserves
+        // intermediate CA certificates (chain-on-disk,
+        // leaf-only-in-memory principle).
+        await this.trustCertificate(certificates);
         return VerificationStatus.Good;
     }
 
@@ -1730,14 +1747,16 @@ export class CertificateManager extends EventEmitter {
         return "unknown";
     }
 
-    async #moveCertificate(certificate: Certificate, newStatus: CertificateStatus) {
+    async #moveCertificate(certificateOrChain: Certificate | Certificate[], newStatus: CertificateStatus) {
         await this.withLock2(async () => {
+            const chain = coerceCertificateChain(certificateOrChain);
+            const certificate = chain[0]; // leaf — used for indexing
             const fingerprint = makeFingerprint(certificate);
 
             let status = await this.#checkRejectedOrTrusted(certificate);
             if (status === "unknown") {
-                // # unknown mean rejected
-                const pem = toPem(certificate, "CERTIFICATE");
+                // # unknown means rejected — write full chain to disk
+                const pem = toPem(chain, "CERTIFICATE");
                 const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
                 await fs.promises.writeFile(filename, pem);
                 this.#thumbs.rejected.set(fingerprint, { certificate, filename });
@@ -2010,7 +2029,34 @@ export class CertificateManager extends EventEmitter {
             try {
                 const stat = await fs.promises.stat(filename);
                 if (!stat.isFile()) continue;
-                const certificate = (await readCertificateChainAsync(filename))[0];
+                const certs = await readCertificateChainAsync(filename);
+                if (certs.length === 0) continue;
+                const certificate = certs[0];
+
+                // Legacy migration: if the file contained multiple
+                // certs (e.g. from old buggy toPem that wrapped a
+                // concatenated DER in a single PEM block), re-write
+                // with proper multi-block PEM and auto-register any
+                // intermediate CA certs in the issuers store.
+                // Best-effort: if the filesystem is read-only the
+                // migration is skipped — the leaf is still indexed.
+                if (certs.length > 1) {
+                    try {
+                        await fs.promises.writeFile(filename, toPem(certs, "CERTIFICATE"), "ascii");
+                    } catch (writeErr) {
+                        debugLog(`scanCertFolder: could not rewrite legacy PEM ${filename} (read-only fs?)`, writeErr);
+                    }
+                    for (let i = 1; i < certs.length; i++) {
+                        if (isIssuer(certs[i])) {
+                            try {
+                                await this.addIssuer(certs[i]);
+                            } catch (issuerErr) {
+                                debugLog(`scanCertFolder: could not auto-register issuer from ${filename}`, issuerErr);
+                            }
+                        }
+                    }
+                }
+
                 const info = exploreCertificate(certificate);
                 const fingerprint = makeFingerprint(certificate);
                 index.set(fingerprint, { certificate, filename, info });
