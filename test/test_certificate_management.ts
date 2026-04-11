@@ -576,4 +576,146 @@ describe("CertificateManager - hasIssuer, removeTrustedCertificate, removeIssuer
             (await cm.hasIssuer(thumbprint)).should.be.true();
         });
     });
+
+    // ── completeCertificateChain ────────────────────────────────
+
+    describe("completeCertificateChain", () => {
+        it("should return a self-signed certificate chain as AlreadyComplete", async () => {
+            // Create a self-signed certificate
+            await cm.createSelfSignedCertificate({
+                applicationUri: "urn:test:complete-chain-self",
+                subject: "CN=SelfSigned",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            });
+            const ownCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
+            const ownCert = await readCertificateChainAsync(ownCertFile);
+
+            const result = await cm.completeCertificateChain([ownCert[0]]);
+            result.chain.length.should.eql(1, "self-signed chain should remain 1 cert");
+            result.status.should.eql("AlreadyComplete");
+            result.message.should.match(/already complete/i);
+        });
+
+        it("should complete a leaf-only chain and return ChainCompleted", async () => {
+            // Add the CA to the issuer store
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
+
+            // Create a certificate signed by our test CA
+            const appCm = new CertificateManager({
+                location: path.join(testData.tmpFolder, `cert_mgmt_complete_chain1`)
+            });
+            await appCm.initialize();
+            const csrFile = await appCm.createCertificateRequest({
+                applicationUri: "urn:test:complete-chain",
+                subject: "CN=CompleteChainTest",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            });
+
+            const signedCertFile = path.join(testData.tmpFolder, "signed_for_complete_chain.pem");
+            await theCertificateAuthority.signCertificateRequest(signedCertFile, csrFile, {
+                applicationUri: "urn:test:complete-chain",
+                startDate: new Date(),
+                validity: 365
+            });
+
+            // Read only the leaf (first cert)
+            const signedChain = await readCertificateChainAsync(signedCertFile);
+            const leafOnly: Certificate[] = [signedChain[0]];
+
+            // Complete the chain using the issuer store
+            const result = await cm.completeCertificateChain(leafOnly);
+            result.chain.length.should.be.greaterThanOrEqual(2, "should append the CA certificate from the issuer store");
+            result.status.should.eql("ChainCompleted");
+            result.message.should.match(/issuer.*appended/i);
+
+            // Verify the appended cert matches the CA
+            const caThumbprint = makeSHA1Thumbprint(caCert[0]).toString("hex");
+            const appendedThumbprint = makeSHA1Thumbprint(result.chain[1]).toString("hex");
+            appendedThumbprint.should.eql(caThumbprint, "appended certificate should be the CA from the issuer store");
+
+            await appCm.dispose();
+        });
+
+        it("should return AlreadyComplete for an already-complete chain", async () => {
+            // Add CA to issuer store
+            const caCert = await readCertificateChainAsync(caCertFilename);
+            await cm.addIssuer(caCert[0]);
+
+            // Create a signed cert
+            const appCm = new CertificateManager({
+                location: path.join(testData.tmpFolder, `cert_mgmt_complete_chain2`)
+            });
+            await appCm.initialize();
+            const csrFile = await appCm.createCertificateRequest({
+                applicationUri: "urn:test:already-complete",
+                subject: "CN=AlreadyComplete",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            });
+
+            const signedCertFile = path.join(testData.tmpFolder, "signed_already_complete.pem");
+            await theCertificateAuthority.signCertificateRequest(signedCertFile, csrFile, {
+                applicationUri: "urn:test:already-complete",
+                startDate: new Date(),
+                validity: 365
+            });
+
+            const signedChain = await readCertificateChainAsync(signedCertFile);
+            // Pass the full chain (leaf + CA already present)
+            const fullChain: Certificate[] = [signedChain[0], caCert[0]];
+
+            const result = await cm.completeCertificateChain(fullChain);
+            result.chain.length.should.eql(2, "already-complete chain should not gain extra certificates");
+            result.status.should.eql("AlreadyComplete");
+
+            await appCm.dispose();
+        });
+
+        it("should return IssuerNotFound when issuer is not in the store", async () => {
+            // Do NOT add CA to the issuer store
+
+            // Create a signed cert
+            const appCm = new CertificateManager({
+                location: path.join(testData.tmpFolder, `cert_mgmt_complete_chain3`)
+            });
+            await appCm.initialize();
+            const csrFile = await appCm.createCertificateRequest({
+                applicationUri: "urn:test:missing-issuer",
+                subject: "CN=MissingIssuer",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            });
+
+            const signedCertFile = path.join(testData.tmpFolder, "signed_missing_issuer.pem");
+            await theCertificateAuthority.signCertificateRequest(signedCertFile, csrFile, {
+                applicationUri: "urn:test:missing-issuer",
+                startDate: new Date(),
+                validity: 365
+            });
+
+            const signedChain = await readCertificateChainAsync(signedCertFile);
+            const leafOnly: Certificate[] = [signedChain[0]];
+
+            const result = await cm.completeCertificateChain(leafOnly);
+            result.chain.length.should.eql(1, "chain should remain partial when issuer is not in store");
+            result.status.should.eql("IssuerNotFound");
+            result.message.should.match(/Cannot find issuer/i);
+            result.message.should.match(/issuers\/certs/i);
+
+            await appCm.dispose();
+        });
+
+        it("should return EmptyChain when given empty input", async () => {
+            const result = await cm.completeCertificateChain([]);
+            result.chain.length.should.eql(0);
+            result.status.should.eql("EmptyChain");
+        });
+    });
 });

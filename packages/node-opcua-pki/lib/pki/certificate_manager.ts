@@ -507,6 +507,46 @@ export enum CertificateManagerState {
  * await cm.dispose();
  * ```
  */
+
+// ── Chain completion result types ─────────────────────────────
+
+/**
+ * Status codes returned by {@link CertificateManager.completeCertificateChain}.
+ */
+export enum ChainCompletionStatus {
+    /** The chain already reached a self-signed root — no action was needed. */
+    AlreadyComplete = "AlreadyComplete",
+
+    /** One or more issuer certificates were successfully appended. */
+    ChainCompleted = "ChainCompleted",
+
+    /** The issuer for the last certificate in the chain could not be found
+     *  in the issuers or trusted stores. The chain is still partial. */
+    IssuerNotFound = "IssuerNotFound",
+
+    /** The input chain was empty. */
+    EmptyChain = "EmptyChain",
+
+    /** Chain completion was stopped because the maximum depth was reached. */
+    MaxDepthReached = "MaxDepthReached"
+}
+
+/**
+ * Result of {@link CertificateManager.completeCertificateChain}.
+ */
+export interface ChainCompletionResult {
+    /** The (possibly completed) certificate chain, leaf first. */
+    chain: Certificate[];
+
+    /** Status code indicating whether completion succeeded and why/why not. */
+    status: ChainCompletionStatus;
+
+    /** Human-readable diagnostic message. */
+    message: string;
+}
+
+// ── CertificateManager ───────────────────────────────────────
+
 export class CertificateManager extends EventEmitter {
     // ── Global instance registry ─────────────────────────────────
     // Tracks all initialized CertificateManager instances so their
@@ -1721,6 +1761,95 @@ export class CertificateManager extends EventEmitter {
             );
         }
         return selectedTrustedCertificates.length > 0 ? selectedTrustedCertificates[0].certificate : null;
+    }
+
+    /**
+     * Outcome status for {@link CertificateManager.completeCertificateChain}.
+     */
+    public static readonly ChainCompletionStatus = ChainCompletionStatus;
+
+    /**
+     * Complete a certificate chain by walking the issuer store.
+     *
+     * Starting from the last certificate in the provided chain, this method
+     * repeatedly calls {@link findIssuerCertificate} to locate the parent
+     * certificate until it reaches a self-signed root or can no longer find
+     * an issuer.
+     *
+     * @param chain - the (potentially partial) certificate chain, leaf first
+     * @param maxDepth - maximum number of issuers to append (default: 10)
+     * @returns a {@link ChainCompletionResult} containing the (possibly completed)
+     *          chain, a status code, and an optional diagnostic message.
+     */
+    public async completeCertificateChain(chain: Certificate[], maxDepth = 10): Promise<ChainCompletionResult> {
+        if (chain.length === 0) {
+            return {
+                chain,
+                status: ChainCompletionStatus.EmptyChain,
+                message: "Input chain is empty — nothing to complete."
+            };
+        }
+
+        // Re-scan the issuers folder to ensure we have the latest
+        await this.#scanCertFolder(this.issuersCertFolder, this.#thumbs.issuers.certs);
+
+        const result = [...chain];
+        let depth = 0;
+
+        while (depth < maxDepth) {
+            const lastCert = result[result.length - 1];
+            const lastInfo = exploreCertificate(lastCert);
+
+            // Stop if the last certificate is self-signed (root)
+            if (isSelfSigned2(lastInfo)) {
+                const wasExtended = result.length > chain.length;
+                return {
+                    chain: result,
+                    status: wasExtended ? ChainCompletionStatus.ChainCompleted : ChainCompletionStatus.AlreadyComplete,
+                    message: wasExtended
+                        ? `Chain completed: ${result.length - chain.length} issuer(s) appended, ending at self-signed root "${lastInfo.tbsCertificate.subject.commonName}".`
+                        : `Chain is already complete (self-signed root "${lastInfo.tbsCertificate.subject.commonName}").`
+                };
+            }
+
+            const issuerCert = await this.findIssuerCertificate(lastCert);
+            if (!issuerCert) {
+                // Cannot find the issuer — chain remains partial
+                const cn = lastInfo.tbsCertificate.subject.commonName ?? "?";
+                const akid = lastInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier ?? "?";
+                const msg =
+                    `Cannot find issuer for "${cn}" ` +
+                    `(authorityKeyIdentifier: ${akid}). ` +
+                    `Ensure the CA certificate is present in the issuers/certs folder.`;
+                warningLog(`completeCertificateChain: ${msg}`);
+                return {
+                    chain: result,
+                    status: ChainCompletionStatus.IssuerNotFound,
+                    message: msg
+                };
+            }
+
+            // Avoid loops: don't add the certificate if it's already in the chain
+            const issuerFingerprint = makeFingerprint(issuerCert);
+            const alreadyInChain = result.some((c) => makeFingerprint(c) === issuerFingerprint);
+            if (alreadyInChain) {
+                return {
+                    chain: result,
+                    status: ChainCompletionStatus.AlreadyComplete,
+                    message: `Chain ends at root "${exploreCertificate(issuerCert).tbsCertificate.subject.commonName}" (already present in chain).`
+                };
+            }
+
+            result.push(issuerCert);
+            depth++;
+        }
+
+        // maxDepth exceeded
+        return {
+            chain: result,
+            status: ChainCompletionStatus.MaxDepthReached,
+            message: `Chain completion stopped after ${maxDepth} iterations — possible circular chain or very deep hierarchy.`
+        };
     }
 
     /**
