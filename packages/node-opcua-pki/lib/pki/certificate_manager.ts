@@ -181,6 +181,21 @@ export interface CertificateManagerOptions {
      * Defaults are secure — all checks enabled.
      */
     addCertificateValidationOptions?: AddCertificateValidationOptions;
+
+    /**
+     * When `true`, the CertificateManager will **not** start
+     * chokidar file-system watchers on the PKI folders.
+     *
+     * The initial file-system scan still runs so the in-memory
+     * indexes are populated, but live change detection is
+     * disabled.  This is useful in test / CI environments where
+     * many CertificateManager instances are created in parallel
+     * and the accumulated `fs.watch` handles exhaust the libuv
+     * thread-pool, causing event-loop starvation.
+     *
+     * @defaultValue false
+     */
+    disableFileWatchers?: boolean;
 }
 
 /**
@@ -653,6 +668,7 @@ export class CertificateManager extends EventEmitter {
     readonly #filenameToHash = new Map<string, string>();
     #initializingPromise?: Promise<void>;
     readonly #addCertValidation: Required<AddCertificateValidationOptions>;
+    readonly #disableFileWatchers: boolean;
 
     readonly #thumbs: Thumbs = {
         rejected: new Map(),
@@ -690,6 +706,8 @@ export class CertificateManager extends EventEmitter {
             ignoreMissingRevocationList: v.ignoreMissingRevocationList ?? false,
             maxChainLength: v.maxChainLength ?? 5
         };
+
+        this.#disableFileWatchers = options.disableFileWatchers ?? process.env.OPCUA_PKI_DISABLE_FILE_WATCHERS === "true";
 
         mkdirRecursiveSync(options.location);
 
@@ -2138,11 +2156,20 @@ export class CertificateManager extends EventEmitter {
         // await "ready" so initialize() returns immediately after
         // the sync scan. Chokidar will re-discover existing files
         // (harmless Map overwrites) then watch for live changes.
-        this.#startWatcher(this.trustedFolder, this.#thumbs.trusted, createUnreffedWatcher, "trusted");
-        this.#startWatcher(this.issuersCertFolder, this.#thumbs.issuers.certs, createUnreffedWatcher, "issuersCerts");
-        this.#startWatcher(this.rejectedFolder, this.#thumbs.rejected, createUnreffedWatcher, "rejected");
-        this.#startCrlWatcher(this.crlFolder, this.#thumbs.crl, createUnreffedWatcher, "crl");
-        this.#startCrlWatcher(this.issuersCrlFolder, this.#thumbs.issuersCrl, createUnreffedWatcher, "issuersCrl");
+        //
+        // When disableFileWatchers is set, skip the watcher setup
+        // entirely. The in-memory indexes are already populated
+        // from the scan above. Also restore fs.watch immediately
+        // since no watchers will be created.
+        if (this.#disableFileWatchers) {
+            fs.watch = origWatch;
+        } else {
+            this.#startWatcher(this.trustedFolder, this.#thumbs.trusted, createUnreffedWatcher, "trusted");
+            this.#startWatcher(this.issuersCertFolder, this.#thumbs.issuers.certs, createUnreffedWatcher, "issuersCerts");
+            this.#startWatcher(this.rejectedFolder, this.#thumbs.rejected, createUnreffedWatcher, "rejected");
+            this.#startCrlWatcher(this.crlFolder, this.#thumbs.crl, createUnreffedWatcher, "crl");
+            this.#startCrlWatcher(this.issuersCrlFolder, this.#thumbs.issuersCrl, createUnreffedWatcher, "issuersCrl");
+        }
     }
 
     /**
