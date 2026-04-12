@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.13.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.12.2...v6.13.0) (2026-04-12)
+
+
+### Features
+
+* **CertificateManager:** add completeCertificateChain ([91f53b1](https://github.com/node-opcua/node-opcua-pki/commit/91f53b1c6ba1290cfc5b819704bc7a00faee818c))
+* **pki:** add disableFileWatchers option to relax event loop ([1ad2c1b](https://github.com/node-opcua/node-opcua-pki/commit/1ad2c1beb1d69b3aebbfd36a84f7f4fb8e52a7f0))
+
+
+
+
+
 ## [6.12.2](https://github.com/node-opcua/node-opcua-pki/compare/v6.12.1...v6.12.2) (2026-04-10)
 
 
