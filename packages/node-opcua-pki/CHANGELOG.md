@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.14.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.13.0...v6.14.0) (2026-04-30)
+
+
+### Bug Fixes
+
+* **ca:** emit SubjectAltName on CA self-signed certificate ([c3e668d](https://github.com/node-opcua/node-opcua-pki/commit/c3e668dc973125357c636f28c3ce65f8bb2e1ab2))
+
+
+
+
+
 # [6.13.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.12.2...v6.13.0) (2026-04-12)
 
 
