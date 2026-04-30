@@ -196,7 +196,15 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
 
     // http://www.akadia.com/services/ssh_test_certificate.html
     const subjectOpt = ` -subj "${subject.toString()}" `;
-    processAltNames({} as Params);
+
+    // OPC UA validators (UaExpert, compliance tools) require every
+    // certificate — including the root/intermediate CA — to carry a
+    // SubjectAltName extension. RFC 5280 does not strictly mandate it
+    // on CA certificates but the OPC UA Profile does. Build a stable
+    // URI SAN derived from the CA CommonName so the resulting CA cert
+    // passes the spec check.
+    const caCommonName = subject.commonName || "NodeOPCUA-CA";
+    setEnv("ALTNAME", `URI:urn:${caCommonName}`);
 
     const options = { cwd: caRootDir };
     const configFile = generateStaticConfig("conf/caconfig.cnf", options);

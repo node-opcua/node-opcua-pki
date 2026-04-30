@@ -55,6 +55,36 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
         await ca.initialize();
     });
 
+    it("CA self-signed certificate must carry a SubjectAltName extension (UAExpert / OPC UA spec compliance)", async () => {
+        // Regression test: a CA cert without a SubjectAltName extension is
+        // rejected by UAExpert with the error
+        //   "SubjectAltName is missing — this extension is mandatory according
+        //    to the UA specification"
+        // Earlier versions of the openssl config template did not request a
+        // SAN extension on the [ v3_ca ] section; this test guards against
+        // re-introducing that bug.
+        const ca = new CertificateAuthority({
+            keySize: 2048,
+            location: path.join(testData.tmpFolder, "CA_san")
+        });
+        await ca.initialize();
+
+        const chain = readCertificateChain(ca.caCertificate);
+        const info = exploreCertificate(chain[0]);
+        const san = info.tbsCertificate.extensions?.subjectAltName;
+
+        should.exist(san, "CA certificate must carry a SubjectAltName extension");
+        // SAN must contain at least one entry — URI form, derived from the CA CN
+        const uris = san?.uniformResourceIdentifier ?? [];
+        const dns = san?.dNSName ?? [];
+        const ips = san?.iPAddress ?? [];
+        const total = uris.length + dns.length + ips.length;
+        total.should.be.greaterThan(0);
+
+        // The default CA CommonName is "NodeOPCUA-CA" → URI:urn:NodeOPCUA-CA
+        uris.should.containEql("urn:NodeOPCUA-CA");
+    });
+
     it("should recover from partial CA init (key exists, cert missing)", async () => {
         // Simulate a partial init: create directory with cakey.pem but no cacert.pem
         const partialCALocation = path.join(testData.tmpFolder, "CA_partial");
