@@ -106,7 +106,7 @@ describe("US-202 — Optional CDP & AIA extensions", function (this: Mocha.Suite
             };
             try {
                 ca.setCrlDistributionUrl("http://localhost:9100/crl.der");
-                ca.crlDistributionUrl!.should.eql("http://localhost:9100/crl.der");
+                should(ca.crlDistributionUrl).eql("http://localhost:9100/crl.der");
             } finally {
                 console.warn = originalWarn;
             }
