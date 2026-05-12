@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.16.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.15.0...v6.16.0) (2026-05-12)
+
+
+### Features
+
+* **ca:** support sub-day validity via validityMs + getCapabilities() ([ebc4711](https://github.com/node-opcua/node-opcua-pki/commit/ebc4711c56b345807baa7103c62bcd93002ec61f))
+
+
+
+
+
 # [6.15.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.14.0...v6.15.0) (2026-05-12)
 
 
