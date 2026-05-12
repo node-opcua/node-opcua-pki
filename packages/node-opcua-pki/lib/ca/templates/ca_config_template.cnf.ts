@@ -93,6 +93,13 @@ const config =
     "keyUsage                  = critical, digitalSignature, nonRepudiation," +
     " keyEncipherment, dataEncipherment, keyAgreement\n" +
     "extendedKeyUsage          = critical,serverAuth ,clientAuth\n" +
+    // Opt-in CRL Distribution Points and Authority Information Access.
+    // Emitted only when CertificateAuthority.setCrlDistributionUrl /
+    // setOcspResponderUrl / setCaIssuersUrl have been called — the
+    // conditional blocks are stripped by generateStaticConfig() when
+    // the matching env var is unset.  See US-202.
+    "{{#CDP_URL}}crlDistributionPoints     = URI:$ENV::CDP_URL\n{{/CDP_URL}}" +
+    "{{#AIA_VALUE}}authorityInfoAccess       = $ENV::AIA_VALUE\n{{/AIA_VALUE}}" +
     "\n" +
     "[ v3_req ]\n" +
     "basicConstraints          = critical, CA:FALSE\n" +
@@ -144,9 +151,11 @@ const config =
     "#nsCertType                 = sslCA, emailCA\n" +
     "#issuerAltName              = issuer:copy\n" +
     "#obj                        = DER:02:03\n" +
-    "crlDistributionPoints     = @crl_info\n" +
-    "[ crl_info ]\n" +
-    "URI.0                     = http://localhost:8900/crl.pem\n" +
+    // Opt-in CDP / AIA on the CA cert itself (US-202).  Previously a
+    // hardcoded http://localhost:8900/crl.pem was emitted unconditionally
+    // — which produced broken certs in any deployment outside dev.
+    "{{#CDP_URL}}crlDistributionPoints     = URI:$ENV::CDP_URL\n{{/CDP_URL}}" +
+    "{{#AIA_VALUE}}authorityInfoAccess       = $ENV::AIA_VALUE\n{{/AIA_VALUE}}" +
     "[ v3_selfsigned]\n" +
     "basicConstraints          = critical, CA:FALSE\n" +
     "keyUsage                  = nonRepudiation, digitalSignature, keyEncipherment, dataEncipherment, keyAgreement\n" +

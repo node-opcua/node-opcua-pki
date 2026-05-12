@@ -48,6 +48,10 @@ export function getEnv(varName: string): string {
     return exportedEnvVars[varName];
 }
 
+export function unsetEnv(varName: string): void {
+    delete exportedEnvVars[varName];
+}
+
 export function getEnvironmentVarNames(): { key: string; pattern: string }[] {
     return Object.keys(exportedEnvVars).map((varName: string) => {
         return { key: varName, pattern: `\\$ENV\\:\\:${varName}` };

@@ -33,7 +33,7 @@ import type { Filename } from "../common";
 import { quote } from "../common";
 import { makePath } from "../common2";
 import { g_config } from "../config";
-import { getEnv, getEnvironmentVarNames } from "./_env";
+import { getEnv, getEnvironmentVarNames, hasEnv } from "./_env";
 import { type ExecuteOptions, execute_openssl } from "./execute_openssl";
 
 function openssl_require2DigitYearInDate() {
@@ -50,11 +50,35 @@ g_config.opensslVersion = "";
 
 let _counter = 0;
 
+/**
+ * Strip Mustache-style conditional blocks from an OpenSSL config template.
+ *
+ *   {{#KEY}}...{{/KEY}}
+ *
+ * The block content is **kept** (markers removed) iff `KEY` is registered
+ * in {@link exportedEnvVars} with a non-empty value, otherwise the entire
+ * block — including the markers and the trailing newline — is stripped.
+ *
+ * Used to drive opt-in extensions like CRL Distribution Points and
+ * Authority Information Access: the same template serves the
+ * extension-set case (URL configured) and the extension-omitted case
+ * (no URL configured).
+ */
+function stripConditionalBlocks(template: string): string {
+    return template.replace(/\{\{#([A-Z_][A-Z0-9_]*)\}\}([\s\S]*?)\{\{\/\1\}\}\r?\n?/g, (_match, key: string, content: string) => {
+        const keep = hasEnv(key) && getEnv(key) !== "";
+        return keep ? content : "";
+    });
+}
+
 export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
     const prePath = options?.cwd || "";
 
     const originalFilename = !path.isAbsolute(configPath) ? path.join(prePath, configPath) : configPath;
     let staticConfig = fs.readFileSync(originalFilename, { encoding: "utf8" });
+    // Strip conditional blocks first so unset placeholders never reach
+    // the env-var substitution pass below.
+    staticConfig = stripConditionalBlocks(staticConfig);
     for (const envVar of getEnvironmentVarNames()) {
         staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), getEnv(envVar.key));
     }

@@ -67,6 +67,7 @@ import {
     generateStaticConfig,
     processAltNames,
     setEnv,
+    unsetEnv,
     x509Date
 } from "../toolbox/with_openssl";
 
@@ -205,6 +206,10 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // passes the spec check.
     const caCommonName = subject.commonName || "NodeOPCUA-CA";
     setEnv("ALTNAME", `URI:urn:${caCommonName}`);
+    // Wire opt-in CDP / AIA env vars (US-202) so the conditional
+    // blocks in `[ v3_ca ]` are kept (and substituted) when the CA
+    // is configured with URLs, stripped otherwise.
+    certificateAuthority._wireRevocationEnvVars();
 
     const options = { cwd: caRootDir };
     const configFile = generateStaticConfig("conf/caconfig.cnf", options);
@@ -344,6 +349,28 @@ export interface CertificateAuthorityOptions {
      * The parent CA must be initialized before this CA.
      */
     issuerCA?: CertificateAuthority;
+    /**
+     * Public URL (http/https) where the CRL produced by this CA is
+     * reachable. When set, every issued certificate carries an
+     * X.509v3 `crlDistributionPoints` extension pointing at this URL.
+     *
+     * Leave undefined to omit the extension entirely (opt-in — see
+     * US-202).  Validated synchronously at construction / setter call.
+     */
+    crlDistributionUrl?: string;
+    /**
+     * Public URL of the OCSP responder. When set, every issued cert
+     * carries an `authorityInfoAccess` extension with an `OCSP` leg
+     * pointing at this URL. Leave undefined to omit (US-202).
+     */
+    ocspResponderUrl?: string;
+    /**
+     * Public URL where the issuer's certificate can be fetched.
+     * When set, the `authorityInfoAccess` extension on every issued
+     * cert carries a `caIssuers` leg pointing at this URL (chain
+     * repair). Leave undefined to omit (US-202).
+     */
+    caIssuersUrl?: string;
 }
 
 /**
@@ -474,6 +501,52 @@ export interface GenerateKeyPairAndSignPFXOptions extends GenerateKeyPairAndSign
     passphrase?: string;
 }
 
+/**
+ * Synchronously validate a revocation-related URL (CDP / OCSP /
+ * caIssuers) before it is stored on a {@link CertificateAuthority}.
+ *
+ * Rules:
+ * - `undefined` is a valid input — the matching extension is omitted.
+ * - Empty string throws (almost always a config bug — pass `undefined`).
+ * - Must parse via `new URL(s)`.
+ * - Protocol must be `http:` or `https:`.
+ * - Must include a non-trivial path (not `""` or `"/"`).
+ * - Loopback hostname produces a warning but does not throw — useful
+ *   for tests and local dev where pki-server and relying party share
+ *   a host.
+ *
+ * @see US-202
+ */
+function validateRevocationUrl(url: string | undefined, fieldName: string): string | undefined {
+    if (url === undefined) {
+        return undefined;
+    }
+    if (url === "") {
+        throw new Error(`${fieldName} must not be empty — pass undefined to disable the extension`);
+    }
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new Error(`${fieldName} is not a valid URL: ${url}`);
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error(`${fieldName} must use http: or https: (got ${parsed.protocol} in ${url})`);
+    }
+    if (!parsed.pathname || parsed.pathname === "/") {
+        throw new Error(`${fieldName} must include a path component (got ${url})`);
+    }
+    const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "::1" || parsed.hostname.startsWith("127.");
+    if (isLoopback) {
+        // eslint-disable-next-line no-console
+        console.warn(
+            `[node-opcua-pki] ${fieldName} points at loopback (${url}) — ` +
+                "certificates issued with this URL will be unreachable from any other host."
+        );
+    }
+    return url;
+}
+
 export class CertificateAuthority {
     /** RSA key size used when generating the CA private key. */
     public readonly keySize: KeySize;
@@ -485,6 +558,11 @@ export class CertificateAuthority {
     /** @internal Parent CA (undefined for root CAs). */
     readonly _issuerCA?: CertificateAuthority;
 
+    /** @internal Configured CDP / AIA URLs (US-202). */
+    private _crlDistributionUrl?: string;
+    private _ocspResponderUrl?: string;
+    private _caIssuersUrl?: string;
+
     constructor(options: CertificateAuthorityOptions) {
         assert(Object.prototype.hasOwnProperty.call(options, "location"));
         assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
@@ -492,6 +570,100 @@ export class CertificateAuthority {
         this.keySize = options.keySize || 2048;
         this.subject = new Subject(options.subject || defaultSubject);
         this._issuerCA = options.issuerCA;
+        if (options.crlDistributionUrl !== undefined) {
+            this.setCrlDistributionUrl(options.crlDistributionUrl);
+        }
+        if (options.ocspResponderUrl !== undefined) {
+            this.setOcspResponderUrl(options.ocspResponderUrl);
+        }
+        if (options.caIssuersUrl !== undefined) {
+            this.setCaIssuersUrl(options.caIssuersUrl);
+        }
+    }
+
+    /**
+     * Public URL where the CRL produced by this CA is reachable, or
+     * `undefined` if no CDP extension should be emitted on issued certs.
+     */
+    public get crlDistributionUrl(): string | undefined {
+        return this._crlDistributionUrl;
+    }
+
+    /**
+     * Public URL of the OCSP responder, or `undefined` if no AIA OCSP
+     * leg should be emitted on issued certs.
+     */
+    public get ocspResponderUrl(): string | undefined {
+        return this._ocspResponderUrl;
+    }
+
+    /**
+     * Public URL where the issuer's certificate can be fetched, or
+     * `undefined` if no AIA caIssuers leg should be emitted.
+     */
+    public get caIssuersUrl(): string | undefined {
+        return this._caIssuersUrl;
+    }
+
+    /**
+     * Configure the URL embedded as `crlDistributionPoints` in every
+     * subsequently-issued certificate. Pass `undefined` to disable
+     * the extension entirely. Validated synchronously — throws on
+     * empty string, non-http(s) protocol, missing path. Warns (does
+     * not throw) when the URL points at loopback.
+     *
+     * @see US-202
+     */
+    public setCrlDistributionUrl(url: string | undefined): void {
+        this._crlDistributionUrl = validateRevocationUrl(url, "crlDistributionUrl");
+    }
+
+    /**
+     * Configure the OCSP responder URL embedded as the `OCSP` leg of
+     * the `authorityInfoAccess` extension on every subsequently-issued
+     * certificate. Pass `undefined` to disable.
+     *
+     * @see US-202
+     */
+    public setOcspResponderUrl(url: string | undefined): void {
+        this._ocspResponderUrl = validateRevocationUrl(url, "ocspResponderUrl");
+    }
+
+    /**
+     * Configure the caIssuers URL embedded as the `caIssuers` leg of
+     * the `authorityInfoAccess` extension on every subsequently-issued
+     * certificate. Pass `undefined` to disable.
+     *
+     * @see US-202
+     */
+    public setCaIssuersUrl(url: string | undefined): void {
+        this._caIssuersUrl = validateRevocationUrl(url, "caIssuersUrl");
+    }
+
+    /**
+     * @internal
+     * Populate the OpenSSL config substitution env vars (`CDP_URL` and
+     * `AIA_VALUE`) from the configured URLs, or unset them so the
+     * matching `{{#KEY}}...{{/KEY}}` blocks in the templates are
+     * stripped. MUST be called before every `generateStaticConfig`
+     * invocation that signs a certificate.
+     */
+    public _wireRevocationEnvVars(): void {
+        unsetEnv("CDP_URL");
+        unsetEnv("AIA_VALUE");
+        if (this._crlDistributionUrl) {
+            setEnv("CDP_URL", this._crlDistributionUrl);
+        }
+        const aiaLegs: string[] = [];
+        if (this._ocspResponderUrl) {
+            aiaLegs.push(`OCSP;URI:${this._ocspResponderUrl}`);
+        }
+        if (this._caIssuersUrl) {
+            aiaLegs.push(`caIssuers;URI:${this._caIssuersUrl}`);
+        }
+        if (aiaLegs.length > 0) {
+            setEnv("AIA_VALUE", aiaLegs.join(","));
+        }
     }
 
     /** Absolute path to the CA root directory (alias for {@link location}). */
@@ -1234,6 +1406,10 @@ export class CertificateAuthority {
     public async signCACertificateRequest(certFile: string, csrFile: string, params: { validity?: number }): Promise<void> {
         const caRootDir = path.resolve(this.rootDir);
         const options = { cwd: caRootDir };
+        // Wire opt-in CDP / AIA env vars (US-202) before rendering the
+        // config — subordinate CA certs get the same opt-in extensions
+        // as the root, driven by THIS CA's configured URLs.
+        this._wireRevocationEnvVars();
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
         const validity = params.validity ?? 3650;
 
@@ -1512,6 +1688,9 @@ export class CertificateAuthority {
         };
 
         processAltNames(params);
+        // Wire opt-in CDP / AIA env vars (US-202) so end-entity certs
+        // carry the extensions when the CA has URLs configured.
+        this._wireRevocationEnvVars();
 
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
 
