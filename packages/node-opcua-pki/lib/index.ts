@@ -28,6 +28,7 @@ export {
     type GenerateKeyPairAndSignPFXOptions,
     type InitializeCSRResult,
     type InstallCACertificateResult,
+    type PkiBackendCapabilities,
     type SignCertificateOptions
 } from "./ca/certificate_authority";
 export * from "./misc/subject";

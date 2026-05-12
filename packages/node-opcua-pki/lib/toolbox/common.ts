@@ -89,6 +89,17 @@ export interface StartDateEndDateParam {
     endDate?: Date;
     /** Number of days the certificate is valid. @defaultValue 365 */
     validity?: number;
+    /**
+     * Certificate validity in milliseconds.
+     *
+     * When provided, takes precedence over {@link validity} and enables
+     * sub-day validity (X.509 supports second precision per RFC 5280
+     * §4.1.2.5; OpenSSL is invoked with `-startdate`/`-enddate` already).
+     *
+     * Typical use is short-lived certificates for demos or for renewal
+     * cycle testing. Existing day-based callers are unaffected.
+     */
+    validityMs?: number;
 }
 
 /**
@@ -141,10 +152,25 @@ export function adjustDate(params: StartDateEndDateParam) {
     params.startDate = params.startDate || new Date();
     assert(params.startDate instanceof Date);
 
-    params.validity = params.validity || 365; // one year
-
-    params.endDate = new Date(params.startDate.getTime());
-    params.endDate.setDate(params.startDate.getDate() + params.validity);
+    // Precedence: validityMs > validity (days) > default 365 days.
+    // When validityMs is set, compute endDate via millisecond arithmetic
+    // (sub-day capable). Otherwise preserve the legacy calendar-day
+    // arithmetic via setDate() so day-based callers remain
+    // bit-for-bit identical (including DST boundary handling).
+    if (params.validityMs !== undefined) {
+        if (params.validityMs <= 0) {
+            throw new RangeError(`validityMs must be > 0 (got ${params.validityMs})`);
+        }
+        params.endDate = new Date(params.startDate.getTime() + params.validityMs);
+        // Keep params.validity in sync as the ceil-rounded day count, so
+        // downstream code paths that read params.validity (e.g. logging,
+        // OpenSSL command echo) still see a sensible value.
+        params.validity = Math.ceil(params.validityMs / 86_400_000);
+    } else {
+        params.validity = params.validity || 365; // one year
+        params.endDate = new Date(params.startDate.getTime());
+        params.endDate.setDate(params.startDate.getDate() + params.validity);
+    }
 
     // params.endDate = x509Date(endDate);
     // params.startDate = x509Date(startDate);

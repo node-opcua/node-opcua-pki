@@ -455,6 +455,13 @@ function parseOpenSSLDate(dateStr: string): string {
 export interface SignCertificateOptions {
     /** Certificate validity in days (default: 365). */
     validity?: number;
+    /**
+     * Certificate validity in milliseconds.
+     *
+     * When provided, takes precedence over {@link validity} and enables
+     * sub-day validity (e.g. 10-minute certificates for renewal demos).
+     */
+    validityMs?: number;
     /** Override the certificate start date. */
     startDate?: Date;
     /** Override DNS SANs. */
@@ -465,6 +472,35 @@ export interface SignCertificateOptions {
     applicationUri?: string;
     /** Override the X.500 subject. */
     subject?: SubjectOptions | string;
+}
+
+/**
+ * Capabilities advertised by a PKI backend (or by this
+ * {@link CertificateAuthority}) so consumers can clamp requested
+ * validity to the limits the backend can actually honor.
+ *
+ * Useful for the GDS Pull / Push management flows, where the CA may
+ * be supplied by an external service (step-ca, EJBCA, …) with its
+ * own minimum / maximum / granularity constraints.
+ *
+ * @see CertificateAuthority.getCapabilities
+ */
+export interface PkiBackendCapabilities {
+    /** Smallest validity this backend can issue, in milliseconds. */
+    minValidityMs: number;
+    /** Largest validity this backend will issue, in milliseconds. */
+    maxValidityMs: number;
+    /**
+     * Validity is rounded up to the nearest multiple of this many
+     * milliseconds. For `node-opcua-pki`'s OpenSSL-based CA this is
+     * 1 000 ms (one second — the X.509 floor per RFC 5280 §4.1.2.5).
+     */
+    validityGranularityMs: number;
+    /**
+     * Native unit the backend works in. Diagnostic only — callers
+     * always pass `validityMs` (US-208 / US-210).
+     */
+    nativeUnit: "second" | "minute" | "hour" | "day";
 }
 
 /**
@@ -481,6 +517,13 @@ export interface GenerateKeyPairAndSignOptions {
     ip?: string[];
     /** Certificate validity in days (default: 365). */
     validity?: number;
+    /**
+     * Certificate validity in milliseconds.
+     *
+     * When provided, takes precedence over {@link validity} and enables
+     * sub-day validity (e.g. 10-minute certificates for renewal demos).
+     */
+    validityMs?: number;
     /** Certificate start date (default: now). */
     startDate?: Date;
     /** RSA key size in bits (default: 2048). */
@@ -946,7 +989,6 @@ export class CertificateAuthority {
      * @returns the signed certificate as a DER-encoded buffer
      */
     public async signCertificateRequestFromDER(csrDer: Buffer, options?: SignCertificateOptions): Promise<Buffer> {
-        const validity = options?.validity ?? 365;
         const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-sign-"));
 
         try {
@@ -957,8 +999,12 @@ export class CertificateAuthority {
             const csrPem = toPem(csrDer, "CERTIFICATE REQUEST");
             await fs.promises.writeFile(csrFile, csrPem, "utf-8");
 
-            // Build signing parameters — CA overrides take precedence
-            const signingParams: Params = { validity };
+            // Build signing parameters — CA overrides take precedence.
+            // validityMs (sub-day capable) overrides validity (days) when
+            // both are provided; adjustDate() handles precedence.
+            const signingParams: Params = {};
+            if (options?.validityMs !== undefined) signingParams.validityMs = options.validityMs;
+            else signingParams.validity = options?.validity ?? 365;
             if (options?.startDate) signingParams.startDate = options.startDate;
             if (options?.dns) signingParams.dns = options.dns;
             if (options?.ip) signingParams.ip = options.ip;
@@ -977,6 +1023,36 @@ export class CertificateAuthority {
                 force: true
             });
         }
+    }
+
+    /**
+     * Advertise the validity limits this CA can honor.
+     *
+     * Consumers (notably the GDS server in [`cert_auth.ts`](https://github.com/sterfive/node-opcua-gds))
+     * clamp a requested validity against these bounds before calling
+     * {@link signCertificateRequestFromDER}, so a misconfigured
+     * `defaultCertValidity` cannot ask the CA for something it cannot
+     * produce.
+     *
+     * Defaults match the OpenSSL-backed implementation:
+     * - `minValidityMs = 60_000` (1 minute) — practical floor; the
+     *   X.509 spec floor is 1 second but very short certs are rarely
+     *   useful and pathological for any real deployment.
+     * - `maxValidityMs = 10 * 365 * 86_400_000` (≈ 10 years) — long
+     *   enough for root CAs.
+     * - `validityGranularityMs = 1_000` (1 second) — RFC 5280 §4.1.2.5
+     *   floor on `notBefore` / `notAfter`.
+     * - `nativeUnit = "second"` — what `x509Date()` actually encodes.
+     *
+     * @see US-208 — the consumer-side capability story.
+     */
+    public getCapabilities(): PkiBackendCapabilities {
+        return {
+            minValidityMs: 60_000,
+            maxValidityMs: 10 * 365 * 86_400_000,
+            validityGranularityMs: 1_000,
+            nativeUnit: "second"
+        };
     }
 
     /**
@@ -999,7 +1075,6 @@ export class CertificateAuthority {
         privateKey: PrivateKey;
     }> {
         const keySize = options.keySize ?? 2048;
-        const validity = options.validity ?? 365;
         const startDate = options.startDate ?? new Date();
         const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-keygen-"));
 
@@ -1025,15 +1100,18 @@ export class CertificateAuthority {
                 purpose: CertificatePurpose.ForApplication
             });
 
-            // 4. Sign the CSR with this CA
+            // 4. Sign the CSR with this CA — validityMs takes precedence
+            // over validity when both are provided (adjustDate handles it).
             const certFile = path.join(tmpDir, "certificate.pem");
-            await this.signCertificateRequest(certFile, csrFile, {
+            const signingParams: Params = {
                 applicationUri: options.applicationUri,
                 dns: options.dns,
                 ip: options.ip,
-                startDate,
-                validity
-            });
+                startDate
+            };
+            if (options.validityMs !== undefined) signingParams.validityMs = options.validityMs;
+            else signingParams.validity = options.validity ?? 365;
+            await this.signCertificateRequest(certFile, csrFile, signingParams);
 
             // 5. Read results
             const certPem = readCertificatePEM(certFile);
@@ -1063,7 +1141,6 @@ export class CertificateAuthority {
      */
     public async generateKeyPairAndSignPFX(options: GenerateKeyPairAndSignPFXOptions): Promise<Buffer> {
         const keySize = options.keySize ?? 2048;
-        const validity = options.validity ?? 365;
         const startDate = options.startDate ?? new Date();
         const passphrase = options.passphrase ?? "";
         const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pki-keygen-pfx-"));
@@ -1090,15 +1167,18 @@ export class CertificateAuthority {
                 purpose: CertificatePurpose.ForApplication
             });
 
-            // 4. Sign the CSR with this CA
+            // 4. Sign the CSR with this CA — validityMs takes precedence
+            // over validity when both are provided (adjustDate handles it).
             const certFile = path.join(tmpDir, "certificate.pem");
-            await this.signCertificateRequest(certFile, csrFile, {
+            const signingParams: Params = {
                 applicationUri: options.applicationUri,
                 dns: options.dns,
                 ip: options.ip,
-                startDate,
-                validity
-            });
+                startDate
+            };
+            if (options.validityMs !== undefined) signingParams.validityMs = options.validityMs;
+            else signingParams.validity = options.validity ?? 365;
+            await this.signCertificateRequest(certFile, csrFile, signingParams);
 
             // 5. Bundle into PFX (include CA cert chain)
             const pfxFile = path.join(tmpDir, "bundle.pfx");

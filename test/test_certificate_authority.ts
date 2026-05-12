@@ -535,6 +535,98 @@ describe("Signing Certificate with Certificate Authority", function (this: Mocha
         should.exist((revokedRecord as { revocationDate?: string }).revocationDate);
     });
 
+    // ------- sub-day validity + capabilities (US-208) -------
+
+    it("T5k - signCertificateRequestFromDER() should honor validityMs (sub-day)", async () => {
+        const csrFilename = await createCertificateRequest();
+        const csrDer = await readCertificateSigningRequest(csrFilename);
+
+        const FIVE_MIN_MS = 5 * 60 * 1000;
+        const startBefore = Date.now();
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validityMs: FIVE_MIN_MS
+        });
+        const startAfter = Date.now();
+
+        const info = exploreCertificate(certDer);
+        const notBefore = info.tbsCertificate.validity.notBefore.getTime();
+        const notAfter = info.tbsCertificate.validity.notAfter.getTime();
+
+        // notBefore should be within the test's wall-clock window. The CA
+        // defaults startDate to "now" in adjustDate() when not provided,
+        // so notBefore is captured between startBefore and startAfter.
+        // Allow a 5s slack each side because x509Date truncates to seconds
+        // and OpenSSL may write a slightly older `notBefore`.
+        notBefore.should.be.greaterThanOrEqual(startBefore - 5_000);
+        notBefore.should.be.lessThanOrEqual(startAfter + 5_000);
+
+        // notAfter - notBefore should equal the requested validity within
+        // ±1 second (x509Date truncates to seconds).
+        const validityMs = notAfter - notBefore;
+        validityMs.should.be.greaterThanOrEqual(FIVE_MIN_MS - 1_000);
+        validityMs.should.be.lessThanOrEqual(FIVE_MIN_MS + 1_000);
+    });
+
+    it("T5l - signCertificateRequestFromDER() — validityMs takes precedence over validity", async () => {
+        const csrFilename = await createCertificateRequest();
+        const csrDer = await readCertificateSigningRequest(csrFilename);
+
+        // Pass BOTH validity (365 days) and validityMs (10 minutes).
+        // validityMs must win.
+        const TEN_MIN_MS = 10 * 60 * 1000;
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 365,
+            validityMs: TEN_MIN_MS
+        });
+
+        const info = exploreCertificate(certDer);
+        const span = info.tbsCertificate.validity.notAfter.getTime() - info.tbsCertificate.validity.notBefore.getTime();
+        span.should.be.greaterThanOrEqual(TEN_MIN_MS - 1_000);
+        span.should.be.lessThanOrEqual(TEN_MIN_MS + 1_000);
+        // Definitely not a year.
+        span.should.be.lessThan(86_400_000);
+    });
+
+    it("T5m - signCertificateRequestFromDER() — legacy day-based path unchanged", async () => {
+        const csrFilename = await createCertificateRequest();
+        const csrDer = await readCertificateSigningRequest(csrFilename);
+
+        // No validityMs — adjustDate() must take the legacy calendar-day
+        // path via setDate(+N) and produce a cert whose span is ~7 days.
+        const certDer = await theCertificateAuthority.signCertificateRequestFromDER(csrDer, {
+            validity: 7
+        });
+
+        const info = exploreCertificate(certDer);
+        const span = info.tbsCertificate.validity.notAfter.getTime() - info.tbsCertificate.validity.notBefore.getTime();
+        // 7 days ± 1h slack for any DST oddity / second-truncation.
+        const SEVEN_DAYS_MS = 7 * 86_400_000;
+        span.should.be.greaterThanOrEqual(SEVEN_DAYS_MS - 3_600_000);
+        span.should.be.lessThanOrEqual(SEVEN_DAYS_MS + 3_600_000);
+    });
+
+    it("T5n - getCapabilities() advertises the OpenSSL-backed defaults", () => {
+        const caps = theCertificateAuthority.getCapabilities();
+        caps.minValidityMs.should.eql(60_000);
+        caps.maxValidityMs.should.eql(10 * 365 * 86_400_000);
+        caps.validityGranularityMs.should.eql(1_000);
+        caps.nativeUnit.should.eql("second");
+    });
+
+    it("T5o - signCertificateRequestFromDER() rejects validityMs <= 0", async () => {
+        const csrFilename = await createCertificateRequest();
+        const csrDer = await readCertificateSigningRequest(csrFilename);
+
+        let caught: Error | null = null;
+        try {
+            await theCertificateAuthority.signCertificateRequestFromDER(csrDer, { validityMs: 0 });
+        } catch (err) {
+            caught = err as Error;
+        }
+        should.exist(caught, "validityMs=0 must throw");
+        (caught as Error).message.should.match(/validityMs/);
+    });
+
     // ------- generateKeyPairAndSignDER (US-113) -------
 
     it("T5i - generateKeyPairAndSignDER() should return cert + key DER buffers", async () => {
