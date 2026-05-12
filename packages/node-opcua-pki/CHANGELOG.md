@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.15.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.14.0...v6.15.0) (2026-05-12)
+
+
+### Features
+
+* **ca:** opt-in CDP & AIA extensions in issued certificates ([0ed2da9](https://github.com/node-opcua/node-opcua-pki/commit/0ed2da923f8bfcc9e48c453e6fbb3318e9f92a8b))
+
+
+
+
+
 # [6.14.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.13.0...v6.14.0) (2026-04-30)
 
 
