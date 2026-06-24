@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.18.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.17.0...v6.18.0) (2026-06-24)
+
+
+### Bug Fixes
+
+* replace wget-improved-2 with native fetch, detect system OpenSSL ([0346b10](https://github.com/node-opcua/node-opcua-pki/commit/0346b106d509cf5f484c5d7148e6447b46fddde6))
+
+
+
+
+
 # [6.17.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.16.0...v6.17.0) (2026-05-13)
 
 **Note:** Version bump only for package node-opcua-pki-project
