@@ -28,60 +28,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Readable } from "node:stream";
-import url from "node:url";
+import { pipeline } from "node:stream/promises";
 
 import byline from "byline";
 import chalk from "chalk";
-import ProgressBar from "progress";
-import wget from "wget-improved-2";
 import yauzl from "yauzl";
 
 import { warningLog } from "../debug";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
-declare interface ProxyOptions {
-    host: string;
-    port: number;
-    localAddress?: string;
-    proxyAuth?: string;
-    headers?: Record<string, string>;
-    protocol: string; // "https" | "http"
-}
-declare interface WgetOptions {
-    gunzip?: boolean;
-    proxy?: ProxyOptions;
-}
-
-declare interface WgetInterface {
-    download(url: string, outputFilename: string, options: WgetOptions): NodeJS.EventEmitter;
-}
-
 interface ExecuteResult {
     exitCode: number;
     output: string;
-}
-
-function makeOptions(): WgetOptions {
-    const proxy =
-        process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
-    if (proxy) {
-        const a = new url.URL(proxy);
-        const auth = a.username ? `${a.username}:${a.password}` : undefined;
-
-        const options: WgetOptions = {
-            proxy: {
-                port: a.port ? parseInt(a.port, 10) : 80,
-                protocol: a.protocol.replace(":", ""),
-                host: a.hostname ?? "",
-                proxyAuth: auth
-            }
-        };
-        warningLog(chalk.green("- using proxy "), proxy);
-        warningLog(options);
-        return options;
-    }
-    return {};
 }
 
 async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
@@ -122,7 +81,7 @@ function quote(str: string): string {
 }
 
 function is_expected_openssl_version(strVersion: string): boolean {
-    return !!strVersion.match(/OpenSSL 1|3/);
+    return !!strVersion.match(/OpenSSL \d/);
 }
 
 async function getopensslExecPath(): Promise<string> {
@@ -231,6 +190,38 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
     }
 
     /**
+     * Try to find a system-installed openssl on Windows via `where`.
+     * Returns the path if found and version is acceptable, otherwise undefined.
+     */
+    async function find_system_openssl_win32(): Promise<string | undefined> {
+        try {
+            const result = await execute("where openssl");
+            if (result.exitCode !== 0) {
+                return undefined;
+            }
+            // `where` may return multiple lines; take the first one
+            const opensslPath = result.output.split(/\r?\n/)[0].trim();
+            if (!opensslPath || !fs.existsSync(opensslPath)) {
+                return undefined;
+            }
+            // verify version
+            const q = quote(opensslPath);
+            const versionResult = await execute(`${q} version`);
+            const version = versionResult.output.trim();
+            if (versionResult.exitCode === 0 && is_expected_openssl_version(version)) {
+                warningLog(
+                    chalk.green("Using system OpenSSL: ") + chalk.cyan(version) + chalk.green(" at ") + chalk.cyan(opensslPath)
+                );
+                return opensslPath;
+            }
+            warningLog(chalk.yellow("System OpenSSL found but version not accepted: ") + version);
+            return undefined;
+        } catch (_err) {
+            return undefined;
+        }
+    }
+
+    /**
      * detect whether windows OS is a 64 bits or 32 bits
      * http://ss64.com/nt/syntax-64bit.html
      * http://blogs.msdn.com/b/david.wang/archive/2006/03/26/howto-detect-process-bitness.aspx
@@ -253,10 +244,6 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
     }
 
     async function download_openssl(): Promise<{ downloadedFile: string }> {
-        // const url = (win32or64() === 64 )
-        //         ? "http://indy.fulgan.com/SSL/openssl-1.0.2o-x64_86-win64.zip"
-        //         : "http://indy.fulgan.com/SSL/openssl-1.0.2o-i386-win32.zip"
-        //     ;
         const url =
             win32or64() === 64
                 ? "https://github.com/node-opcua/node-opcua-pki/releases/download/2.14.2/openssl-1.0.2u-x64_86-win64.zip"
@@ -269,34 +256,42 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
         if (fs.existsSync(outputFilename)) {
             return { downloadedFile: outputFilename };
         }
-        const options = makeOptions();
-        const bar = new ProgressBar(chalk.cyan("[:bar]") + chalk.cyan(" :percent ") + chalk.white(":etas"), {
-            complete: "=",
-            incomplete: " ",
-            total: 100,
-            width: 100
+
+        const response = await fetch(url, { redirect: "follow" });
+        if (!response.ok || !response.body) {
+            throw new Error(`Failed to download OpenSSL from ${url}: ${response.status} ${response.statusText}`);
+        }
+
+        const contentLength = parseInt(response.headers.get("content-length") || "0", 10);
+        let downloaded = 0;
+        let lastPercent = -1;
+
+        const fileStream = fs.createWriteStream(outputFilename);
+
+        // Use pipeline for proper backpressure and cleanup
+        const body = response.body as unknown as Readable;
+        body.on("data", (chunk: Buffer) => {
+            downloaded += chunk.length;
+            if (contentLength > 0) {
+                const percent = Math.floor((downloaded / contentLength) * 100);
+                if (percent !== lastPercent && percent % 10 === 0) {
+                    lastPercent = percent;
+                    warningLog(`  download progress: ${percent}%`);
+                }
+            }
         });
 
-        return await new Promise((resolve, reject) => {
-            const download = wget.download(url, outputFilename, options);
-            download.on("error", (err: Error) => {
-                warningLog(err);
-                setImmediate(() => {
-                    reject(err);
-                });
-            });
-            download.on("end", (output: string) => {
-                // istanbul ignore next
-                if (doDebug) {
-                    warningLog(output);
-                }
-                // warningLog("done ...");
-                resolve({ downloadedFile: outputFilename });
-            });
-            download.on("progress", (progress: number) => {
-                bar.update(progress);
-            });
-        });
+        await pipeline(body, fileStream);
+
+        // Verify the downloaded file exists and has content
+        const stat = fs.statSync(outputFilename);
+        if (stat.size === 0) {
+            fs.unlinkSync(outputFilename);
+            throw new Error(`Downloaded file is empty: ${outputFilename}`);
+        }
+
+        warningLog(chalk.green("Download complete: ") + `${stat.size} bytes`);
+        return { downloadedFile: outputFilename };
     }
 
     async function unzip_openssl(zipFilename: string) {
@@ -358,6 +353,13 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
         });
     }
 
+    // 1. Try system-installed OpenSSL first (e.g. on CI runners)
+    const systemOpenssl = await find_system_openssl_win32();
+    if (systemOpenssl) {
+        return systemOpenssl;
+    }
+
+    // 2. Check bundled OpenSSL at the expected local path
     const opensslFolder = get_openssl_folder_win32();
     const opensslExecPath = get_openssl_exec_path_win32();
 
@@ -372,6 +374,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
     const { opensslOk, version: _version } = await check_openssl_win32();
 
     if (!opensslOk) {
+        // 3. Download as last resort
         warningLog(chalk.yellow("openssl seems to be missing and need to be installed"));
         const { downloadedFile } = await download_openssl();
 
