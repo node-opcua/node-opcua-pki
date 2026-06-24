@@ -56,6 +56,11 @@ npm run release:minor      # minor bump
 npm run release:major      # major bump
 ```
 
+> **Note:** These scripts chain `npm run build && npm run test`
+> before `lerna version`. The `&&` operator works inside npm
+> scripts (which run in sh/bash), but will fail if you copy-paste
+> the commands directly into PowerShell.
+
 This will:
 
 1. Bump the version in `packages/node-opcua-pki/package.json`
@@ -78,8 +83,7 @@ The workflow:
 
 1. Checks out the tagged commit
 2. Installs dependencies and builds
-3. Runs `npm publish -w packages/node-opcua-pki --tag <dist-tag>`
-4. Creates a GitHub Release with auto-generated notes
+3. Runs `npx lerna publish from-package --yes --dist-tag <dist-tag>`
 
 ### Quick Reference
 

@@ -33,7 +33,7 @@ node-opcua-pki/
 
 ### Prerequisites
 
-- **Node.js** ≥ 18
+- **Node.js** ≥ 20
 - **OpenSSL** or **LibreSSL** (auto-installed on Windows)
 
 ### Getting Started
