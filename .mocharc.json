@@ -3,7 +3,8 @@
     "require": [
         "./node_modules/should",
         "./node_modules/source-map-support/register",
-        "tsconfig-paths/register"
+        "tsconfig-paths/register",
+        "./test/_root_hooks.mjs"
     ],
     "node-option": ["import=tsx"],
     "timeout": 20000,
