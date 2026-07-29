@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.19.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.18.0...v6.19.0) (2026-07-29)
+
+
+### Bug Fixes
+
+* **exports:** declare types per condition so ESM consumers compile ([8fd3d60](https://github.com/node-opcua/node-opcua-pki/commit/8fd3d606cf832c1620a7460ebc6344bfeffe14d6))
+
+
+
+
+
 # [6.18.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.17.0...v6.18.0) (2026-06-24)
 
 
