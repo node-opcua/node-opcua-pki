@@ -20,8 +20,6 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-// tslint:disable:no-console
-// tslint:disable:no-shadowed-variable
 
 import child_process from "node:child_process";
 import fs from "node:fs";
@@ -57,7 +55,9 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
             cmd,
             options,
             (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
-                const exitCode = err === null ? 0 : err.code || 1;
+                // ExecException.code is `string | number` (@types/node 26 widened it to
+                // carry things like "ENOENT"), so a non-numeric code collapses to 1.
+                const exitCode = err === null ? 0 : typeof err.code === "number" ? err.code : 1;
                 if (err) reject(err);
                 else {
                     resolve({ exitCode, output });
@@ -107,7 +107,6 @@ async function getopensslExecPath(): Promise<string> {
 export async function check_system_openssl_version(): Promise<string> {
     const opensslExecPath = await getopensslExecPath();
 
-    // tslint:disable-next-line:variable-name
     const q_opensslExecPath = quote(opensslExecPath);
 
     // istanbul ignore next
@@ -171,7 +170,6 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                 version: `cannot find file ${opensslExecPath}`
             };
         } else {
-            // tslint:disable-next-line:variable-name
             const q_openssl_exe_path = quote(opensslExecPath);
             const cwd = ".";
 

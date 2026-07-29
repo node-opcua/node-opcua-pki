@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua
 // ---------------------------------------------------------------------------------------------------------------------
@@ -22,10 +21,6 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 // Error.stackTraceLimit = Infinity;
-// tslint:disable:variable-name
-// tslint:disable:no-console
-// tslint:disable:object-literal-sort-keys
-// tslint:disable:no-shadowed-variable
 
 import assert from "node:assert";
 import fs from "node:fs";
@@ -225,7 +220,6 @@ interface IReadConfigurationOpts {
     validity?: number;
 }
 
-/* eslint complexity:off, max-statements:off */
 async function readConfiguration(argv: IReadConfigurationOpts) {
     if (argv.silent) {
         g_config.silent = true;
@@ -283,7 +277,6 @@ async function readConfiguration(argv: IReadConfigurationOpts) {
     const defaultRandomFile = path.join(path.dirname(default_config), "random.rnd");
     setEnv("RANDFILE", defaultRandomFile);
 
-    /* eslint global-require: 0*/
     const _require = createRequire(__filename);
     gLocalConfig = _require(default_config);
 

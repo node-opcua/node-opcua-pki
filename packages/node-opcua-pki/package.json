@@ -5,12 +5,20 @@
     "type": "commonjs",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
+    "//main": "main/types are the pre-'exports' fallback, used only by resolvers that ignore the exports map. They are deliberately left as the CommonJS pair, matching \"type\": \"commonjs\", so that path behaves exactly as it did before - do not 'fix' one without the other.",
+    "//exports": "types are declared PER CONDITION on purpose. A single shared \"types\" key is resolved for BOTH import and require; since this package is \"type\": \"commonjs\", a bare .d.ts is a CommonJS module, so an ESM consumer got CJS types describing the real .mjs it imports. attw reports that as FalseCJS ('Masquerading as CJS'); it was present in 6.18.0. The .d.mts file already existed - tsup emits it from dts:true with format esm+cjs - the map simply never pointed at it.",
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.mjs",
-            "require": "./dist/index.js"
-        }
+            "import": {
+                "types": "./dist/index.d.mts",
+                "default": "./dist/index.mjs"
+            },
+            "require": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        },
+        "./package.json": "./package.json"
     },
     "bin": {
         "pki": "./dist/bin/pki.mjs",
@@ -45,7 +53,7 @@
         "chokidar": "4.0.3",
         "command-line-args": "^6.0.2",
         "command-line-usage": "^7.0.4",
-        "node-opcua-crypto": "5.3.6",
-        "yauzl": "^3.3.0"
+        "node-opcua-crypto": "5.4.0",
+        "yauzl": "^3.4.0"
     }
 }

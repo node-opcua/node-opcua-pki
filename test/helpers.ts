@@ -32,7 +32,6 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
         if (process.env.PKITEST === "NOCLEAN") {
             doneOnce = true;
         }
-        // tslint:disable-next-line: no-console
 
         async function next() {
             if (nextFunction) {
@@ -43,7 +42,6 @@ export function beforeTest(self: Mocha.Suite, nextFunction?: () => Promise<void>
         testData.tmpFolder = tmpFolder;
         if (!doneOnce) {
             doneOnce = true;
-            // tslint:disable-next-line: no-console
             warningLog("    .... cleaning temporary folders ...", tmpFolder);
             await fs.promises.rm(tmpFolder, { recursive: true, force: true });
             warningLog("    .....  folder cleaned");

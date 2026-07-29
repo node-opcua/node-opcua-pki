@@ -1,6 +1,3 @@
-// tslint:disable:no-console
-// tslint:disable:no-shadowed-variable
-
 import fs from "node:fs";
 import path from "node:path";
 import {

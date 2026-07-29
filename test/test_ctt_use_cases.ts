@@ -20,7 +20,6 @@ async function copyFiles(sourceFolder: string, destinationFolder: string) {
         await new Promise<void>((resolve) => {
             fs.readFile(inputFilename, (err, data: Buffer) => {
                 if (err) {
-                    // tslint:disable-next-line: no-console
                     console.log(inputFilename);
                     resolve();
                     return;
@@ -236,7 +235,6 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         });
         await x509userIdentityPKI.initialize();
 
-        // tslint:disable-next-line: no-console
         const promises: Promise<void>[] = [];
 
         const rootApp = path.join(__dirname, "fixtures/CTT_sample_certificates/copyToServer/ApplicationInstance_PKI");
@@ -253,9 +251,7 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         promises.push(copyFilesAsync(path.join(rootUI, "trusted/certs"), x509userIdentityPKI.trustedFolder));
         promises.push(copyFilesAsync(path.join(rootUI, "trusted/crl"), x509userIdentityPKI.crlFolder));
         await Promise.all(promises);
-        // tslint:disable-next-line: no-console
         console.log(legend());
-        // tslint:disable-next-line: no-console
         console.log(flagsHeader());
 
         await applicationPKI.dispose();
@@ -268,7 +264,6 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
         const status = await certificateManager.verifyCertificate(certificate[0]);
         const flags = getFlags(certFilename);
 
-        // tslint:disable-next-line: no-console
         console.log(
             path.basename(certFilename).padEnd(24),
             flagsToString(flags),
@@ -328,7 +323,6 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             const file2 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_ca2T_appU.der");
             await test_verify(file2, applicationPKI);
 
-            // tslint:disable-next-line: no-console
             for (const certFilename of applicationCertificates) {
                 await test_verify(certFilename, applicationPKI);
             }
@@ -370,7 +364,6 @@ describe("testing CTT Certificate use cases", function (this: Mocha.Suite) {
             const list = await getCertificateList();
             const applicationCertificates = list.filter((f) => path.basename(f).match(/^ctt_.*usr/));
 
-            // tslint:disable-next-line: no-console
             console.log(flagsHeader());
             const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_usrT.der");
             // const file1 = path.join(__dirname, "fixtures/CTT_sample_certificates/CA/certs/ctt_ca1I_usrU.der");
