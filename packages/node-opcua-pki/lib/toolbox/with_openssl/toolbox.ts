@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // ---------------------------------------------------------------------------------------------------------------------
 // node-opcua-pki
 // ---------------------------------------------------------------------------------------------------------------------
@@ -21,8 +20,6 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-// tslint:disable:no-console
-// tslint:disable:no-shadowed-variable
 
 import assert from "node:assert";
 

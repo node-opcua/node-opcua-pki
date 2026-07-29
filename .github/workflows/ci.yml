@@ -44,6 +44,30 @@ jobs:
       - name: Test
         run: npm run test:all
 
+  # Guards the published shape of node-opcua-pki: the exports map, the files globs, and
+  # the per-condition types each consumer resolves. attw is what catches an ESM consumer
+  # being handed CommonJS types (FalseCJS) - which 6.18.0 shipped - and no runtime
+  # import() smoke test would notice. Runs against the real `npm pack` output.
+  check-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Install deps
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Check published package shape
+        run: npm run check:package
+
   # ── Alpine (OpenSSL 3.5.x) ──────────────────────────────────────
   # Alpine ships OpenSSL 3.5+ which enforces stricter X.509 extension
   # validation (e.g. authorityKeyIdentifier=keyid:always fails during

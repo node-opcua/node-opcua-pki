@@ -20,7 +20,6 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-// tslint:disable:no-shadowed-variable
 import assert from "node:assert";
 import fs from "node:fs";
 import os from "node:os";
@@ -77,7 +76,6 @@ export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certifica
 import _simple_config_template from "../pki/templates/simple_config_template.cnf";
 import _ca_config_template from "./templates/ca_config_template.cnf";
 
-// tslint:disable-next-line:variable-name
 export const configurationFileTemplate: string = _ca_config_template;
 const configurationFileSimpleTemplate: string = _simple_config_template;
 
@@ -179,7 +177,6 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
         }
     }
 
-    // tslint:disable:no-empty
     displayTitle("Create Certificate Authority (CA)");
 
     const indexFileAttr = path.join(caRootDir, "index.txt.attr");
@@ -581,7 +578,6 @@ function validateRevocationUrl(url: string | undefined, fieldName: string): stri
     }
     const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "::1" || parsed.hostname.startsWith("127.");
     if (isLoopback) {
-        // eslint-disable-next-line no-console
         console.warn(
             `[node-opcua-pki] ${fieldName} points at loopback (${url}) — ` +
                 "certificates issued with this URL will be unreachable from any other host."
@@ -1675,7 +1671,6 @@ export class CertificateAuthority {
         const randomFile = path.join(this.rootDir, "random.rnd");
         setEnv("RANDFILE", randomFile);
 
-        // // tslint:disable-next-line:no-string-literal
         // if (!fs.existsSync((process.env as any)["OPENSSL_CONF"])) {
         //     throw new Error("Cannot find OPENSSL_CONF");
         // }

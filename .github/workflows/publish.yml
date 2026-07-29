@@ -44,6 +44,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Fails the release before anything reaches npm if the exports map, the files
+      # globs, or the per-condition types regress. Must stay ahead of lerna publish.
+      - name: Check published package shape
+        run: npm run check:package
+
       - name: Set up Git user
         run: |
           git config user.name "${{ github.actor }}"

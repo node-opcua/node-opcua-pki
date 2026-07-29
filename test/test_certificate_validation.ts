@@ -1,6 +1,3 @@
-// tslint:disable:variable-name
-// tslint:disable:no-shadowed-variable
-
 Error.stackTraceLimit = Infinity;
 
 import fs from "node:fs";

@@ -1,9 +1,17 @@
 {
     "compilerOptions": {
+        // Only for the `baseUrl` that tsup's dts build injects unconditionally
+        // (node_modules/tsup/dist/rollup.js) - we no longer set one ourselves, and the
+        // paths below are relative so this config is already TS7-ready. Remove once tsup
+        // stops injecting it.
+        "ignoreDeprecations": "6.0",
         "skipLibCheck": true,
         "target": "es2022",
-        "moduleResolution": "node",
-        "module": "commonjs",
+        // node16 rather than the removed node10: it is what makes TypeScript honour the
+        // "exports" maps of dependencies, which is how the node-opcua-crypto 5.4.0
+        // per-condition types are resolved correctly from this CommonJS package.
+        "moduleResolution": "node16",
+        "module": "node16",
         "declaration": true,
         "noEmit": true,
         "sourceMap": true,
@@ -13,10 +21,10 @@
         "esModuleInterop": true,
         "lib": [],
         "types": ["node", "mocha", "should"],
-        "baseUrl": ".",
+        // relative on purpose: without baseUrl, TS7 requires a leading "./" (TS5090)
         "paths": {
-            "node-opcua-pki": ["packages/node-opcua-pki/lib/index.ts"],
-            "node-opcua-pki-priv/*": ["packages/node-opcua-pki/lib/*"]
+            "node-opcua-pki": ["./packages/node-opcua-pki/lib/index.ts"],
+            "node-opcua-pki-priv/*": ["./packages/node-opcua-pki/lib/*"]
         }
     },
     "include": ["packages/node-opcua-pki/lib/**/*.ts", "test/*.ts"],
