@@ -6,10 +6,24 @@ import { createCertificateSigningRequestWithOpenSSL } from "node-opcua-pki-priv/
 import { createCertificateSigningRequestAsync as createCertificateSigningRequestAsyncWithoutOpenSSL } from "node-opcua-pki-priv/toolbox/without_openssl";
 import { beforeTest } from "./helpers";
 
-describe("comparing two implementations of createCertificateSigningRequestAsync", function () {
+describe("comparing two implementations of createCertificateSigningRequestAsync", function (this: Mocha.Suite) {
+    // Called here, in the describe body, like every other test file - NOT from inside a
+    // `before` hook. beforeTest() registers a `before` of its own, and doing that at run
+    // time appends a hook to a suite mocha has already built: the hook never runs, but
+    // its 5-minute timeout is armed and never cleared, so the process sits for 300s after
+    // the suite passes and then dies with ERR_MOCHA_MULTIPLE_DONE.
+    //
+    // Registering it first also matters: its `before` wipes tmp/, and it has to run
+    // BEFORE the hook below that creates the PKI under tmp/ - otherwise the cleanup
+    // deletes the private key these tests depend on.
+    const testData = beforeTest(this);
+
     const rootDir = path.join(__dirname, "../tmp/certificates/PKI-2");
     const configFile = path.join(rootDir, "own/openssl.cnf");
     const privateKey = path.join(rootDir, "own/private/private_key.pem");
+
+    let certificateManager: CertificateManager;
+
     before(async () => {
         const options = {
             location: rootDir
@@ -17,9 +31,17 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
 
         mkdirSync(rootDir, { recursive: true });
 
-        const cm = new CertificateManager(options);
+        certificateManager = new CertificateManager(options);
 
-        await cm.initialize();
+        await certificateManager.initialize();
+    });
+
+    // initialize() starts chokidar watchers. chokidar v4 does not propagate
+    // persistent:false down to the underlying fs.watch handles, so an undisposed
+    // manager keeps the event loop alive and the process never exits - the suite
+    // passes and then hangs. Every other test file disposes; this one did not.
+    after(async () => {
+        await certificateManager.dispose();
     });
     it("should product identical results (or sufficiently identical)", async () => {
         const applicationUri = "urn:localhost:MyProduct";
@@ -58,7 +80,6 @@ describe("comparing two implementations of createCertificateSigningRequestAsync"
     describe("createCertificateSigningRequestAsync", () => {
         let theCertificateAuthority: CertificateAuthority;
         before(async () => {
-            const testData = beforeTest(this);
             theCertificateAuthority = new CertificateAuthority({
                 keySize: 2048,
                 location: path.join(testData.tmpFolder, "CA")
