@@ -76,11 +76,29 @@ Behaviour once the option is set:
 from the provider below). `createSelfSignedCertificate()` and
 `createCertificateRequest()` use it directly and never re-read the file.
 
-`CertificateAuthority` does **not** support `privateKeyPassphrase` or
-`privateKeyProvider` yet: its signing, revocation and CRL paths call openssl
-with `private/cakey.pem` from the CA's own configuration, so encrypting that key
-would require threading `-passin` through every one of those calls. That is a
-separate change; today `private/cakey.pem` is always plaintext.
+`CertificateAuthority` accepts the same `privateKeyPassphrase` option for
+`private/cakey.pem`, with the same behaviour: a fresh CA key is written
+encrypted, an existing plaintext CA key is encrypted in place by
+`initialize()` / `initializeCSR()`, and a missing or wrong passphrase fails
+`initialize()` closed. Every `openssl` invocation that loads the CA key (CSR,
+self-sign, signing a subordinate CA or an end-entity CSR, revocation, CRL
+generation) receives it through `-passin env:`, so nothing changes in how you
+call the CA. `getPrivateKey()` and `reencryptPrivateKey()` exist on the CA
+too. Two CA-specific notes:
+
+- A subordinate CA (`issuerCA` set) is signed with the **issuer's** key, so
+  the issuer's own `privateKeyPassphrase` is used for that step; each CA
+  object carries the passphrase for its own key only.
+- The CA hands the passphrase to each openssl child, so it keeps the
+  *resolved passphrase* (not just the decrypted key) in memory for the
+  instance's lifetime; a passphrase function is still called at most once
+  per instance.
+
+`privateKeyProvider` is **not** available on `CertificateAuthority`: its
+signing and CRL paths are `openssl ca` / `openssl x509` reading a key *file*,
+so an HSM/KMS-sourced key cannot be used without writing it to disk. Doing
+that properly means a native (non-openssl) CA backend, which is a separate
+project.
 
 ---
 

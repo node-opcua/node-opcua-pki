@@ -137,8 +137,8 @@ export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSign
 
 /**
  * A passphrase, or a function resolving one — called lazily, and at most
- * once per `CertificateManager` instance (the decrypted key is cached in
- * memory). Never logged.
+ * once per `CertificateManager` / `CertificateAuthority` instance (the
+ * result is cached in memory). Never logged.
  */
 export type PrivateKeyPassphrase = string | (() => Promise<string>);
 
@@ -147,8 +147,8 @@ export type PrivateKeyPassphrase = string | (() => Promise<string>);
  * filesystem (an HSM, a KMS, ...). When configured on `CertificateManager`,
  * it overrides disk entirely — the on-disk `own/private/private_key.pem` is
  * neither generated nor read. `CertificateAuthority` does not support a
- * provider (or a passphrase) yet; its `private/cakey.pem` is always read
- * from disk.
+ * provider (its signing paths are openssl reading a key file); it does
+ * support `privateKeyPassphrase`.
  */
 export interface PrivateKeyProvider {
     getPrivateKey(): Promise<PrivateKey>;

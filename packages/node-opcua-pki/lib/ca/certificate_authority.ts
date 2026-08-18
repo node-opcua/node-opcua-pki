@@ -38,7 +38,8 @@ import {
     readPrivateKey,
     Subject,
     type SubjectOptions,
-    toPem
+    toPem,
+    writePrivateKeyFile
 } from "node-opcua-crypto";
 import { createPFX } from "../pki/toolbox_pfx";
 import {
@@ -50,12 +51,16 @@ import {
     displayTitle,
     ensurePrivateDirectory,
     type Filename,
+    isEncryptedPrivateKeyFile,
     type KeySize,
     makePath,
     mkdirRecursiveSync,
     type Params,
+    type PrivateKeyPassphrase,
     type ProcessAltNamesParam,
-    restrictPrivateFilePermissions
+    resolvePrivateKeyPassphrase,
+    restrictPrivateFilePermissions,
+    warningLog
 } from "../toolbox";
 import {
     createCertificateSigningRequestWithOpenSSL,
@@ -65,6 +70,8 @@ import {
     execute_openssl,
     execute_openssl_no_failure,
     generateStaticConfig,
+    type OpensslPassArg,
+    passinArg,
     processAltNames,
     setEnv,
     unsetEnv,
@@ -161,6 +168,9 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
         // CA is fully initialized => do not overwrite
         // repair permissions on installs created before this hardening
         restrictPrivateFilePermissions(path.join(caRootDir, "private/cakey.pem"), 0o600);
+        // encrypt a plaintext key in place if a passphrase is configured, and
+        // fail closed now if the key cannot be read with the configured one
+        await certificateAuthority._ensurePrivateKeyProtection();
         debugLog("CA private key and certificate already exist ... skipping");
         return;
     }
@@ -222,7 +232,8 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // The first step is to create your RSA Private Key.
     // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
     // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
-    await generatePrivateKeyFile(privateKeyFilename, keySize);
+    const passin = await certificateAuthority._opensslPassin();
+    await generatePrivateKeyFile(privateKeyFilename, keySize, { passphrase: await certificateAuthority._privateKeyPassphrase() });
     restrictPrivateFilePermissions(privateKeyFilename, 0o600);
     displayTitle("Generate a certificate request for the CA key");
     // Once the private key is generated a Certificate Signing Request can be generated.
@@ -242,9 +253,10 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
             n(privateKeyFilename),
             "-out",
             n(csrFilename),
-            ...subjectOpt
+            ...subjectOpt,
+            ...passin.args
         ],
-        options
+        { ...options, env: passin.env }
     );
 
     const issuerCA = certificateAuthority._issuerCA;
@@ -254,6 +266,8 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
         const issuerCert = path.resolve(issuerCA.caCertificate);
         const issuerKey = path.resolve(issuerCA.rootDir, "private/cakey.pem");
         const issuerSerial = path.resolve(issuerCA.rootDir, "serial");
+        // the -CAkey is the *issuer's* key: its passphrase, not this CA's
+        const issuerPassin = await issuerCA._opensslPassin();
         await execute_openssl(
             [
                 "x509",
@@ -275,9 +289,10 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
                 "-CAserial",
                 n(issuerSerial),
                 "-out",
-                "public/cacert.pem"
+                "public/cacert.pem",
+                ...issuerPassin.args
             ],
-            options
+            { ...options, env: issuerPassin.env }
         );
     } else {
         // Root CA — self-signed
@@ -299,20 +314,34 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
                 "-signkey",
                 n(privateKeyFilename),
                 "-out",
-                "public/cacert.pem"
+                "public/cacert.pem",
+                ...passin.args
             ],
-            options
+            { ...options, env: passin.env }
         );
     }
     displaySubtitle("generate initial CRL (Certificate Revocation List)");
-    await regenerateCrl(certificateAuthority.revocationList, configOption, options);
+    await regenerateCrl(certificateAuthority.revocationList, configOption, options, passin);
     displayTitle("Create Certificate Authority (CA) ---> DONE");
 }
 
-async function regenerateCrl(revocationList: string, configOption: readonly string[], options: ExecuteOpenSSLOptions) {
+/**
+ * `openssl ca -gencrl` signs the CRL with the CA key it finds through the
+ * config file (`private_key = $dir/private/cakey.pem`), so it needs the CA
+ * passphrase like every other `openssl ca` invocation.
+ */
+async function regenerateCrl(
+    revocationList: string,
+    configOption: readonly string[],
+    options: ExecuteOpenSSLOptions,
+    passin: OpensslPassArg
+) {
     // produce a CRL in PEM format
     displaySubtitle("regenerate CRL (Certificate Revocation List)");
-    await execute_openssl(["ca", "-gencrl", ...configOption, "-out", "crl/revocation_list.crl"], options);
+    await execute_openssl(["ca", "-gencrl", ...configOption, "-out", "crl/revocation_list.crl", ...passin.args], {
+        ...options,
+        env: passin.env
+    });
     await execute_openssl(["crl", "-in", "crl/revocation_list.crl", "-out", "crl/revocation_list.der", "-outform", "der"], options);
 
     displaySubtitle("Display (Certificate Revocation List)");
@@ -387,6 +416,24 @@ export interface CertificateAuthorityOptions {
      * repair). Leave undefined to omit (US-202).
      */
     caIssuersUrl?: string;
+    /**
+     * Encrypt the CA private key (`private/cakey.pem`) at rest with this
+     * passphrase (opt-in, default off). When set:
+     * - a freshly generated CA key is written as encrypted PKCS#8;
+     * - an existing *plaintext* CA key is encrypted in place by
+     *   {@link CertificateAuthority.initialize} / `initializeCSR()`;
+     * - every `openssl` invocation that loads the CA key (CSR, self-sign,
+     *   sign, revoke, CRL generation) receives it via `-passin env:`, never
+     *   in argv; a missing or wrong passphrase fails `initialize()` closed.
+     *
+     * A function is called at most once per instance; the resolved
+     * passphrase is kept in memory for the instance's lifetime because the
+     * CA hands it to each openssl child. Never logged.
+     *
+     * A subordinate CA (`issuerCA` set) uses the *issuer's* passphrase for
+     * the issuer's key: construct the parent with its own option.
+     */
+    privateKeyPassphrase?: PrivateKeyPassphrase;
 }
 
 /**
@@ -621,6 +668,11 @@ export class CertificateAuthority {
     private _ocspResponderUrl?: string;
     private _caIssuersUrl?: string;
 
+    readonly #privateKeyPassphrase?: PrivateKeyPassphrase;
+    /** resolved once (see `privateKeyPassphrase`); `#passphraseResolved` distinguishes "none" from "not yet" */
+    #resolvedPassphrase?: string;
+    #passphraseResolved = false;
+
     constructor(options: CertificateAuthorityOptions) {
         assert(Object.prototype.hasOwnProperty.call(options, "location"));
         assert(Object.prototype.hasOwnProperty.call(options, "keySize"));
@@ -628,6 +680,7 @@ export class CertificateAuthority {
         this.keySize = options.keySize || 2048;
         this.subject = new Subject(options.subject || defaultSubject);
         this._issuerCA = options.issuerCA;
+        this.#privateKeyPassphrase = options.privateKeyPassphrase;
         if (options.crlDistributionUrl !== undefined) {
             this.setCrlDistributionUrl(options.crlDistributionUrl);
         }
@@ -732,6 +785,76 @@ export class CertificateAuthority {
     /** Path to the OpenSSL configuration file (`conf/caconfig.cnf`). */
     public get configFile() {
         return path.normalize(path.join(this.rootDir, "./conf/caconfig.cnf"));
+    }
+
+    /** Path to the CA private key (`private/cakey.pem`); may be passphrase-encrypted, see {@link getPrivateKey}. */
+    public get privateKey() {
+        return path.join(path.resolve(this.rootDir), "private/cakey.pem");
+    }
+
+    /**
+     * The CA private key, decrypted with the configured `privateKeyPassphrase`
+     * if it is encrypted. Fails closed (`PrivateKeyPassphraseRequiredError`)
+     * on an encrypted key with no or the wrong passphrase.
+     */
+    public async getPrivateKey(): Promise<PrivateKey> {
+        return readPrivateKey(this.privateKey, await this._privateKeyPassphrase());
+    }
+
+    /**
+     * Enable, disable, or rotate the passphrase protecting `private/cakey.pem`
+     * (temp file + atomic rename, temp file removed on failure). Only
+     * rewrites the file: construct a new `CertificateAuthority` with the new
+     * passphrase to continue using it.
+     */
+    public async reencryptPrivateKey(oldPassphrase?: PrivateKeyPassphrase, newPassphrase?: PrivateKeyPassphrase): Promise<void> {
+        const oldPass = await resolvePrivateKeyPassphrase(oldPassphrase);
+        const newPass = await resolvePrivateKeyPassphrase(newPassphrase);
+        const key = readPrivateKey(this.privateKey, oldPass);
+        await this.#rewritePrivateKeyFile(key, newPass);
+    }
+
+    async #rewritePrivateKeyFile(privateKey: PrivateKey, passphrase: string | undefined): Promise<void> {
+        const tmpFilename = `${this.privateKey}.${process.pid}-${Date.now()}.tmp`;
+        try {
+            await writePrivateKeyFile(tmpFilename, privateKey, { passphrase });
+            await fs.promises.rename(tmpFilename, this.privateKey);
+        } finally {
+            await fs.promises.rm(tmpFilename, { force: true });
+        }
+    }
+
+    /** @internal resolve the configured passphrase, at most once per instance */
+    public async _privateKeyPassphrase(): Promise<string | undefined> {
+        if (!this.#passphraseResolved) {
+            this.#resolvedPassphrase = await resolvePrivateKeyPassphrase(this.#privateKeyPassphrase);
+            this.#passphraseResolved = true;
+        }
+        return this.#resolvedPassphrase;
+    }
+
+    /** @internal `-passin env:` argv + env for every openssl call that loads this CA's key (always emitted, empty when none) */
+    public async _opensslPassin(): Promise<OpensslPassArg> {
+        return passinArg(await this._privateKeyPassphrase());
+    }
+
+    /**
+     * @internal On an existing key: encrypt it in place if a passphrase is
+     * configured and it is still plaintext (secure by default: the option
+     * means "protect this key", not "ignore me"), then read it back so a
+     * wrong or missing passphrase fails initialize() closed rather than the
+     * first signing operation.
+     */
+    public async _ensurePrivateKeyProtection(): Promise<void> {
+        if (!fs.existsSync(this.privateKey)) {
+            return;
+        }
+        if (this.#privateKeyPassphrase !== undefined && !isEncryptedPrivateKeyFile(this.privateKey)) {
+            warningLog("CertificateAuthority: private key is plaintext but a passphrase is configured; encrypting it in place");
+            const plaintextKey = readPrivateKey(this.privateKey);
+            await this.#rewritePrivateKeyFile(plaintextKey, await this._privateKeyPassphrase());
+        }
+        await this.getPrivateKey();
     }
 
     /** Path to the CA certificate in PEM format (`public/cacert.pem`). */
@@ -1289,9 +1412,11 @@ export class CertificateAuthority {
         const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
         const csrFile = path.join(caRootDir, "private/cakey.csr");
 
-        // repair permissions on installs created before this hardening
+        // repair permissions on installs created before this hardening,
+        // encrypt in place if a passphrase is configured, fail closed if unreadable
         if (fs.existsSync(privateKeyFile)) {
             restrictPrivateFilePermissions(privateKeyFile, 0o600);
+            await this._ensurePrivateKeyProtection();
         }
 
         // ── Case 1: cert already exists ──
@@ -1344,7 +1469,7 @@ export class CertificateAuthority {
 
         // Generate private key
         if (!fs.existsSync(privateKeyFile)) {
-            await generatePrivateKeyFile(privateKeyFile, this.keySize);
+            await generatePrivateKeyFile(privateKeyFile, this.keySize, { passphrase: await this._privateKeyPassphrase() });
             restrictPrivateFilePermissions(privateKeyFile, 0o600);
         }
 
@@ -1400,6 +1525,7 @@ export class CertificateAuthority {
         processAltNames({} as Params);
         const options = { cwd: caRootDir };
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
+        const passin = await this._opensslPassin();
 
         await execute_openssl(
             [
@@ -1416,9 +1542,10 @@ export class CertificateAuthority {
                 "-out",
                 n(csrFile),
                 "-subj",
-                this.subject.toString()
+                this.subject.toString(),
+                ...passin.args
             ],
-            options
+            { ...options, env: passin.env }
         );
     }
 
@@ -1441,7 +1568,6 @@ export class CertificateAuthority {
     public async installCACertificate(signedCertFile: string): Promise<InstallCACertificateResult> {
         const caRootDir = path.resolve(this.rootDir);
         const caCertFile = this.caCertificate;
-        const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
 
         // Read the full content once — may contain a chain
         const fullPem = await fs.promises.readFile(signedCertFile, "utf8");
@@ -1458,7 +1584,7 @@ export class CertificateAuthority {
 
         // Verify the first certificate matches the CA private key
         const certDer = convertPEMtoDER(pemBlocks[0]);
-        const privateKey = readPrivateKey(privateKeyFile);
+        const privateKey = await this.getPrivateKey();
         if (!certificateMatchesPrivateKey(certDer, privateKey)) {
             return {
                 status: "error",
@@ -1489,7 +1615,7 @@ export class CertificateAuthority {
         // Generate initial CRL
         const options = { cwd: caRootDir };
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
-        await regenerateCrl(this.revocationList, ["-config", n(configFile)], options);
+        await regenerateCrl(this.revocationList, ["-config", n(configFile)], options, await this._opensslPassin());
 
         return { status: "success" };
     }
@@ -1516,6 +1642,7 @@ export class CertificateAuthority {
         this._wireRevocationEnvVars();
         const configFile = generateStaticConfig("conf/caconfig.cnf", options);
         const validity = params.validity ?? 3650;
+        const passin = await this._opensslPassin();
 
         await execute_openssl(
             [
@@ -1538,9 +1665,10 @@ export class CertificateAuthority {
                 "-CAserial",
                 n(path.join(caRootDir, "serial")),
                 "-out",
-                n(certFile)
+                n(certFile),
+                ...passin.args
             ],
-            options
+            { ...options, env: passin.env }
         );
 
         // Append this CA's cert chain to the output so the caller
@@ -1713,12 +1841,13 @@ export class CertificateAuthority {
 
         displaySubtitle("Revoke certificate");
 
+        const passin = await this._opensslPassin();
         await execute_openssl_no_failure(
-            ["ca", "-verbose", ...configOption, "-revoke", certificate, "-crl_reason", reason],
-            options
+            ["ca", "-verbose", ...configOption, "-revoke", certificate, "-crl_reason", reason, ...passin.args],
+            { ...options, env: passin.env }
         );
         // regenerate CRL (Certificate Revocation List)
-        await regenerateCrl(this.revocationList, configOption, options);
+        await regenerateCrl(this.revocationList, configOption, options, passin);
 
         displaySubtitle("Verify that certificate is revoked");
 
@@ -1811,6 +1940,7 @@ export class CertificateAuthority {
 
         displaySubtitle("- then we ask the authority to sign the certificate signing request");
 
+        const passin = await this._opensslPassin();
         await execute_openssl(
             [
                 "ca",
@@ -1824,9 +1954,10 @@ export class CertificateAuthority {
                 "-out",
                 n(certificate),
                 "-in",
-                n(certificateSigningRequestFilename)
+                n(certificateSigningRequestFilename),
+                ...passin.args
             ],
-            options
+            { ...options, env: passin.env }
         );
 
         displaySubtitle("- dump the certificate for a check");
