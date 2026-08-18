@@ -21,7 +21,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 import assert from "node:assert";
 import fs from "node:fs";
-import { createCertificateSigningRequest, pemToPrivateKey, Subject } from "node-opcua-crypto";
+import { coercePrivateKeyPem, createCertificateSigningRequest, pemToPrivateKey, Subject } from "node-opcua-crypto";
 import type { CreateCertificateSigningRequestWithConfigOptions } from "../common";
 import { display, displaySubtitle } from "../display";
 
@@ -36,8 +36,9 @@ export async function createCertificateSigningRequestAsync(
     assert(params.rootDir);
     assert(params.configFile);
     assert(params.privateKey);
-    assert(typeof params.privateKey === "string");
-    assert(fs.existsSync(params.privateKey), `Private key must exist${params.privateKey}`);
+    if (typeof params.privateKey === "string") {
+        assert(fs.existsSync(params.privateKey), `Private key must exist${params.privateKey}`);
+    }
 
     //  assert(fs.existsSync(params.configFile), "config file must exist " + params.configFile);
     assert(fs.existsSync(params.rootDir), "RootDir key must exist");
@@ -46,7 +47,10 @@ export async function createCertificateSigningRequestAsync(
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     displaySubtitle("- Creating a Certificate Signing Request with subtile");
 
-    const privateKeyPem = await fs.promises.readFile(params.privateKey, "utf-8");
+    const privateKeyPem =
+        typeof params.privateKey === "string"
+            ? await fs.promises.readFile(params.privateKey, "utf-8")
+            : coercePrivateKeyPem(params.privateKey);
     const privateKey = await pemToPrivateKey(privateKeyPem);
 
     const { csr } = await createCertificateSigningRequest({
@@ -59,7 +63,7 @@ export async function createCertificateSigningRequestAsync(
     });
     await fs.promises.writeFile(certificateSigningRequestFilename, csr, "utf-8");
 
-    display(`- privateKey ${params.privateKey}`);
+    display(`- privateKey ${typeof params.privateKey === "string" ? params.privateKey : "<in-memory>"}`);
     display(`- certificateSigningRequestFilename ${certificateSigningRequestFilename}`);
 
     // to verify that the CSR is correct:

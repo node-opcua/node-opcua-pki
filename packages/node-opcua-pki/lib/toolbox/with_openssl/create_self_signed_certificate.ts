@@ -50,7 +50,20 @@ export async function createSelfSignedCertificate(certificate: string, params: C
      */
     assert(fs.existsSync(params.configFile));
     assert(fs.existsSync(params.rootDir));
-    assert(fs.existsSync(params.privateKey));
+    if (typeof params.privateKey !== "string") {
+        // This openssl-CLI-based path can only pass a private key to
+        // openssl as a file path (`-key <path>`); it has no way to hand it
+        // an in-memory key without writing the decrypted key back out to
+        // disk, defeating the purpose of a passphrase-protected key. Use
+        // CertificateManager's own createSelfSignedCertificate (the
+        // WebCrypto-based, without_openssl path) instead, which does
+        // support an in-memory PrivateKey.
+        throw new Error(
+            "createSelfSignedCertificate (openssl-CLI path): an in-memory PrivateKey is not supported here; provide a filename."
+        );
+    }
+    const privateKeyFilename: string = params.privateKey;
+    assert(fs.existsSync(privateKeyFilename));
     if (!params.subject) {
         throw new Error("Missing subject");
     }
@@ -99,7 +112,7 @@ export async function createSelfSignedCertificate(certificate: string, params: C
             " " +
             configOption +
             " -key " +
-            q(n(params.privateKey)) +
+            q(n(privateKeyFilename)) +
             " -out " +
             q(n(certificateRequestFilename)) +
             ' -subj "' +
@@ -126,7 +139,7 @@ export async function createSelfSignedCertificate(certificate: string, params: C
             " -in " +
             q(n(certificateRequestFilename)) +
             " -signkey " +
-            q(n(params.privateKey)) +
+            q(n(privateKeyFilename)) +
             " -text " +
             " -out " +
             q(certificate) +

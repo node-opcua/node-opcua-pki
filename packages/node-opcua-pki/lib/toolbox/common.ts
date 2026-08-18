@@ -31,7 +31,7 @@ export type Filename = string;
 /** Status of a certificate in the trust store. */
 export type CertificateStatus = "unknown" | "trusted" | "rejected";
 
-import type { CertificatePurpose } from "node-opcua-crypto";
+import type { CertificatePurpose, PrivateKey } from "node-opcua-crypto";
 import type { SubjectOptions } from "../misc/subject";
 
 /**
@@ -73,8 +73,12 @@ export interface CreateCertificateSigningRequestWithConfigOptions extends Create
     rootDir: Filename;
     /** Path to the OpenSSL configuration file. */
     configFile: Filename;
-    /** Path to the private key file. */
-    privateKey: Filename;
+    /**
+     * The private key: either a filesystem path to a PEM file (unencrypted;
+     * the historical behavior), or an already-resolved in-memory
+     * {@link PrivateKey} — see {@link CreateSelfSignCertificateWithConfigParam.privateKey}.
+     */
+    privateKey: Filename | PrivateKey;
     /** Intended purpose of the certificate. */
     purpose: CertificatePurpose;
 }
@@ -119,10 +123,43 @@ export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSign
     rootDir: Filename;
     /** Path to the OpenSSL configuration file. */
     configFile: Filename;
-    /** Path to the private key file. */
-    privateKey: Filename;
+    /**
+     * The private key: either a filesystem path to a PEM file (unencrypted;
+     * the historical behavior), or an already-resolved in-memory
+     * {@link PrivateKey} — used when the key is passphrase-protected on
+     * disk, so the decrypted key material is never written back out in
+     * cleartext.
+     */
+    privateKey: Filename | PrivateKey;
     /** Intended purpose of the certificate. */
     purpose: CertificatePurpose;
+}
+
+/**
+ * A passphrase, or a function resolving one — called lazily, and at most
+ * once per `CertificateManager` instance (the decrypted key is cached in
+ * memory). Never logged.
+ */
+export type PrivateKeyPassphrase = string | (() => Promise<string>);
+
+/**
+ * Sources a {@link PrivateKey} from somewhere other than the local
+ * filesystem (an HSM, a KMS, ...). When configured on `CertificateManager`,
+ * it overrides disk entirely — the on-disk `own/private/private_key.pem` is
+ * neither generated nor read. `CertificateAuthority` does not support a
+ * provider (or a passphrase) yet; its `private/cakey.pem` is always read
+ * from disk.
+ */
+export interface PrivateKeyProvider {
+    getPrivateKey(): Promise<PrivateKey>;
+}
+
+/** Resolve a {@link PrivateKeyPassphrase}, if configured. */
+export async function resolvePrivateKeyPassphrase(passphrase: PrivateKeyPassphrase | undefined): Promise<string | undefined> {
+    if (passphrase === undefined) {
+        return undefined;
+    }
+    return typeof passphrase === "function" ? await passphrase() : passphrase;
 }
 
 /**

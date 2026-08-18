@@ -31,7 +31,7 @@ import { quote } from "../common";
 import { makePath } from "../common2";
 import { g_config } from "../config";
 import { getEnv, getEnvironmentVarNames, hasEnv } from "./_env";
-import { type ExecuteOptions, execute_openssl } from "./execute_openssl";
+import { type ExecuteOptions, execute_openssl, passinArg } from "./execute_openssl";
 
 function openssl_require2DigitYearInDate() {
     // istanbul ignore next
@@ -94,15 +94,26 @@ const n = makePath;
 
 /**
  *   calculate the public key from private key
- *   openssl rsa -pubout -in private_key.pem
+ *   openssl rsa -pubout -in private_key.pem -passin env:...
+ *
+ * `-passin` is always emitted (empty for a plaintext key) so an encrypted
+ * key without a passphrase fails fast instead of hanging on a TTY prompt.
  *
  * @method getPublicKeyFromPrivateKey
  * @param privateKeyFilename: the existing file with the private key
  * @param publicKeyFilename: the file where to store the public key
+ * @param passphrase: decrypts `privateKeyFilename` if it is an encrypted PKCS#8 key
  */
-export async function getPublicKeyFromPrivateKey(privateKeyFilename: string, publicKeyFilename: string): Promise<void> {
+export async function getPublicKeyFromPrivateKey(
+    privateKeyFilename: string,
+    publicKeyFilename: string,
+    passphrase?: string
+): Promise<void> {
     assert(fs.existsSync(privateKeyFilename));
-    await execute_openssl(`rsa -pubout -in ${q(n(privateKeyFilename))} -out ${q(n(publicKeyFilename))}`, {});
+    const passin = passinArg(passphrase);
+    await execute_openssl(`rsa -pubout -in ${q(n(privateKeyFilename))} -out ${q(n(publicKeyFilename))} ${passin.cmd}`, {
+        env: passin.env
+    });
 }
 
 /**

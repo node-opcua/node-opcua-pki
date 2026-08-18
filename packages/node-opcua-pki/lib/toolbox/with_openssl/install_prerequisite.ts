@@ -33,6 +33,7 @@ import chalk from "chalk";
 import yauzl from "yauzl";
 
 import { warningLog } from "../debug";
+import { buildChildEnv } from "./_env";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 
@@ -44,10 +45,13 @@ interface ExecuteResult {
 async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
     let output = "";
 
-    // xx cwd = cwd ? {cwd: cwd} : {};
+    // same curated environment as execute_openssl's `execute()`: a binary
+    // discovered with the full parent env but run with a reduced one could
+    // otherwise be found here and then fail to load its libraries later
     const options = {
         cwd,
-        windowsHide: true
+        windowsHide: true,
+        env: buildChildEnv()
     };
 
     return await new Promise<ExecuteResult>((resolve, reject) => {
