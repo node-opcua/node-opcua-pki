@@ -6,7 +6,6 @@ import path from "node:path";
 import "should";
 import { readCertificateChainAsync } from "node-opcua-crypto";
 import { CertificateManager, type Filename, VerificationStatus } from "node-opcua-pki";
-import { quote } from "node-opcua-pki-priv/toolbox/common";
 import { makePath } from "node-opcua-pki-priv/toolbox/common2";
 import { g_config } from "node-opcua-pki-priv/toolbox/config";
 import {
@@ -17,7 +16,6 @@ import {
 } from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest, grep } from "./helpers";
 
-const q = quote;
 const n = makePath;
 
 describe("CertificateManager", function (this: Mocha.Suite) {
@@ -147,13 +145,24 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
         // openssl req -x509 -days 365 -nodes -newkey rsa:1024 \
         //         -keyout private_key.pem -outform der -out certificate.der"
         await executeOpensslAsync(
-            "req " +
-                "-x509 -days 365 -nodes -newkey rsa:1024 " +
-                "-batch -keyout private_key.pem " +
-                "-outform der -out " +
-                q(n(certificate)) +
-                " -config " +
-                q(n(defaultOpensslConf)),
+            [
+                "req",
+                "-x509",
+                "-days",
+                "365",
+                "-nodes",
+                "-newkey",
+                "rsa:1024",
+                "-batch",
+                "-keyout",
+                "private_key.pem",
+                "-outform",
+                "der",
+                "-out",
+                n(certificate),
+                "-config",
+                n(defaultOpensslConf)
+            ],
             {}
         );
     }
@@ -182,7 +191,7 @@ describe("CertificateManager managing certificate", function (this: Mocha.Suite)
     it("Q1 - CertificateManager#verifyCertificate should return 'rejected' for a first-seen certificate", async () => {
         const certificate: Buffer = fs.readFileSync(sample_certificate1_der);
         certificate.should.be.instanceOf(Buffer);
-        await executeOpensslAsync(`x509 -inform der -in ${q(n(sample_certificate1_der))} -fingerprint -noout `, {});
+        await executeOpensslAsync(["x509", "-inform", "der", "-in", n(sample_certificate1_der), "-fingerprint", "-noout"], {});
 
         // First-seen certificates are auto-rejected by triageCertificate
         const status = await cm.verifyCertificate(certificate);

@@ -53,7 +53,7 @@ async function buildCsr(tmpFolder: string, applicationUri: string): Promise<{ cs
 }
 
 async function dumpCertText(certPath: Filename): Promise<string> {
-    return await execute_openssl(`x509 -text -noout -in "${certPath}"`, { cwd: path.dirname(certPath) });
+    return await execute_openssl(["x509", "-text", "-noout", "-in", certPath], { cwd: path.dirname(certPath) });
 }
 
 describe("US-202 — Optional CDP & AIA extensions", function (this: Mocha.Suite) {

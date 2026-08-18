@@ -25,14 +25,13 @@ import assert from "node:assert";
 import fs from "node:fs";
 import { CertificatePurpose } from "node-opcua-crypto";
 import { Subject } from "../../misc/subject";
-import { adjustDate, type CreateSelfSignCertificateWithConfigParam, quote } from "../common";
+import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common";
 import { makePath } from "../common2";
 import { displayTitle } from "../display";
 import { processAltNames } from "./_env";
 import { ensure_openssl_installed, execute_openssl } from "./execute_openssl";
 import { generateStaticConfig } from "./toolbox";
 
-const q = quote;
 const n = makePath;
 
 /**
@@ -83,7 +82,7 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     const certificateRequestFilename = `${certificate}.csr`;
 
     const configFile = generateStaticConfig(params.configFile);
-    const configOption = ` -config ${q(n(configFile))}`;
+    const configOption = ["-config", n(configFile)];
 
     let extension: string;
     switch (params.purpose) {
@@ -104,20 +103,21 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
     // The second option is to self-sign the CSR, which will be demonstrated in the next section
     await execute_openssl(
-        "req -new" +
-            " -sha256 " +
-            " -text " +
-            " -extensions " +
-            extension +
-            " " +
-            configOption +
-            " -key " +
-            q(n(privateKeyFilename)) +
-            " -out " +
-            q(n(certificateRequestFilename)) +
-            ' -subj "' +
-            subject +
-            '"',
+        [
+            "req",
+            "-new",
+            "-sha256",
+            "-text",
+            "-extensions",
+            extension,
+            ...configOption,
+            "-key",
+            n(privateKeyFilename),
+            "-out",
+            n(certificateRequestFilename),
+            "-subj",
+            subject
+        ],
         {}
     );
 
@@ -128,22 +128,23 @@ export async function createSelfSignedCertificate(certificate: string, params: C
 
     displayTitle("Generate Certificate (self-signed)");
     await execute_openssl(
-        " x509 -req " +
-            " -days " +
-            params.validity +
-            " -extensions " +
-            extension +
-            " " +
-            " -extfile " +
-            q(n(configFile)) +
-            " -in " +
-            q(n(certificateRequestFilename)) +
-            " -signkey " +
-            q(n(privateKeyFilename)) +
-            " -text " +
-            " -out " +
-            q(certificate) +
-            " -text ",
+        [
+            "x509",
+            "-req",
+            "-days",
+            String(params.validity),
+            "-extensions",
+            extension,
+            "-extfile",
+            n(configFile),
+            "-in",
+            n(certificateRequestFilename),
+            "-signkey",
+            n(privateKeyFilename),
+            "-text",
+            "-out",
+            certificate
+        ],
         {}
     );
     // remove unnecessary certificate request file

@@ -27,7 +27,6 @@ import fs from "node:fs";
 import os from "node:os";
 import byline from "byline";
 import chalk from "chalk";
-import { quote } from "../common";
 import { makePath } from "../common2";
 import { g_config } from "../config";
 import { debugLog, displayError, doDebug, warningLog } from "../debug";
@@ -38,42 +37,46 @@ let opensslPath: string | undefined; // not initialized
 
 const n = makePath;
 
+/**
+ * Arguments for one openssl invocation, one array element per argv entry,
+ * e.g. `["x509", "-in", certificateFile, "-noout"]`. Values are handed to
+ * the openssl process as-is: no shell is involved, so no quoting or escaping
+ * is needed and no value can be interpreted as a shell metacharacter.
+ */
+export type OpensslArgs = readonly string[];
+
 export interface ExecuteOptions {
     cwd?: string;
     hideErrorMessage?: boolean;
     /**
      * Extra environment variables for this invocation only. Merged with a
      * curated, minimal passthrough of the current process environment (see
-     * `SAFE_ENV_PASSTHROUGH` in `_env.ts`) for the spawned child — never the full parent
-     * environment, and never written to `process.env`, so concurrent
-     * invocations cannot see or clobber each other's values and unrelated
-     * secrets sitting in the host application's environment are never handed
-     * to the openssl child.
+     * `SAFE_ENV_PASSTHROUGH` in `_env.ts`) for the spawned child — never the
+     * full parent environment, and never written to `process.env`, so
+     * concurrent invocations cannot see or clobber each other's values and
+     * unrelated secrets sitting in the host application's environment are
+     * never handed to the openssl child.
      *
      * Use this together with openssl's `-passin env:NAME` / `-passout
-     * env:NAME` syntax to pass a secret without ever placing it in the
-     * command string: a value embedded in the command string is both
-     * visible to other processes via the process list and, because `execute`
-     * runs the command through a shell, vulnerable to shell-metacharacter
-     * injection if the secret is attacker-influenced. Passing it via a
-     * dedicated environment variable avoids both.
+     * env:NAME` syntax to pass a secret without ever placing it in argv: an
+     * argv value is visible to other processes via the process list. See
+     * {@link passinArg} / {@link passoutArg}.
      */
     env?: NodeJS.ProcessEnv;
 }
 
 // Fixed names for the per-invocation environment variables used to pass
 // passphrases to openssl via `-passin env:NAME` / `-passout env:NAME`
-// instead of interpolating them into the shell command string (see
-// ExecuteOptions.env for why). Safe to reuse across concurrent calls: each
-// call passes its own `env` object to a distinct child_process.exec
-// invocation — nothing here touches process.env, so there is no shared
-// mutable state to race on.
+// instead of placing them in argv (see ExecuteOptions.env for why). Safe to
+// reuse across concurrent calls: each call passes its own `env` object to a
+// distinct child process — nothing here touches process.env, so there is no
+// shared mutable state to race on.
 const PASSIN_ENV_VAR = "NODE_OPCUA_PKI_OPENSSL_PASSIN";
 const PASSOUT_ENV_VAR = "NODE_OPCUA_PKI_OPENSSL_PASSOUT";
 
-/** An openssl argument fragment plus the env it needs; merge `env` into `ExecuteOptions.env`. */
+/** openssl argv entries plus the env they need; merge `env` into `ExecuteOptions.env`. */
 export interface OpensslPassArg {
-    cmd: string;
+    args: string[];
     env: NodeJS.ProcessEnv;
 }
 
@@ -82,21 +85,36 @@ export interface OpensslPassArg {
  *
  * Always emit this — with `""` when there is no passphrase — for any command
  * that reads a private key which *might* be encrypted: without a `-passin`,
- * openssl prompts on the controlling terminal for an encrypted key, and a
- * headless `child_process.exec` (no timeout, no TTY) then hangs forever. An
- * empty `-passin` on a plaintext key is a no-op; on an encrypted key it
- * fails fast with `bad decrypt` instead.
+ * openssl prompts on the controlling terminal for an encrypted key. An empty
+ * `-passin` on a plaintext key is a no-op; on an encrypted key it fails fast
+ * with `bad decrypt` instead.
  */
 export function passinArg(passphrase = ""): OpensslPassArg {
-    return { cmd: `-passin env:${PASSIN_ENV_VAR}`, env: { [PASSIN_ENV_VAR]: passphrase } };
+    return { args: ["-passin", `env:${PASSIN_ENV_VAR}`], env: { [PASSIN_ENV_VAR]: passphrase } };
 }
 
 /** `-passout env:...` for an output passphrase (a PFX bundle being written). */
 export function passoutArg(passphrase = ""): OpensslPassArg {
-    return { cmd: `-passout env:${PASSOUT_ENV_VAR}`, env: { [PASSOUT_ENV_VAR]: passphrase } };
+    return { args: ["-passout", `env:${PASSOUT_ENV_VAR}`], env: { [PASSOUT_ENV_VAR]: passphrase } };
 }
 
-export async function execute(cmd: string, options: ExecuteOptions): Promise<string> {
+/** For logs and error messages only: a shell-like rendering of an argv. Never re-parsed. */
+function renderForDisplay(file: string, args: OpensslArgs): string {
+    return [file, ...args].map((a) => (a === "" || /[\s"'`$\\]/.test(a) ? JSON.stringify(a) : a)).join(" ");
+}
+
+/**
+ * Run `file` with `args` directly (no shell): each element of `args` reaches
+ * the child as one argv entry, so a value can never be reinterpreted as a
+ * shell metacharacter, a redirection, or a second command. stdin is
+ * `/dev/null`: OpenSSL's app UI opens the console before honouring
+ * `-passin` and calls tcgetattr on stdin when there is no controlling TTY;
+ * a socket (Node's default child stdin) yields ENOTTY on Linux but
+ * EOPNOTSUPP on macOS, which OpenSSL rejects and the key load fails even
+ * with the right passphrase; /dev/null yields ENOTTY everywhere. It also
+ * removes any way for openssl to block reading a password from stdin.
+ */
+export async function execute(file: string, args: OpensslArgs, options: ExecuteOptions): Promise<string> {
     const from = new Error();
 
     options.cwd = options.cwd || process.cwd();
@@ -108,22 +126,10 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
 
     const outputs: string[] = [];
     const errorOutputs: string[] = [];
+    const display = renderForDisplay(file, args);
 
     return await new Promise((resolve, reject) => {
-        // `spawn` with `shell: true` is exactly what `exec` does underneath
-        // (same command-string semantics on every platform), but lets us set
-        // stdin to 'ignore' (/dev/null) instead of the pipe/socket `exec`
-        // gives the child. That matters for any command that reads a
-        // passphrase-protected key: OpenSSL's app UI layer opens the
-        // console *before* honouring `-passin`, and with no controlling TTY
-        // it falls back to stdin and calls tcgetattr on it. On a socket
-        // that yields ENOTTY on Linux (tolerated) but EOPNOTSUPP on macOS
-        // (not tolerated: "UI routines:open_console:unknown ttyget errno
-        // value") and the key load fails even though the passphrase was
-        // supplied. /dev/null yields ENOTTY everywhere. It also removes any
-        // way for openssl to block reading a password from stdin.
-        const child = child_process.spawn(cmd, {
-            shell: true,
+        const child = child_process.spawn(file, [...args], {
             cwd: options.cwd,
             windowsHide: true,
             env: buildChildEnv(options.env),
@@ -144,15 +150,14 @@ export async function execute(cmd: string, options: ExecuteOptions): Promise<str
             reject(new Error(message));
         };
 
-        child.on("error", (err: Error) => fail(`Command failed: ${cmd}\n${err.message}`));
+        child.on("error", (err: Error) => fail(`Command failed: ${display}\n${err.message}`));
         child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
             if (code === 0) {
                 resolve(outputs.join(""));
                 return;
             }
-            // same message shape as child_process.exec: command, then stderr
             const why = signal ? `signal ${signal}` : `exit code ${code}`;
-            fail(`Command failed: ${cmd}\n${errorOutputs.join("")}(${why})`);
+            fail(`Command failed: ${display}\n${errorOutputs.join("")}(${why})`);
         });
 
         if (child.stdout) {
@@ -191,7 +196,7 @@ export async function find_openssl(): Promise<string> {
 export async function ensure_openssl_installed(): Promise<void> {
     if (!opensslPath) {
         opensslPath = await find_openssl();
-        const outputs = await execute_openssl("version", { cwd: "." });
+        const outputs = await execute_openssl(["version"], { cwd: "." });
         g_config.opensslVersion = outputs.trim();
         if (doDebug) {
             warningLog("OpenSSL version : ", g_config.opensslVersion);
@@ -199,15 +204,15 @@ export async function ensure_openssl_installed(): Promise<void> {
     }
 }
 
-export async function executeOpensslAsync(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
-    return await execute_openssl(cmd, options);
+export async function executeOpensslAsync(args: OpensslArgs, options: ExecuteOpenSSLOptions): Promise<string> {
+    return await execute_openssl(args, options);
 }
 
-export async function execute_openssl_no_failure(cmd: string, options: ExecuteOpenSSLOptions) {
+export async function execute_openssl_no_failure(args: OpensslArgs, options: ExecuteOpenSSLOptions) {
     options = options || {};
     options.hideErrorMessage = true;
     try {
-        return await execute_openssl(cmd, options);
+        return await execute_openssl(args, options);
     } catch (err) {
         debugLog(" (ignored error =  ERROR : )", (err as Error).message);
     }
@@ -221,9 +226,13 @@ export interface ExecuteOpenSSLOptions extends ExecuteOptions {
     openssl_conf?: string;
 }
 
-export async function execute_openssl(cmd: string, options: ExecuteOpenSSLOptions): Promise<string> {
+/**
+ * Run `openssl` with `args` (see {@link OpensslArgs}): no shell, one argv
+ * entry per element, curated environment, /dev/null stdin.
+ */
+export async function execute_openssl(args: OpensslArgs, options: ExecuteOpenSSLOptions): Promise<string> {
     // never log `options` as-is: `options.env` may carry a passphrase
-    debugLog("execute_openssl", cmd, redactEnvForLog(options));
+    debugLog("execute_openssl", args, redactEnvForLog(options));
     const empty_config_file = n(getTempFolder(), "empty_config.cnf");
     if (!fs.existsSync(empty_config_file)) {
         await fs.promises.writeFile(empty_config_file, "# empty config file");
@@ -238,8 +247,8 @@ export async function execute_openssl(cmd: string, options: ExecuteOpenSSLOption
     if (!g_config.silent) {
         warningLog(chalk.cyan("                  OPENSSL_CONF"), process.env.OPENSSL_CONF);
         warningLog(chalk.cyan("                  RANDFILE    "), process.env.RANDFILE);
-        warningLog(chalk.cyan("                  CMD         openssl "), chalk.cyanBright(cmd));
+        warningLog(chalk.cyan("                  CMD         "), chalk.cyanBright(renderForDisplay("openssl", args)));
     }
     await ensure_openssl_installed();
-    return await execute(`${quote(opensslPath)} ${cmd}`, options);
+    return await execute(opensslPath as string, args, options);
 }

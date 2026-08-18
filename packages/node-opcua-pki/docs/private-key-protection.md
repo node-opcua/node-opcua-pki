@@ -152,14 +152,16 @@ must be given the passphrase, or it will fail (by design, not silently):
 
 ## How passphrases reach openssl
 
-Some operations shell out to `openssl` (PFX/PKCS#12 handling, CA operations).
+Some operations invoke the `openssl` binary (PFX/PKCS#12 handling, CA operations).
 Where a passphrase is involved (`createPFX`, `extract*FromPFX`,
 `convertPFXtoPEM`, `dumpPFX`, `getPublicKeyFromPrivateKey`):
 
-- it is passed through a per-invocation environment variable using openssl's
-  `-passin env:NAME` / `-passout env:NAME` forms, never interpolated into the
-  command string, so a passphrase containing shell metacharacters can neither
-  break the command nor inject one;
+- `openssl` is spawned directly, without a shell: every argument (file paths,
+  subjects, options) reaches it as one argv entry, so no value can be
+  reinterpreted as a shell metacharacter, a redirection, or a second command;
+- a passphrase is passed through a per-invocation environment variable using
+  openssl's `-passin env:NAME` / `-passout env:NAME` forms, never in argv, so
+  it does not appear in the process list;
 - debug output redacts per-invocation environment values (only variable names
   are printed);
 - `-passin` is always sent when a private key is read (empty for a plaintext
@@ -185,10 +187,12 @@ Where a passphrase is involved (`createPFX`, `extract*FromPFX`,
   user** while an openssl child is in flight. Passing the passphrase via the
   environment removes it from `argv` and from the shell, but does not hide it
   from a same-user process with the right access.
-- Shell-metacharacter injection through *other* `openssl` arguments (file
-  paths, subject fields): openssl is still invoked through a shell with quoted
-  arguments. Do not build PKI locations or subjects from untrusted input.
-  Moving to a shell-free `execFile` invocation is tracked as follow-up work.
+- Characters that openssl's own configuration-file syntax interprets
+  (`$`, backticks, quotes) inside a `CertificateAuthority` `location`: the CA
+  embeds its directory in the generated `caconfig.cnf`, and openssl's config
+  parser, not a shell, expands or strips them there. `CertificateManager`
+  locations and all subjects and file paths are unaffected. Do not build a CA
+  location from untrusted input.
 - Wherever you choose to store the passphrase. This library protects the key
   on disk, not your passphrase management. Prefer the function form of
   `privateKeyPassphrase`, sourced from a real secret store, over a literal in

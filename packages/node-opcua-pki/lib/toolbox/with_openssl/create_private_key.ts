@@ -21,13 +21,12 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 import assert from "node:assert";
-import { type KeyLength, quote } from "../common";
+import type { KeyLength } from "../common";
 import { makePath } from "../common2";
 import { createRandomFileIfNotExist, useRandFile } from "./_create_random_file";
 import { getEnv, hasEnv } from "./_env";
 import { execute_openssl } from "./execute_openssl";
 
-const q = quote;
 const n = makePath;
 
 /**
@@ -94,7 +93,7 @@ const n = makePath;
     //       INTEGER (1021 bit) 162921471472202227976749871246879611058257361785053516568268141902018…
     // */
     await execute_openssl(
-        `genrsa  -out ${q(n(privateKeyFilename))}${useRandFile() ? ` -rand ${q(randomFile)}` : ""} ${keyLength}`,
+        ["genrsa", "-out", n(privateKeyFilename), ...(useRandFile() ? ["-rand", randomFile] : []), String(keyLength)],
         {}
     );
 }

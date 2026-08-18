@@ -23,18 +23,15 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { quote } from "../common";
 import { g_config } from "../config";
 import { type ExecuteOptions, execute_openssl } from "./execute_openssl";
-
-const q = quote;
 
 export async function createRandomFile(randomFile: string, options: ExecuteOptions): Promise<void> {
     // istanbul ignore next
     if (!useRandFile()) {
         return;
     }
-    await execute_openssl(`rand  -out ${q(randomFile)} -hex 256`, options);
+    await execute_openssl(["rand", "-out", randomFile, "-hex", "256"], options);
 }
 
 export async function createRandomFileIfNotExist(randomFile: string, options: ExecuteOptions): Promise<void> {

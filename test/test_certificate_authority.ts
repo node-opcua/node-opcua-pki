@@ -42,7 +42,7 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
     });
 
     it("should read openssl version", async () => {
-        let output = await execute_openssl("version", { cwd: "." });
+        let output = await execute_openssl(["version"], { cwd: "." });
         output = output?.trim();
         g_config.opensslVersion.should.eql(output);
     });
