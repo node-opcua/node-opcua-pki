@@ -43,10 +43,18 @@ await cm.createSelfSignedCertificate({
 
 ## Constructor Options
 
-| Option     | Type                       | Description                            |
-| ---------- | -------------------------- | -------------------------------------- |
-| `location` | `string`                   | PKI directory path                     |
-| `keySize`  | `1024\|2048\|3072\|4096`   | RSA key size (default: `2048`)         |
+| Option                 | Type                                     | Description                                                                                                                                                  |
+| ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `location`             | `string`                                 | PKI directory path                                                                                                                                           |
+| `keySize`              | `1024\|2048\|3072\|4096`                 | RSA key size (default: `2048`)                                                                                                                               |
+| `privateKeyPassphrase` | `string \| () => Promise<string>`        | Opt-in: encrypt the private key at rest; an existing plaintext key is encrypted in place, a wrong/missing passphrase fails `initialize()` closed. See [Private Key Protection](./private-key-protection.md). |
+| `privateKeyProvider`   | `{ getPrivateKey(): Promise<PrivateKey> }` | Opt-in: source the key from an HSM/KMS; no key file is written or read. See [Private Key Protection](./private-key-protection.md).                           |
+| `disableFileWatchers`  | `boolean`                                | Skip chokidar watchers (initial scan still runs); see [File Watching](#file-watching)                                                                          |
+
+Private-key related methods: `getPrivateKey()` returns the in-memory
+`PrivateKey`; `reencryptPrivateKey(old?, new?)` enables, rotates, or removes
+the passphrase on the on-disk key. Both are described in
+[Private Key Protection](./private-key-protection.md).
 
 ---
 
@@ -97,6 +105,7 @@ to watch the PKI folders for changes. Native OS events are used by default.
 | ---------------------------- | ------------------------------------------------- | ------- |
 | `OPCUA_PKI_USE_POLLING`      | `"true"` to use polling (NFS, Docker volumes)     | `false` |
 | `OPCUA_PKI_POLLING_INTERVAL` | Polling interval in ms (clamped to [100, 600000]) | `5000`  |
+| `OPCUA_PKI_DISABLE_FILE_WATCHERS` | `"true"` to skip watchers entirely (same as the `disableFileWatchers` option) | `false` |
 
 ```bash
 # Example: enable polling with a 2-second interval

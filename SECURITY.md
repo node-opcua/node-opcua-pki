@@ -28,3 +28,12 @@ If you are unable to use GitHub's private advisory form for any reason, please e
 ## 🛡️ Early CVE Access & Remediation
 
 Subscribers to the **[Node-OPCUA Membership Program](https://support.sterfive.com)** receive advanced access to security vulnerability disclosures (CVEs) and pre-remediation patches before public announcement.
+
+---
+
+## 🔑 Private key protection
+
+How this library protects private keys on disk, the opt-in
+passphrase-encrypted key support, and the threat model (what is and is not
+covered) are documented in
+[packages/node-opcua-pki/docs/private-key-protection.md](packages/node-opcua-pki/docs/private-key-protection.md).

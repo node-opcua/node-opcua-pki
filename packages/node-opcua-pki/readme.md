@@ -230,6 +230,10 @@ const cm = new CertificateManager({ location: "./my_pki" });
 await cm.initialize();
 ```
 
+See also [Private Key Protection](./docs/private-key-protection.md) for the
+opt-in `privateKeyPassphrase` / `privateKeyProvider` options and the threat
+model.
+
 ### [CertificateAuthority](./docs/certificate-authority.md)
 
 OpenSSL-based CA for issuing, revoking, and tracking certificates.

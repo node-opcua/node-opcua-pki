@@ -21,6 +21,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
+// re-exported so consumers can `instanceof`-check the fail-closed error thrown
+// by CertificateManager.initialize()/getPrivateKey() without depending on
+// node-opcua-crypto directly
+export { PrivateKeyPassphraseRequiredError } from "node-opcua-crypto";
 export {
     CertificateAuthority,
     type CertificateAuthorityOptions,

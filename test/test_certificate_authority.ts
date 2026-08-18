@@ -116,6 +116,54 @@ describe("Certificate Authority", function (this: Mocha.Suite) {
     });
 });
 
+describe("Certificate Authority private key permissions", function (this: Mocha.Suite) {
+    const testData = beforeTest(this);
+
+    const isWin32 = process.platform === "win32";
+    const modeBits = (filename: string) => fs.statSync(filename).mode & 0o777;
+
+    (isWin32 ? it.skip : it)("should restrict private/ and cakey.pem to owner-only on a fresh install", async () => {
+        const location = path.join(testData.tmpFolder, "CA_perms_fresh");
+        const ca = new CertificateAuthority({ keySize: 2048, location });
+        await ca.initialize();
+
+        modeBits(path.join(location, "private")).should.eql(0o700);
+        modeBits(path.join(location, "private/cakey.pem")).should.eql(0o600);
+    });
+
+    (isWin32 ? it.skip : it)("should repair permissions left loose by a pre-hardening install", async () => {
+        const location = path.join(testData.tmpFolder, "CA_perms_repair");
+        const privateDir = path.join(location, "private");
+        const publicDir = path.join(location, "public");
+        fs.mkdirSync(privateDir, { recursive: true, mode: 0o755 });
+        fs.chmodSync(privateDir, 0o755);
+        fs.mkdirSync(publicDir, { recursive: true });
+        const keyFile = path.join(privateDir, "cakey.pem");
+        fs.writeFileSync(keyFile, "not a real key, just needs to exist and be loosely permissioned", { mode: 0o644 });
+        fs.chmodSync(keyFile, 0o644);
+        // a placeholder cert so the CA is considered fully initialized already
+        // (construct_CertificateAuthority's early-return "already exist" path,
+        // not the key-regeneration path) — content is never read on that path
+        fs.writeFileSync(path.join(publicDir, "cacert.pem"), "not a real cert, existence only");
+
+        modeBits(privateDir).should.eql(0o755);
+        modeBits(keyFile).should.eql(0o644);
+
+        const ca = new CertificateAuthority({ keySize: 2048, location });
+        await ca.initialize();
+
+        modeBits(privateDir).should.eql(0o700);
+        modeBits(keyFile).should.eql(0o600);
+    });
+
+    (isWin32 ? it : it.skip)("should not throw on Windows even though permission hardening is a no-op there", async () => {
+        const location = path.join(testData.tmpFolder, "CA_perms_win32");
+        const ca = new CertificateAuthority({ keySize: 2048, location });
+        await ca.initialize();
+        fs.existsSync(path.join(location, "private/cakey.pem")).should.eql(true);
+    });
+});
+
 describe("Signing Certificate with Certificate Authority", function (this: Mocha.Suite) {
     const testData = beforeTest(this);
 

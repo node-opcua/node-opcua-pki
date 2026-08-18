@@ -50,6 +50,49 @@ export function mkdirRecursiveSync(folder: string): void {
     }
 }
 
+/**
+ * Restrict a file or directory to owner-only access (mode 0600/0700).
+ *
+ * fs.chmod only toggles the read-only attribute on Windows and cannot express
+ * POSIX-style owner-only permissions, so this is a no-op there rather than a
+ * false sense of protection. Errors are logged, not thrown: a read-only mount
+ * or an unexpected ownership mismatch should not prevent the server from
+ * starting.
+ */
+export function restrictPrivateFilePermissions(target: string, mode: 0o600 | 0o700): void {
+    // istanbul ignore if
+    if (process.platform === "win32") {
+        return;
+    }
+    try {
+        fs.chmodSync(target, mode);
+    } catch (err) {
+        // istanbul ignore next
+        warningLog(chalk.yellow("        could not restrict permissions on "), target, (err as Error).message);
+    }
+}
+
+/**
+ * Create (or repair) a directory intended to hold private key material,
+ * restricted to owner-only access. Safe to call on an existing directory
+ * to repair permissions left by an earlier, less restrictive version.
+ */
+export function ensurePrivateDirectory(dir: string): void {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
+    restrictPrivateFilePermissions(dir, 0o700);
+}
+
+/**
+ * `true` if the PEM file at `filename` holds a passphrase-encrypted PKCS#8
+ * key (`-----BEGIN ENCRYPTED PRIVATE KEY-----`). Header check only; it does
+ * not validate or decrypt the key. Throws if the file cannot be read.
+ */
+export function isEncryptedPrivateKeyFile(filename: string): boolean {
+    return fs.readFileSync(filename, "utf-8").includes("-----BEGIN ENCRYPTED PRIVATE KEY-----");
+}
+
 export function makePath(folderName: string, filename?: string): string {
     let s: string;
     if (filename) {

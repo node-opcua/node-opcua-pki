@@ -113,6 +113,58 @@ describe("PFX (PKCS#12) Toolbox", function () {
             // PFX with CA should be larger than PFX without
             raw.length.should.be.greaterThan(fs.readFileSync(pfxFile).length, "PFX with CA certs should be larger than without");
         });
+
+        describe("with a passphrase-encrypted private key (CertificateManager privateKeyPassphrase)", () => {
+            const keyPassphrase = "key passphrase with $hell `chars`";
+            let encCertFile: string;
+            let encKeyFile: string;
+
+            before(async () => {
+                const cm = new CertificateManager({
+                    location: path.join(testData.tmpFolder, "PFX_CM_ENC"),
+                    privateKeyPassphrase: keyPassphrase
+                });
+                await cm.initialize();
+                await cm.createSelfSignedCertificate({
+                    applicationUri: "urn:test:pfx:enc",
+                    subject: "CN=PFXTestEnc",
+                    dns: ["localhost"],
+                    startDate: new Date(),
+                    validity: 365
+                });
+                encCertFile = path.join(cm.rootDir, "own/certs/self_signed_certificate.pem");
+                encKeyFile = cm.privateKey;
+                await cm.dispose();
+                fs.readFileSync(encKeyFile, "utf-8").should.match(/ENCRYPTED PRIVATE KEY/);
+            });
+
+            it("should create a PFX when given the key passphrase", async () => {
+                const out = path.join(testData.tmpFolder, "test_enc_key.pfx");
+                await createPFX({
+                    certificateFile: encCertFile,
+                    privateKeyFile: encKeyFile,
+                    privateKeyPassphrase: keyPassphrase,
+                    outputFile: out,
+                    passphrase: "bundle pass"
+                });
+                identifyDERContent(fs.readFileSync(out)).should.eql("PKCS12");
+                const pem = await extractPrivateKeyFromPFX({ pfxFile: out, passphrase: "bundle pass" });
+                pem.should.match(/PRIVATE KEY/);
+            });
+
+            it("should fail fast (not hang) when the key passphrase is missing", async function () {
+                this.timeout(20000);
+                const out = path.join(testData.tmpFolder, "test_enc_key_nopass.pfx");
+                let threw = false;
+                try {
+                    await createPFX({ certificateFile: encCertFile, privateKeyFile: encKeyFile, outputFile: out });
+                } catch {
+                    threw = true;
+                }
+                threw.should.eql(true, "createPFX must reject, not wait for a passphrase prompt");
+                fs.existsSync(out).should.eql(false);
+            });
+        });
     });
 
     // ── extractCertificateFromPFX ──────────────────────────────
@@ -372,6 +424,70 @@ describe("PFX (PKCS#12) Toolbox", function () {
             certificateMatchesPrivateKey(extractedCertDer, originalKey).should.be.true(
                 "original private key must match the certificate extracted from PFX"
             );
+        });
+    });
+
+    // ── passphrases containing shell metacharacters ─────────────
+    //
+    // Regression coverage for the fix that stopped passphrases from being
+    // interpolated into the openssl command string (previously
+    // `-passin/-passout pass:${passphrase}`, executed via a shell). A
+    // passphrase containing shell metacharacters must round-trip like any
+    // other passphrase, not break the command or, worse, execute part of
+    // itself as a shell command.
+    describe("passphrases containing shell metacharacters", () => {
+        // one passphrase covering several classically dangerous shell
+        // metacharacters: command substitution, backticks, quotes, pipe,
+        // semicolon, redirection, backslash, dollar-sign expansion.
+        const nastyPassphrase = "p$(id)`touch /tmp/pwned`;|&<>!\"'\\pass";
+
+        it("should create and extract a PFX round-trip with a shell-metacharacter passphrase", async () => {
+            const nastyPfxFile = path.join(testData.tmpFolder, "test_nasty_passphrase.pfx");
+
+            await createPFX({
+                certificateFile: certFile,
+                privateKeyFile: keyFile,
+                outputFile: nastyPfxFile,
+                passphrase: nastyPassphrase
+            });
+
+            fs.existsSync(nastyPfxFile).should.be.true("PFX file should exist");
+
+            const extractedPem = await extractCertificateFromPFX({
+                pfxFile: nastyPfxFile,
+                passphrase: nastyPassphrase
+            });
+            const extractedDer = convertPEMtoDER(extractedPem);
+            const originalCert = await readCertificateChainAsync(certFile);
+            makeSHA1Thumbprint(extractedDer)
+                .toString("hex")
+                .should.eql(makeSHA1Thumbprint(originalCert[0]).toString("hex"), "thumbprints must match");
+
+            // proof the injection attempt never ran as a shell command
+            fs.existsSync("/tmp/pwned").should.be.false("passphrase content must never be interpreted by a shell");
+        });
+
+        it("should fail (not inject) when extracting with the wrong shell-metacharacter passphrase", async () => {
+            const nastyPfxFile = path.join(testData.tmpFolder, "test_nasty_passphrase_2.pfx");
+
+            await createPFX({
+                certificateFile: certFile,
+                privateKeyFile: keyFile,
+                outputFile: nastyPfxFile,
+                passphrase: nastyPassphrase
+            });
+
+            let threw = false;
+            try {
+                await extractCertificateFromPFX({
+                    pfxFile: nastyPfxFile,
+                    passphrase: `${nastyPassphrase}-wrong`
+                });
+            } catch {
+                threw = true;
+            }
+            threw.should.be.true("should throw when the shell-metacharacter passphrase is wrong, not execute part of it");
+            fs.existsSync("/tmp/pwned").should.be.false("passphrase content must never be interpreted by a shell");
         });
     });
 });

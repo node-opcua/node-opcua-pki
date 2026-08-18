@@ -24,6 +24,7 @@ import fs from "node:fs";
 
 import {
     CertificatePurpose,
+    coercePrivateKeyPem,
     createSelfSignedCertificate as createSelfSignedCertificate1,
     pemToPrivateKey,
     Subject
@@ -44,7 +45,9 @@ export async function createSelfSignedCertificateAsync(
      */
     assert(fs.existsSync(params.configFile));
     assert(fs.existsSync(params.rootDir));
-    assert(fs.existsSync(params.privateKey));
+    if (typeof params.privateKey === "string") {
+        assert(fs.existsSync(params.privateKey));
+    }
     if (!params.subject) {
         throw Error("Missing subject");
     }
@@ -66,7 +69,10 @@ export async function createSelfSignedCertificateAsync(
 
     displayTitle("Generate a certificate request");
 
-    const privateKeyPem = await fs.promises.readFile(params.privateKey, "utf-8");
+    const privateKeyPem =
+        typeof params.privateKey === "string"
+            ? await fs.promises.readFile(params.privateKey, "utf-8")
+            : coercePrivateKeyPem(params.privateKey);
     const privateKey = await pemToPrivateKey(privateKeyPem);
 
     const { cert } = await createSelfSignedCertificate1({

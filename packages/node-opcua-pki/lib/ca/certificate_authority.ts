@@ -48,13 +48,15 @@ import {
     debugLog,
     displaySubtitle,
     displayTitle,
+    ensurePrivateDirectory,
     type Filename,
     type KeySize,
     makePath,
     mkdirRecursiveSync,
     type Params,
     type ProcessAltNamesParam,
-    quote
+    quote,
+    restrictPrivateFilePermissions
 } from "../toolbox";
 import {
     createCertificateSigningRequestWithOpenSSL,
@@ -128,9 +130,8 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
 
     async function make_folders() {
         mkdirRecursiveSync(caRootDir);
-        mkdirRecursiveSync(path.join(caRootDir, "private"));
+        ensurePrivateDirectory(path.join(caRootDir, "private"));
         mkdirRecursiveSync(path.join(caRootDir, "public"));
-        // xx execute("chmod 700 private");
         mkdirRecursiveSync(path.join(caRootDir, "certs"));
         mkdirRecursiveSync(path.join(caRootDir, "crl"));
         mkdirRecursiveSync(path.join(caRootDir, "conf"));
@@ -160,6 +161,8 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     const caCertExists = fs.existsSync(path.join(caRootDir, "public/cacert.pem"));
     if (caKeyExists && caCertExists && !config.forceCA) {
         // CA is fully initialized => do not overwrite
+        // repair permissions on installs created before this hardening
+        restrictPrivateFilePermissions(path.join(caRootDir, "private/cakey.pem"), 0o600);
         debugLog("CA private key and certificate already exist ... skipping");
         return;
     }
@@ -222,6 +225,7 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
     // This key is a 1025,2048,3072 or 2038 bit RSA key which is encrypted using
     // Triple-DES and stored in a PEM format so that it is readable as ASCII text.
     await generatePrivateKeyFile(privateKeyFilename, keySize);
+    restrictPrivateFilePermissions(privateKeyFilename, 0o600);
     displayTitle("Generate a certificate request for the CA key");
     // Once the private key is generated a Certificate Signing Request can be generated.
     // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
@@ -241,10 +245,6 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
             subjectOpt,
         options
     );
-
-    // xx // Step 3: Remove Passphrase from Key
-    // xx execute("cp private/cakey.pem private/cakey.pem.org");
-    // xx execute(openssl_path + " rsa -in private/cakey.pem.org -out private/cakey.pem -passin pass:"+paraphrase);
 
     const issuerCA = certificateAuthority._issuerCA;
     if (issuerCA) {
@@ -1261,13 +1261,19 @@ export class CertificateAuthority {
 
         // Ensure directory structure always exists
         mkdirRecursiveSync(caRootDir);
-        for (const dir of ["private", "public", "certs", "crl", "conf"]) {
+        for (const dir of ["public", "certs", "crl", "conf"]) {
             mkdirRecursiveSync(path.join(caRootDir, dir));
         }
+        ensurePrivateDirectory(path.join(caRootDir, "private"));
 
         const caCertFile = this.caCertificate;
         const privateKeyFile = path.join(caRootDir, "private/cakey.pem");
         const csrFile = path.join(caRootDir, "private/cakey.csr");
+
+        // repair permissions on installs created before this hardening
+        if (fs.existsSync(privateKeyFile)) {
+            restrictPrivateFilePermissions(privateKeyFile, 0o600);
+        }
 
         // ── Case 1: cert already exists ──
         if (fs.existsSync(caCertFile)) {
@@ -1320,6 +1326,7 @@ export class CertificateAuthority {
         // Generate private key
         if (!fs.existsSync(privateKeyFile)) {
             await generatePrivateKeyFile(privateKeyFile, this.keySize);
+            restrictPrivateFilePermissions(privateKeyFile, 0o600);
         }
 
         // Generate CSR

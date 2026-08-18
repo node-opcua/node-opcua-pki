@@ -27,7 +27,7 @@ import fs from "node:fs";
 import type { Filename } from "../toolbox/common";
 import { quote } from "../toolbox/common";
 import { makePath } from "../toolbox/common2";
-import { execute_openssl } from "../toolbox/with_openssl/execute_openssl";
+import { execute_openssl, passinArg, passoutArg } from "../toolbox/with_openssl/execute_openssl";
 
 const q = quote;
 const n = makePath;
@@ -41,8 +41,16 @@ export interface CreatePFXOptions {
     /** Path to the certificate file (PEM or DER). */
     certificateFile: Filename;
 
-    /** Path to the private key file (PEM). */
+    /** Path to the private key file (PEM, plaintext or encrypted PKCS#8). */
     privateKeyFile: Filename;
+
+    /**
+     * Passphrase that decrypts `privateKeyFile` if it is an encrypted
+     * PKCS#8 key (e.g. a `CertificateManager` created with
+     * `privateKeyPassphrase`). Omit for a plaintext key. This is distinct
+     * from `passphrase`, which protects the *output* PFX bundle.
+     */
+    privateKeyPassphrase?: string;
 
     /** Output path for the generated PFX file. */
     outputFile: Filename;
@@ -102,13 +110,19 @@ export interface ExtractPFXResult {
  *   -in <cert> -inkey <key>
  *   [-certfile <ca>]
  *   -out <pfx>
- *   -passout pass:<passphrase>
+ *   -passin  env:NODE_OPCUA_PKI_OPENSSL_PASSIN
+ *   -passout env:NODE_OPCUA_PKI_OPENSSL_PASSOUT
  * ```
+ * Both passphrases are passed via per-invocation environment variables,
+ * never interpolated into the command string — see {@link ExecuteOptions.env}.
+ * `-passin` is always present (empty when the key is plaintext) so that an
+ * encrypted key without a `privateKeyPassphrase` fails fast rather than
+ * leaving openssl waiting on a terminal prompt that never comes.
  *
  * @param options — see {@link CreatePFXOptions}
  */
 export async function createPFX(options: CreatePFXOptions): Promise<void> {
-    const { certificateFile, privateKeyFile, outputFile, passphrase = "", caCertificateFiles } = options;
+    const { certificateFile, privateKeyFile, privateKeyPassphrase, outputFile, passphrase = "", caCertificateFiles } = options;
 
     assert(fs.existsSync(certificateFile), `Certificate file does not exist: ${certificateFile}`);
     assert(fs.existsSync(privateKeyFile), `Private key file does not exist: ${privateKeyFile}`);
@@ -125,9 +139,11 @@ export async function createPFX(options: CreatePFXOptions): Promise<void> {
     }
 
     cmd += ` -out ${q(n(outputFile))}`;
-    cmd += ` -passout pass:${passphrase}`;
+    const passin = passinArg(privateKeyPassphrase);
+    const passout = passoutArg(passphrase);
+    cmd += ` ${passin.cmd} ${passout.cmd}`;
 
-    await execute_openssl(cmd, {});
+    await execute_openssl(cmd, { env: { ...passin.env, ...passout.env } });
 }
 
 // ── Extract certificate from PFX ───────────────────────────────
@@ -138,8 +154,10 @@ export async function createPFX(options: CreatePFXOptions): Promise<void> {
  * Wraps:
  * ```
  * openssl pkcs12 -in <pfx> -clcerts -nokeys
- *   -passin pass:<passphrase>
+ *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
  * ```
+ * The passphrase is passed via a per-invocation environment variable, never
+ * interpolated into the command string — see {@link ExecuteOptions.env}.
  *
  * @returns the certificate in PEM format.
  */
@@ -148,9 +166,10 @@ export async function extractCertificateFromPFX(options: ExtractPFXOptions): Pro
 
     assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
 
-    const cmd = `pkcs12 -in ${q(n(pfxFile))} -clcerts -nokeys -nodes -passin pass:${passphrase}`;
+    const passin = passinArg(passphrase);
+    const cmd = `pkcs12 -in ${q(n(pfxFile))} -clcerts -nokeys -nodes ${passin.cmd}`;
 
-    return await execute_openssl(cmd, {});
+    return await execute_openssl(cmd, { env: passin.env });
 }
 
 // ── Extract private key from PFX ───────────────────────────────
@@ -161,8 +180,10 @@ export async function extractCertificateFromPFX(options: ExtractPFXOptions): Pro
  * Wraps:
  * ```
  * openssl pkcs12 -in <pfx> -nocerts -nodes
- *   -passin pass:<passphrase>
+ *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
  * ```
+ * The passphrase is passed via a per-invocation environment variable, never
+ * interpolated into the command string — see {@link ExecuteOptions.env}.
  *
  * @returns the private key in PEM format.
  */
@@ -171,9 +192,10 @@ export async function extractPrivateKeyFromPFX(options: ExtractPFXOptions): Prom
 
     assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
 
-    const cmd = `pkcs12 -in ${q(n(pfxFile))} -nocerts -nodes -passin pass:${passphrase}`;
+    const passin = passinArg(passphrase);
+    const cmd = `pkcs12 -in ${q(n(pfxFile))} -nocerts -nodes ${passin.cmd}`;
 
-    return await execute_openssl(cmd, {});
+    return await execute_openssl(cmd, { env: passin.env });
 }
 
 // ── Extract CA certificates from PFX ───────────────────────────
@@ -184,8 +206,10 @@ export async function extractPrivateKeyFromPFX(options: ExtractPFXOptions): Prom
  * Wraps:
  * ```
  * openssl pkcs12 -in <pfx> -cacerts -nokeys -nodes
- *   -passin pass:<passphrase>
+ *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
  * ```
+ * The passphrase is passed via a per-invocation environment variable, never
+ * interpolated into the command string — see {@link ExecuteOptions.env}.
  *
  * @returns the CA certificates in PEM format
  *          (empty string if none are present).
@@ -195,9 +219,10 @@ export async function extractCACertificatesFromPFX(options: ExtractPFXOptions): 
 
     assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
 
-    const cmd = `pkcs12 -in ${q(n(pfxFile))} -cacerts -nokeys -nodes -passin pass:${passphrase}`;
+    const passin = passinArg(passphrase);
+    const cmd = `pkcs12 -in ${q(n(pfxFile))} -cacerts -nokeys -nodes ${passin.cmd}`;
 
-    return await execute_openssl(cmd, {});
+    return await execute_openssl(cmd, { env: passin.env });
 }
 
 // ── Extract everything from PFX ────────────────────────────────
@@ -226,15 +251,18 @@ export async function extractAllFromPFX(options: ExtractPFXOptions): Promise<Ext
  * Wraps:
  * ```
  * openssl pkcs12 -in <pfx> -out <pem> -nodes
- *   -passin pass:<passphrase>
+ *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
  * ```
+ * The passphrase is passed via a per-invocation environment variable, never
+ * interpolated into the command string — see {@link ExecuteOptions.env}.
  */
 export async function convertPFXtoPEM(pfxFile: Filename, pemFile: Filename, passphrase = ""): Promise<void> {
     assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
 
-    const cmd = `pkcs12 -in ${q(n(pfxFile))} -out ${q(n(pemFile))} -nodes -passin pass:${passphrase}`;
+    const passin = passinArg(passphrase);
+    const cmd = `pkcs12 -in ${q(n(pfxFile))} -out ${q(n(pemFile))} -nodes ${passin.cmd}`;
 
-    await execute_openssl(cmd, {});
+    await execute_openssl(cmd, { env: passin.env });
 }
 
 // ── Inspect PFX ────────────────────────────────────────────────
@@ -245,15 +273,18 @@ export async function convertPFXtoPEM(pfxFile: Filename, pemFile: Filename, pass
  * Wraps:
  * ```
  * openssl pkcs12 -in <pfx> -info -noout
- *   -passin pass:<passphrase>
+ *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
  * ```
+ * The passphrase is passed via a per-invocation environment variable, never
+ * interpolated into the command string — see {@link ExecuteOptions.env}.
  *
  * @returns the human-readable dump as a string.
  */
 export async function dumpPFX(pfxFile: Filename, passphrase = ""): Promise<string> {
     assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
 
-    const cmd = `pkcs12 -in ${q(n(pfxFile))} -info -nodes -passin pass:${passphrase}`;
+    const passin = passinArg(passphrase);
+    const cmd = `pkcs12 -in ${q(n(pfxFile))} -info -nodes ${passin.cmd}`;
 
-    return await execute_openssl(cmd, {});
+    return await execute_openssl(cmd, { env: passin.env });
 }

@@ -1,5 +1,6 @@
 Error.stackTraceLimit = Infinity;
 
+import { generateKeyPairSync } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import "should";
@@ -438,5 +439,57 @@ describe("US-032: isTrustListEmpty and getTrustedCertificateCount", function (th
 
         cm.getTrustedCertificateCount().should.eql(0);
         cm.isTrustListEmpty().should.eql(true);
+    });
+});
+
+describe("CertificateManager private key permissions", function (this: Mocha.Suite) {
+    this.timeout(40000);
+
+    const testData = beforeTest(this);
+
+    const isWin32 = process.platform === "win32";
+    const modeBits = (filename: string) => fs.statSync(filename).mode & 0o777;
+
+    (isWin32 ? it.skip : it)("should restrict own/private and the key file to owner-only on a fresh install", async () => {
+        const location = path.join(testData.tmpFolder, "PKI_perms_fresh");
+        const cm = new CertificateManager({ location });
+        await cm.initialize();
+
+        modeBits(path.join(location, "own/private")).should.eql(0o700);
+        modeBits(cm.privateKey).should.eql(0o600);
+
+        await cm.dispose();
+    });
+
+    (isWin32 ? it.skip : it)("should repair permissions left loose by a pre-hardening install", async () => {
+        const location = path.join(testData.tmpFolder, "PKI_perms_repair");
+        const privateDir = path.join(location, "own/private");
+        fs.mkdirSync(privateDir, { recursive: true, mode: 0o755 });
+        fs.chmodSync(privateDir, 0o755);
+        const keyFile = path.join(privateDir, "private_key.pem");
+        // a real (plaintext) key: initialize() now reads and validates the key
+        // up front (fail-closed), so a placeholder would make it throw
+        const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+        fs.writeFileSync(keyFile, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o644 });
+        fs.chmodSync(keyFile, 0o644);
+
+        modeBits(privateDir).should.eql(0o755);
+        modeBits(keyFile).should.eql(0o644);
+
+        const cm = new CertificateManager({ location });
+        await cm.initialize();
+
+        modeBits(privateDir).should.eql(0o700);
+        modeBits(cm.privateKey).should.eql(0o600);
+
+        await cm.dispose();
+    });
+
+    (isWin32 ? it : it.skip)("should not throw on Windows even though permission hardening is a no-op there", async () => {
+        const location = path.join(testData.tmpFolder, "PKI_perms_win32");
+        const cm = new CertificateManager({ location });
+        await cm.initialize();
+        fs.existsSync(cm.privateKey).should.eql(true);
+        await cm.dispose();
     });
 });

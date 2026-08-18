@@ -24,12 +24,15 @@ import {
     exploreCertificateRevocationList,
     generatePrivateKeyFile,
     makeSHA1Thumbprint,
+    type PrivateKey,
     readCertificateChain,
     readCertificateChainAsync,
     readCertificateRevocationList,
+    readPrivateKey,
     split_der,
     toPem,
-    verifyCertificateSignature
+    verifyCertificateSignature,
+    writePrivateKeyFile
 } from "node-opcua-crypto";
 
 import type { SubjectOptions } from "../misc/subject";
@@ -39,9 +42,18 @@ import type {
     CreateSelfSignCertificateWithConfigParam,
     Filename,
     KeySize,
+    PrivateKeyPassphrase,
+    PrivateKeyProvider,
     Thumbprint
 } from "../toolbox/common";
-import { makePath, mkdirRecursiveSync } from "../toolbox/common2";
+import { resolvePrivateKeyPassphrase } from "../toolbox/common";
+import {
+    ensurePrivateDirectory,
+    isEncryptedPrivateKeyFile,
+    makePath,
+    mkdirRecursiveSync,
+    restrictPrivateFilePermissions
+} from "../toolbox/common2";
 import { debugLog, warningLog } from "../toolbox/debug";
 import { createCertificateSigningRequestAsync, createSelfSignedCertificate } from "../toolbox/without_openssl";
 
@@ -196,6 +208,39 @@ export interface CertificateManagerOptions {
      * @defaultValue false
      */
     disableFileWatchers?: boolean;
+
+    /**
+     * Encrypt the private key at rest with this passphrase (opt-in,
+     * default off). When set:
+     * - a freshly generated key is written as encrypted PKCS#8;
+     * - an existing *plaintext* key is re-encrypted in place by
+     *   {@link CertificateManager.initialize} (atomic rename, same as
+     *   {@link CertificateManager.reencryptPrivateKey}), so enabling the
+     *   option on an existing install never leaves the key in cleartext;
+     * - an existing encrypted key requires the same passphrase — a
+     *   mismatch, or an encrypted key with no passphrase configured, fails
+     *   `initialize()` closed with `PrivateKeyPassphraseRequiredError`.
+     *
+     * A function is called at most once per `CertificateManager` instance
+     * (the decrypted key is cached in memory for the instance's lifetime,
+     * see {@link CertificateManager.getPrivateKey}). Never logged.
+     *
+     * Existing consumers that read `own/private/private_key.pem` directly
+     * (e.g. node-opcua's `OPCUAServer`, or `createPFX` without its
+     * `privateKeyPassphrase` option) still expect a plaintext key — do not
+     * enable this unless every reader of that file goes through
+     * {@link CertificateManager.getPrivateKey} or is given the passphrase.
+     */
+    privateKeyPassphrase?: PrivateKeyPassphrase;
+
+    /**
+     * Source the private key from somewhere other than
+     * `own/private/private_key.pem` (an HSM, a KMS, ...). When set, it
+     * overrides disk entirely for every operation that needs the private
+     * key — the on-disk file is not read, and `privateKeyPassphrase` is
+     * ignored.
+     */
+    privateKeyProvider?: PrivateKeyProvider;
 }
 
 /**
@@ -669,6 +714,15 @@ export class CertificateManager extends EventEmitter {
     #initializingPromise?: Promise<void>;
     readonly #addCertValidation: Required<AddCertificateValidationOptions>;
     readonly #disableFileWatchers: boolean;
+    readonly #privateKeyPassphrase?: PrivateKeyPassphrase;
+    readonly #privateKeyProvider?: PrivateKeyProvider;
+    /**
+     * The on-disk key, decrypted once and kept for the instance's lifetime,
+     * so the passphrase (or its resolver function) is consulted at most
+     * once. Cleared by `dispose()`. Not used when a provider is configured:
+     * the provider is the authority on the current key.
+     */
+    #cachedPrivateKey?: PrivateKey;
 
     readonly #thumbs: Thumbs = {
         rejected: new Map(),
@@ -708,6 +762,8 @@ export class CertificateManager extends EventEmitter {
         };
 
         this.#disableFileWatchers = options.disableFileWatchers ?? process.env.OPCUA_PKI_DISABLE_FILE_WATCHERS === "true";
+        this.#privateKeyPassphrase = options.privateKeyPassphrase;
+        this.#privateKeyProvider = options.privateKeyProvider;
 
         mkdirRecursiveSync(options.location);
 
@@ -726,9 +782,110 @@ export class CertificateManager extends EventEmitter {
         return this.#location;
     }
 
-    /** Path to the private key file (`own/private/private_key.pem`). */
+    /**
+     * Path to the private key file (`own/private/private_key.pem`).
+     *
+     * Kept for backward compatibility with code that reads the key
+     * directly from disk. When a passphrase or a `privateKeyProvider` is
+     * configured, prefer {@link getPrivateKey} instead — this getter still
+     * returns the on-disk path even if a provider is configured (there may
+     * be no meaningful file in that case).
+     */
     get privateKey() {
         return path.join(this.rootDir, "own/private/private_key.pem");
+    }
+
+    /**
+     * Resolve the private key: from `privateKeyProvider` if configured,
+     * otherwise from disk (decrypting with `privateKeyPassphrase` if the
+     * key is encrypted). Fails closed — throws
+     * `PrivateKeyPassphraseRequiredError` — if the on-disk key is encrypted
+     * and no passphrase is configured, or if the wrong passphrase is
+     * configured.
+     *
+     * The on-disk key is read and decrypted once and then cached for the
+     * lifetime of this instance, so a `privateKeyPassphrase` function is
+     * called at most once (concurrent first calls share the same read). A
+     * failed read is not cached, so a caller can fix the passphrase and
+     * retry. A `privateKeyProvider` is consulted on every call: it is the
+     * authority on what the current key is.
+     */
+    public async getPrivateKey(): Promise<PrivateKey> {
+        if (this.#privateKeyProvider) {
+            return await this.#privateKeyProvider.getPrivateKey();
+        }
+        if (this.#cachedPrivateKey) {
+            return this.#cachedPrivateKey;
+        }
+        if (!this.#privateKeyPromise) {
+            this.#privateKeyPromise = (async () => {
+                const passphrase = await resolvePrivateKeyPassphrase(this.#privateKeyPassphrase);
+                return readPrivateKey(this.privateKey, passphrase);
+            })().then(
+                (key) => {
+                    this.#cachedPrivateKey = key;
+                    return key;
+                },
+                (err) => {
+                    this.#privateKeyPromise = undefined; // not cached: allow a retry
+                    throw err;
+                }
+            );
+        }
+        return await this.#privateKeyPromise;
+    }
+    /** In-flight first read of the on-disk key, so concurrent callers share one passphrase resolution. */
+    #privateKeyPromise?: Promise<PrivateKey>;
+
+    /**
+     * Enable, disable, or rotate the passphrase protecting the on-disk
+     * private key: decrypt with `oldPassphrase` (omit if the key is
+     * currently unencrypted), then write back encrypted with
+     * `newPassphrase` (omit to leave it unencrypted). The write goes to a
+     * temporary file in the same directory and is atomically renamed into
+     * place, so a crash mid-rotation cannot leave a partially-written key;
+     * the temporary file is removed if anything fails, so a rotation *to*
+     * plaintext can never leave a stray cleartext copy behind. Runs under
+     * the same lock as `initialize()`.
+     *
+     * This only rewrites the on-disk file — it does not update this
+     * instance's own `privateKeyPassphrase` (set at construction), and it
+     * drops this instance's cached key so that disk stays the source of
+     * truth. Construct a new `CertificateManager` with the new passphrase to
+     * continue using it afterward.
+     *
+     * Not supported when a `privateKeyProvider` is configured (there is no
+     * disk file for this method to rewrite).
+     */
+    public async reencryptPrivateKey(oldPassphrase?: PrivateKeyPassphrase, newPassphrase?: PrivateKeyPassphrase): Promise<void> {
+        if (this.#privateKeyProvider) {
+            throw new Error("reencryptPrivateKey: not supported when a privateKeyProvider is configured");
+        }
+        const oldPass = await resolvePrivateKeyPassphrase(oldPassphrase);
+        const newPass = await resolvePrivateKeyPassphrase(newPassphrase);
+        await this.withLock2(async () => {
+            const privateKey = readPrivateKey(this.privateKey, oldPass);
+            await this.#rewritePrivateKeyFile(privateKey, newPass);
+        });
+        this.#cachedPrivateKey = undefined;
+        this.#privateKeyPromise = undefined;
+    }
+
+    /**
+     * Atomically replace the on-disk private key with `privateKey`, written
+     * as PKCS#8 (encrypted with `passphrase` if given). Temp file next to the
+     * target, `0600`, renamed into place; the temp file is unlinked on any
+     * failure so no partial or cleartext copy can be left behind.
+     * Caller must hold the lock.
+     */
+    async #rewritePrivateKeyFile(privateKey: PrivateKey, passphrase: string | undefined): Promise<void> {
+        const tmpFilename = `${this.privateKey}.${process.pid}-${Date.now()}.tmp`;
+        try {
+            await writePrivateKeyFile(tmpFilename, privateKey, { passphrase });
+            await fs.promises.rename(tmpFilename, this.privateKey);
+        } finally {
+            await fs.promises.rm(tmpFilename, { force: true });
+        }
     }
 
     /** Path to the OpenSSL random seed file. */
@@ -1097,7 +1254,17 @@ export class CertificateManager extends EventEmitter {
         }
         this.state = CertificateManagerState.Initializing;
         this.#initializingPromise = this.#initialize();
-        await this.#initializingPromise;
+        try {
+            await this.#initializingPromise;
+        } catch (err) {
+            // Fail closed but not stuck: a failed initialize() (typically a
+            // wrong or missing private-key passphrase) must leave the
+            // instance re-initializable, not parked in Initializing where a
+            // retry would silently no-op with empty trust indexes.
+            this.#initializingPromise = undefined;
+            this.state = CertificateManagerState.Uninitialized;
+            throw err;
+        }
         this.#initializingPromise = undefined;
         this.state = CertificateManagerState.Initialized;
 
@@ -1107,12 +1274,11 @@ export class CertificateManager extends EventEmitter {
     }
 
     async #initialize(): Promise<void> {
-        this.state = CertificateManagerState.Initializing;
         const pkiDir = this.#location;
         mkdirRecursiveSync(pkiDir);
         mkdirRecursiveSync(path.join(pkiDir, "own"));
         mkdirRecursiveSync(path.join(pkiDir, "own/certs"));
-        mkdirRecursiveSync(path.join(pkiDir, "own/private"));
+        ensurePrivateDirectory(path.join(pkiDir, "own/private"));
         mkdirRecursiveSync(path.join(pkiDir, "rejected"));
         mkdirRecursiveSync(path.join(pkiDir, "trusted"));
         mkdirRecursiveSync(path.join(pkiDir, "trusted/certs"));
@@ -1122,7 +1288,21 @@ export class CertificateManager extends EventEmitter {
         mkdirRecursiveSync(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
         mkdirRecursiveSync(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
-        if (!fs.existsSync(this.configFile) || !fs.existsSync(this.privateKey)) {
+        // when a privateKeyProvider is configured it overrides disk entirely,
+        // so there is no on-disk key to generate, encrypt, or check for existence
+        const ownsDiskKey = !this.#privateKeyProvider;
+        const needsKeyGeneration = ownsDiskKey && !fs.existsSync(this.privateKey);
+        // Secure by default: a passphrase configured on an install whose key
+        // is still plaintext means "protect this key", not "ignore me". Node's
+        // createPrivateKey would silently accept the plaintext key with any
+        // passphrase, so detect it here and encrypt in place.
+        const needsKeyEncryption =
+            ownsDiskKey &&
+            !needsKeyGeneration &&
+            this.#privateKeyPassphrase !== undefined &&
+            !isEncryptedPrivateKeyFile(this.privateKey);
+
+        if (!fs.existsSync(this.configFile) || needsKeyGeneration || needsKeyEncryption) {
             return await this.withLock2(async () => {
                 if (this.state === CertificateManagerState.Disposing || this.state === CertificateManagerState.Disposed) {
                     return;
@@ -1139,17 +1319,38 @@ export class CertificateManager extends EventEmitter {
                 //
                 // cf: https://github.com/node-opcua/node-opcua/issues/554
 
-                if (!fs.existsSync(this.privateKey)) {
+                if (ownsDiskKey && !fs.existsSync(this.privateKey)) {
                     debugLog("generating private key ...");
                     //   setEnv("RANDFILE", this.randomFile);
-                    await generatePrivateKeyFile(this.privateKey, this.keySize);
-                    await this.#readCertificates();
-                } else {
-                    // debugLog("   initialize :  private key already exists ... skipping");
-                    await this.#readCertificates();
+                    const passphrase = await resolvePrivateKeyPassphrase(this.#privateKeyPassphrase);
+                    await generatePrivateKeyFile(this.privateKey, this.keySize, { passphrase });
+                    // seed the cache from the passphrase we already resolved,
+                    // so a passphrase function is not called a second time below
+                    this.#cachedPrivateKey = readPrivateKey(this.privateKey, passphrase);
+                } else if (ownsDiskKey && this.#privateKeyPassphrase !== undefined && !isEncryptedPrivateKeyFile(this.privateKey)) {
+                    // (re-checked under the lock: another instance may have done it first)
+                    warningLog("initialize: private key is plaintext but a passphrase is configured; encrypting it in place");
+                    const passphrase = await resolvePrivateKeyPassphrase(this.#privateKeyPassphrase);
+                    const plaintextKey = readPrivateKey(this.privateKey);
+                    await this.#rewritePrivateKeyFile(plaintextKey, passphrase);
+                    this.#cachedPrivateKey = plaintextKey;
                 }
+                if (ownsDiskKey) {
+                    // repair permissions on installs created before this hardening,
+                    // and confirm them on a freshly generated key
+                    restrictPrivateFilePermissions(this.privateKey, 0o600);
+                }
+                // Fail closed now, not on the first certificate operation, if
+                // the key cannot actually be read: wrong/missing passphrase
+                // on an encrypted key, or a broken privateKeyProvider.
+                await this.getPrivateKey();
+                await this.#readCertificates();
             });
         } else {
+            if (ownsDiskKey) {
+                restrictPrivateFilePermissions(this.privateKey, 0o600);
+            }
+            await this.getPrivateKey();
             await this.#readCertificates();
         }
     }
@@ -1195,6 +1396,8 @@ export class CertificateManager extends EventEmitter {
             this.#watchers.splice(0);
         } finally {
             this.state = CertificateManagerState.Disposed;
+            this.#cachedPrivateKey = undefined;
+            this.#privateKeyPromise = undefined;
             CertificateManager.#activeInstances.delete(this);
         }
     }
@@ -1248,18 +1451,21 @@ export class CertificateManager extends EventEmitter {
         if (typeof params.applicationUri !== "string") {
             throw new Error("createSelfSignedCertificate: expecting applicationUri to be a string");
         }
-        if (!fs.existsSync(this.privateKey)) {
+        if (!this.#privateKeyProvider && !fs.existsSync(this.privateKey)) {
             throw new Error(`Cannot find private key ${this.privateKey}`);
         }
         let certificateFilename = path.join(this.rootDir, "own/certs/self_signed_certificate.pem");
         certificateFilename = params.outputFile || certificateFilename;
 
-        const _params = params as unknown as CreateSelfSignCertificateWithConfigParam;
-        _params.rootDir = this.rootDir;
-        _params.configFile = this.configFile;
-        _params.privateKey = this.privateKey;
-
-        _params.subject = params.subject || "CN=FIXME";
+        // a copy, not an in-place mutation: the caller's object must never
+        // end up holding the resolved private key material
+        const _params: CreateSelfSignCertificateWithConfigParam = {
+            ...(params as unknown as CreateSelfSignCertificateWithConfigParam),
+            rootDir: this.rootDir,
+            configFile: this.configFile,
+            privateKey: await this.getPrivateKey(),
+            subject: params.subject || "CN=FIXME"
+        };
         await this.withLock2(async () => {
             await createSelfSignedCertificate(certificateFilename, _params);
         });
@@ -1279,13 +1485,17 @@ export class CertificateManager extends EventEmitter {
         if (!params) {
             throw new Error("params is required");
         }
-        const _params = params as CreateSelfSignCertificateWithConfigParam;
-        if (Object.prototype.hasOwnProperty.call(_params, "rootDir")) {
+        if (Object.prototype.hasOwnProperty.call(params, "rootDir")) {
             throw new Error("rootDir should not be specified ");
         }
-        _params.rootDir = path.resolve(this.rootDir);
-        _params.configFile = path.resolve(this.configFile);
-        _params.privateKey = path.resolve(this.privateKey);
+        // a copy, not an in-place mutation: the caller's object must never
+        // end up holding the resolved private key material
+        const _params: CreateSelfSignCertificateWithConfigParam = {
+            ...(params as CreateSelfSignCertificateWithConfigParam),
+            rootDir: path.resolve(this.rootDir),
+            configFile: path.resolve(this.configFile),
+            privateKey: await this.getPrivateKey()
+        };
 
         return await this.withLock2<string>(async () => {
             // compose a file name for the request
