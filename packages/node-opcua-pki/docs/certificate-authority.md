@@ -42,6 +42,7 @@ await rootCA.initialize();
 | `location`| `string`                     | Filesystem path for the CA directory |
 | `subject` | `string \| SubjectOptions`   | X.500 subject (e.g. `"/CN=My CA"`)  |
 | `issuerCA`| `CertificateAuthority?`      | Parent CA (omit for root CA)         |
+| `privateKeyPassphrase` | `string \| () => Promise<string>` | Opt-in: encrypt `private/cakey.pem` at rest; an existing plaintext key is encrypted in place, a wrong/missing passphrase fails `initialize()` closed. See [Private Key Protection](./private-key-protection.md). |
 
 ---
 

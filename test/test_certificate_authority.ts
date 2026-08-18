@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -139,11 +140,14 @@ describe("Certificate Authority private key permissions", function (this: Mocha.
         fs.chmodSync(privateDir, 0o755);
         fs.mkdirSync(publicDir, { recursive: true });
         const keyFile = path.join(privateDir, "cakey.pem");
-        fs.writeFileSync(keyFile, "not a real key, just needs to exist and be loosely permissioned", { mode: 0o644 });
+        // a real (plaintext) key: initialize() reads and validates the CA key
+        // up front (fail-closed), so a placeholder would make it throw
+        const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+        fs.writeFileSync(keyFile, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o644 });
         fs.chmodSync(keyFile, 0o644);
         // a placeholder cert so the CA is considered fully initialized already
         // (construct_CertificateAuthority's early-return "already exist" path,
-        // not the key-regeneration path) — content is never read on that path
+        // not the key-regeneration path) — the cert content is not read there
         fs.writeFileSync(path.join(publicDir, "cacert.pem"), "not a real cert, existence only");
 
         modeBits(privateDir).should.eql(0o755);
