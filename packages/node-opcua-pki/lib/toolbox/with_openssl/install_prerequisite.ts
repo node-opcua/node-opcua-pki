@@ -42,32 +42,26 @@ interface ExecuteResult {
     output: string;
 }
 
-async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
+/**
+ * Run `file` with `args` directly (no shell), same as execute_openssl's
+ * `execute()`: the same curated environment (a binary discovered with the
+ * full parent env but run with a reduced one could otherwise be found here
+ * and then fail to load its libraries later), and /dev/null stdin.
+ * Resolves with the exit code rather than rejecting on a non-zero exit;
+ * rejects only when the process cannot be spawned at all.
+ */
+async function execute(file: string, args: string[], cwd?: string): Promise<ExecuteResult> {
     let output = "";
 
-    // same curated environment as execute_openssl's `execute()`: a binary
-    // discovered with the full parent env but run with a reduced one could
-    // otherwise be found here and then fail to load its libraries later
-    const options = {
-        cwd,
-        windowsHide: true,
-        env: buildChildEnv()
-    };
-
     return await new Promise<ExecuteResult>((resolve, reject) => {
-        const child = child_process.exec(
-            cmd,
-            options,
-            (err: child_process.ExecException | null /*, stdout: string, stderr: string*/) => {
-                // ExecException.code is `string | number` (@types/node 26 widened it to
-                // carry things like "ENOENT"), so a non-numeric code collapses to 1.
-                const exitCode = err === null ? 0 : typeof err.code === "number" ? err.code : 1;
-                if (err) reject(err);
-                else {
-                    resolve({ exitCode, output });
-                }
-            }
-        );
+        const child = child_process.spawn(file, args, {
+            cwd,
+            windowsHide: true,
+            env: buildChildEnv(),
+            stdio: ["ignore", "pipe", "pipe"]
+        });
+        child.on("error", (err: Error) => reject(err));
+        child.on("close", (code: number | null) => resolve({ exitCode: code ?? 1, output }));
 
         const stream1 = byline(child.stdout as Readable);
         stream1.on("data", (line: string) => {
@@ -80,10 +74,6 @@ async function execute(cmd: string, cwd?: string): Promise<ExecuteResult> {
     });
 }
 
-function quote(str: string): string {
-    return `"${str.replace(/\\/g, "/")}"`;
-}
-
 function is_expected_openssl_version(strVersion: string): boolean {
     return !!strVersion.match(/OpenSSL \d/);
 }
@@ -91,7 +81,7 @@ function is_expected_openssl_version(strVersion: string): boolean {
 async function getopensslExecPath(): Promise<string> {
     let result1: ExecuteResult | undefined;
     try {
-        result1 = await execute("which openssl");
+        result1 = await execute("which", ["openssl"]);
     } catch (err) {
         warningLog("warning: ", (err as Error).message);
         throw new Error("Cannot find openssl");
@@ -111,14 +101,12 @@ async function getopensslExecPath(): Promise<string> {
 export async function check_system_openssl_version(): Promise<string> {
     const opensslExecPath = await getopensslExecPath();
 
-    const q_opensslExecPath = quote(opensslExecPath);
-
     // istanbul ignore next
     if (doDebug) {
         warningLog(`              OpenSSL found in : ${chalk.yellow(opensslExecPath)}`);
     }
     // ------------------------ now verify that openssl version is the correct one
-    const result = await execute(`${q_opensslExecPath} version`);
+    const result = await execute(opensslExecPath, ["version"]);
 
     const exitCode = result?.exitCode;
     const output = result?.output;
@@ -174,10 +162,9 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                 version: `cannot find file ${opensslExecPath}`
             };
         } else {
-            const q_openssl_exe_path = quote(opensslExecPath);
             const cwd = ".";
 
-            const { exitCode, output } = await execute(`${q_openssl_exe_path} version`, cwd);
+            const { exitCode, output } = await execute(opensslExecPath, ["version"], cwd);
             const version = output.trim();
             // istanbul ignore next
 
@@ -197,7 +184,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
      */
     async function find_system_openssl_win32(): Promise<string | undefined> {
         try {
-            const result = await execute("where openssl");
+            const result = await execute("where", ["openssl"]);
             if (result.exitCode !== 0) {
                 return undefined;
             }
@@ -207,8 +194,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
                 return undefined;
             }
             // verify version
-            const q = quote(opensslPath);
-            const versionResult = await execute(`${q} version`);
+            const versionResult = await execute(opensslPath, ["version"]);
             const version = versionResult.output.trim();
             if (versionResult.exitCode === 0 && is_expected_openssl_version(version)) {
                 warningLog(

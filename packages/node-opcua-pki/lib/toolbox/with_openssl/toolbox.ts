@@ -27,7 +27,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { Filename } from "../common";
-import { quote } from "../common";
 import { makePath } from "../common2";
 import { g_config } from "../config";
 import { getEnv, getEnvironmentVarNames, hasEnv } from "./_env";
@@ -89,7 +88,6 @@ export function generateStaticConfig(configPath: string, options?: ExecuteOption
     }
 }
 
-const q = quote;
 const n = makePath;
 
 /**
@@ -111,7 +109,7 @@ export async function getPublicKeyFromPrivateKey(
 ): Promise<void> {
     assert(fs.existsSync(privateKeyFilename));
     const passin = passinArg(passphrase);
-    await execute_openssl(`rsa -pubout -in ${q(n(privateKeyFilename))} -out ${q(n(publicKeyFilename))} ${passin.cmd}`, {
+    await execute_openssl(["rsa", "-pubout", "-in", n(privateKeyFilename), "-out", n(publicKeyFilename), ...passin.args], {
         env: passin.env
     });
 }
@@ -126,7 +124,9 @@ export async function getPublicKeyFromPrivateKey(
  */
 export async function getPublicKeyFromCertificate(certificateFilename: string, publicKeyFilename: string) {
     assert(fs.existsSync(certificateFilename));
-    await execute_openssl(`x509 -pubkey -in ${q(n(certificateFilename))} > ${q(n(publicKeyFilename))}`, {});
+    // no shell, so no `>` redirection: capture stdout and write it ourselves
+    const output = await execute_openssl(["x509", "-pubkey", "-in", n(certificateFilename)], {});
+    await fs.promises.writeFile(publicKeyFilename, output);
 }
 export function x509Date(date?: Date): string {
     date = date || new Date();
@@ -155,17 +155,17 @@ export function x509Date(date?: Date): string {
  */
 export async function dumpCertificate(certificate: Filename): Promise<string> {
     assert(fs.existsSync(certificate));
-    return await execute_openssl(`x509  -in ${q(n(certificate))} -text  -noout`, {});
+    return await execute_openssl(["x509", "-in", n(certificate), "-text", "-noout"], {});
 }
 
 export async function toDer(certificatePem: string): Promise<string> {
     assert(fs.existsSync(certificatePem));
     const certificateDer = certificatePem.replace(".pem", ".der");
-    return await execute_openssl(`x509   -outform der  -in ${certificatePem} -out ${certificateDer}`, {});
+    return await execute_openssl(["x509", "-outform", "der", "-in", certificatePem, "-out", certificateDer], {});
 }
 
 export async function fingerprint(certificatePem: string): Promise<string> {
     // openssl x509 -in my_certificate.pem -hash -dates -noout -fingerprint
     assert(fs.existsSync(certificatePem));
-    return await execute_openssl(`x509   -fingerprint  -noout  -in ${certificatePem}`, {});
+    return await execute_openssl(["x509", "-fingerprint", "-noout", "-in", certificatePem], {});
 }

@@ -26,14 +26,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { Subject } from "../../misc/subject";
-import { type CreateCertificateSigningRequestWithConfigOptions, quote } from "../common";
+import type { CreateCertificateSigningRequestWithConfigOptions } from "../common";
 import { makePath } from "../common2";
 import { displaySubtitle } from "../display";
 import { processAltNames } from "./_env";
 import { execute_openssl } from "./execute_openssl";
 import { generateStaticConfig } from "./toolbox";
 
-const q = quote;
 const n = makePath;
 
 /**
@@ -59,24 +58,24 @@ export async function createCertificateSigningRequestWithOpenSSL(
 
     const options = { cwd: params.rootDir, openssl_conf: path.relative(params.rootDir, configFile) };
 
-    const configOption = ` -config ${q(n(configFile))}`;
-
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
-    // process.env.OPENSSL_CONF  ="";
-    const subjectOptions = subject ? ` -subj "${subject}"` : "";
 
     displaySubtitle("- Creating a Certificate Signing Request with openssl");
     await execute_openssl(
-        "req -new" +
-            "  -sha256 " +
-            " -batch " +
-            " -text " +
-            configOption +
-            " -key " +
-            q(n(params.privateKey)) +
-            subjectOptions +
-            " -out " +
-            q(n(certificateSigningRequestFilename)),
+        [
+            "req",
+            "-new",
+            "-sha256",
+            "-batch",
+            "-text",
+            "-config",
+            n(configFile),
+            "-key",
+            n(params.privateKey),
+            ...(subject ? ["-subj", subject] : []),
+            "-out",
+            n(certificateSigningRequestFilename)
+        ],
         options
     );
 }
