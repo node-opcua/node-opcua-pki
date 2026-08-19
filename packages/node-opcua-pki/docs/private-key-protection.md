@@ -205,12 +205,6 @@ Where a passphrase is involved (`createPFX`, `extract*FromPFX`,
   user** while an openssl child is in flight. Passing the passphrase via the
   environment removes it from `argv` and from the shell, but does not hide it
   from a same-user process with the right access.
-- Characters that openssl's own configuration-file syntax interprets
-  (`$`, backticks, quotes) inside a `CertificateAuthority` `location`: the CA
-  embeds its directory in the generated `caconfig.cnf`, and openssl's config
-  parser, not a shell, expands or strips them there. `CertificateManager`
-  locations and all subjects and file paths are unaffected. Do not build a CA
-  location from untrusted input.
 - Wherever you choose to store the passphrase. This library protects the key
   on disk, not your passphrase management. Prefer the function form of
   `privateKeyPassphrase`, sourced from a real secret store, over a literal in

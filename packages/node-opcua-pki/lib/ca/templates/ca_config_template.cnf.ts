@@ -3,7 +3,7 @@ const config =
     "[ ca ]\n" +
     "default_ca               = CA_default\n" +
     "[ CA_default ]\n" +
-    "dir                      = %%ROOT_FOLDER%%            # the main CA folder\n" +
+    'dir                      = "%%ROOT_FOLDER%%"        # the main CA folder (quoted: see renderCaConfig)\n' +
     "certs                    = $dir/certs                 # where to store certificates\n" +
     "new_certs_dir            = $dir/certs                 #\n" +
     "database                 = $dir/index.txt             # the certificate database\n" +

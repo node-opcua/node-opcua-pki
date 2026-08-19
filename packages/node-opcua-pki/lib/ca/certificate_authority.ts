@@ -87,6 +87,32 @@ import _ca_config_template from "./templates/ca_config_template.cnf";
 export const configurationFileTemplate: string = _ca_config_template;
 const configurationFileSimpleTemplate: string = _simple_config_template;
 
+/**
+ * Escape a value for use inside a double-quoted openssl config value.
+ *
+ * openssl's config parser (crypto/conf/conf_def.c) treats an unquoted value
+ * specially: `$var` / `${var}` / `$(var)` are expanded, and `'`, `"` and the
+ * backtick are all quote characters (a backtick pair is silently removed).
+ * Inside a double-quoted value none of that applies: characters are copied
+ * verbatim except a backslash, which escapes the next character. So a path
+ * containing `$`, backticks, `#` or spaces is safe once double-quoted with
+ * `\` and `"` escaped.
+ */
+export function escapeOpensslConfDoubleQuoted(value: string): string {
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
+ * Render the CA openssl configuration for `caRootDir`. The root folder is
+ * emitted forward-slashed (openssl accepts that on every platform) and
+ * double-quoted, so a CA `location` containing characters that openssl's
+ * config syntax would otherwise interpret (`$`, backticks, `#`, quotes) is
+ * taken literally.
+ */
+export function renderCaConfig(caRootDir: string): string {
+    return configurationFileTemplate.replace(/%%ROOT_FOLDER%%/, escapeOpensslConfDoubleQuoted(makePath(caRootDir)));
+}
+
 const config = {
     certificateDir: "INVALID",
     forceCA: false,
@@ -197,10 +223,7 @@ async function construct_CertificateAuthority(certificateAuthority: CertificateA
 
     const caConfigFile = certificateAuthority.configFile;
     if (1 || !fs.existsSync(caConfigFile)) {
-        let data = configurationFileTemplate; // inlineText(configurationFile);
-        data = makePath(data.replace(/%%ROOT_FOLDER%%/, caRootDir));
-
-        await fs.promises.writeFile(caConfigFile, data);
+        await fs.promises.writeFile(caConfigFile, renderCaConfig(caRootDir));
     }
 
     // http://www.akadia.com/services/ssh_test_certificate.html
@@ -1463,9 +1486,7 @@ export class CertificateAuthority {
 
         // Write OpenSSL config
         const caConfigFile = this.configFile;
-        let data = configurationFileTemplate;
-        data = makePath(data.replace(/%%ROOT_FOLDER%%/, caRootDir));
-        await fs.promises.writeFile(caConfigFile, data);
+        await fs.promises.writeFile(caConfigFile, renderCaConfig(caRootDir));
 
         // Generate private key
         if (!fs.existsSync(privateKeyFile)) {
