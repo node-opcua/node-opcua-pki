@@ -488,7 +488,11 @@ async function createDefaultCertificate(
                 365
             );
             warningLog(" certificate to revoke => ", certificate);
-            revoke_certificate(certificate_revoked);
+            // must be awaited: `openssl ca -revoke` / `-gencrl` rewrite index.txt
+            // (index.txt.new -> rename), and a concurrent `openssl ca` signing the
+            // next key size's certificate can open index.txt in the window where
+            // it does not exist ("Problem with index file ... no such file")
+            await revoke_certificate(certificate_revoked);
         }
     }
 }
@@ -509,7 +513,7 @@ async function create_default_certificates(dev: boolean) {
     let clientURN: string;
     let serverURN: string;
     let discoveryServerURN: string;
-    wrap(async () => {
+    await wrap(async () => {
         await extractFullyQualifiedDomainName();
         const hostname = os.hostname();
         const fqdn = getFullyQualifiedDomainName();

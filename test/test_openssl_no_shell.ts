@@ -40,11 +40,11 @@ describe("openssl is invoked without a shell", function (this: Mocha.Suite) {
     });
 
     it("a PKI location containing shell metacharacters works end to end (CA + revoke + CRL)", async () => {
-        // The CA embeds its location unquoted in caconfig.cnf, where openssl's
-        // own config parser (not a shell) expands `$(...)` and strips backticks;
-        // that is a separate, pre-existing template limitation, so the CA path
-        // here only carries the metacharacters the openssl config syntax accepts.
-        const caLocation = path.join(testData.tmpFolder, "CA & rem ; (x)");
+        // The CA embeds its location in caconfig.cnf: it is double-quoted and
+        // escaped there (renderCaConfig), so characters openssl's own config
+        // parser would otherwise interpret ($(...) expansion, backtick quoting,
+        // `#` comments) are taken literally too.
+        const caLocation = path.join(testData.tmpFolder, `CA ${hostilePath} # not a comment`);
         const ca = new CertificateAuthority({ keySize: 2048, location: caLocation, subject: "/CN=NoShellCA" });
         await ca.initialize();
         fs.existsSync(ca.caCertificate).should.eql(true);
