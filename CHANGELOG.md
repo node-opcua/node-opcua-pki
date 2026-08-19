@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.20.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.19.1...v6.20.0) (2026-08-19)
+
+### Bug Fixes
+
+* **ca:** await demo revocation; quote the CA dir in caconfig.cnf ([5c43274](https://github.com/node-opcua/node-opcua-pki/commit/5c43274130e990ffb4072f1f482c24c396cc8e95))
+* **security:** invoke openssl without a shell ([20e2e81](https://github.com/node-opcua/node-opcua-pki/commit/20e2e81a1473275a8294e6705e155b1d0a81c73a))
+
+### Features
+
+* **security:** passphrase-protected private key for CertificateAuthority ([fe09dfd](https://github.com/node-opcua/node-opcua-pki/commit/fe09dfdc8072df830c08e0ba1799353975209226))
+* **security:** private-key hardening for CertificateManager and openssl calls ([c69febd](https://github.com/node-opcua/node-opcua-pki/commit/c69febdf34d1877fee5918c5b7348f41465086ea))
+
+
 ## [6.19.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.19.0...v6.19.1) (2026-08-16)
 
 **Note:** Version bump only for package node-opcua-pki-project
