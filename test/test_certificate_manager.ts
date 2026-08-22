@@ -387,6 +387,76 @@ describe("CertificateManager static cleanup helpers", function (this: Mocha.Suit
     });
 });
 
+describe("CertificateManager process listener hygiene", function (this: Mocha.Suite) {
+    this.timeout(40000);
+
+    const testData = beforeTest(this);
+
+    beforeEach(async () => {
+        await CertificateManager.disposeAll();
+    });
+
+    afterEach(async () => {
+        await CertificateManager.disposeAll();
+    });
+
+    // A library must never take shutdown away from the host
+    // application: a SIGINT listener registered here would both
+    // pre-empt the application's own graceful shutdown and
+    // suppress node's default signal behaviour.
+    // See #51.
+    it("PL-001 should not install any SIGINT/SIGTERM handler", async () => {
+        const before = {
+            SIGINT: process.listenerCount("SIGINT"),
+            SIGTERM: process.listenerCount("SIGTERM")
+        };
+
+        const cm = new CertificateManager({ location: path.join(testData.tmpFolder, "PL1") });
+        await cm.initialize();
+
+        process.listenerCount("SIGINT").should.eql(before.SIGINT);
+        process.listenerCount("SIGTERM").should.eql(before.SIGTERM);
+
+        await cm.dispose();
+    });
+
+    it("PL-002 should not leak the exit listener across initialize/dispose cycles", async () => {
+        const before = process.listenerCount("exit");
+
+        const cm1 = new CertificateManager({ location: path.join(testData.tmpFolder, "PL2") });
+        await cm1.initialize();
+        process.listenerCount("exit").should.eql(before + 1);
+
+        await cm1.dispose();
+        process.listenerCount("exit").should.eql(before, "exit listener should be removed with the last instance");
+
+        // and it must re-arm for a subsequent instance
+        const cm2 = new CertificateManager({ location: path.join(testData.tmpFolder, "PL3") });
+        await cm2.initialize();
+        process.listenerCount("exit").should.eql(before + 1);
+
+        await cm2.dispose();
+        process.listenerCount("exit").should.eql(before);
+    });
+
+    it("PL-003 should install a single exit listener for many instances", async () => {
+        const before = process.listenerCount("exit");
+
+        const cm1 = new CertificateManager({ location: path.join(testData.tmpFolder, "PL4") });
+        const cm2 = new CertificateManager({ location: path.join(testData.tmpFolder, "PL5") });
+        await cm1.initialize();
+        await cm2.initialize();
+
+        process.listenerCount("exit").should.eql(before + 1);
+
+        await cm1.dispose();
+        process.listenerCount("exit").should.eql(before + 1, "still one instance alive");
+
+        await cm2.dispose();
+        process.listenerCount("exit").should.eql(before);
+    });
+});
+
 describe("US-032: isTrustListEmpty and getTrustedCertificateCount", function (this: Mocha.Suite) {
     this.timeout(40000);
 
