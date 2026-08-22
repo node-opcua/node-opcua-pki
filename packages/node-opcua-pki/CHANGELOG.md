@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.21.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.20.0...v6.21.0) (2026-08-22)
+
+### Bug Fixes
+
+* **certificate-manager:** never terminate the host process ([6bd887f](https://github.com/node-opcua/node-opcua-pki/commit/6bd887f86f12c9b3ebf8405bd3a0e36fbb70058c))
+
+### Features
+
+* **ca:** openssl-free CertificateAuthority, HSM/KMS-held keys, native PKCS[#12](https://github.com/node-opcua/node-opcua-pki/issues/12) ([4036cec](https://github.com/node-opcua/node-opcua-pki/commit/4036cec632ef3eb9e6b6c1871bc533e5307fecb4))
+
+
 # [6.20.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.19.1...v6.20.0) (2026-08-19)
 
 ### Bug Fixes
