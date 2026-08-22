@@ -614,8 +614,32 @@ export class CertificateManager extends EventEmitter {
     // even if the consumer forgets to call dispose().
     static #activeInstances = new Set<CertificateManager>();
     static #cleanupInstalled = false;
+    static #exitHandler: (() => void) | undefined;
 
-    static #installProcessCleanup(): void {
+    /**
+     * Install a best-effort `exit` hook that closes any watcher
+     * still open when the process terminates.
+     *
+     * **This library never terminates the host process.** No
+     * SIGINT/SIGTERM handler is installed: deciding how (and
+     * whether) to shut down on a signal is the application's
+     * responsibility, and a listener registered here would both
+     * pre-empt the application's own graceful shutdown and
+     * silently suppress Node's default signal behaviour.
+     *
+     * Nothing here is load-bearing for process exit. The native
+     * `fs.watch` handles are `unref()`'d when the watchers are
+     * created (see `#readCertificates`), so an undisposed
+     * CertificateManager never keeps the event loop alive. This
+     * hook is only tidiness on the way out.
+     *
+     * `exit` rather than `beforeExit`: `beforeExit` fires when
+     * the loop merely drains and the loop can subsequently be
+     * resurrected, which would leave a still-in-use instance
+     * marked Disposed. `exit` is terminal, synchronous-only and
+     * cannot alter the exit code.
+     */
+    static #installExitCleanup(): void {
         if (CertificateManager.#cleanupInstalled) return;
         CertificateManager.#cleanupInstalled = true;
 
@@ -634,19 +658,23 @@ export class CertificateManager extends EventEmitter {
             CertificateManager.#activeInstances.clear();
         };
 
-        // beforeExit fires when the event loop has no more work.
-        // If persistent:false works correctly on watchers, they
-        // won't prevent this event from firing.
-        process.on("beforeExit", closeDanglingWatchers);
+        CertificateManager.#exitHandler = closeDanglingWatchers;
+        process.on("exit", closeDanglingWatchers);
+    }
 
-        // Also handle external termination signals so watchers
-        // are cleaned up before the process exits.
-        for (const signal of ["SIGINT", "SIGTERM"] as const) {
-            process.once(signal, () => {
-                closeDanglingWatchers();
-                process.exit();
-            });
+    /**
+     * Remove the `exit` hook once the last instance is disposed,
+     * so a library that is initialized and disposed repeatedly
+     * does not accumulate process listeners. A later
+     * `initialize()` re-arms it.
+     */
+    static #uninstallExitCleanupIfIdle(): void {
+        if (CertificateManager.#activeInstances.size > 0) return;
+        if (CertificateManager.#exitHandler) {
+            process.removeListener("exit", CertificateManager.#exitHandler);
+            CertificateManager.#exitHandler = undefined;
         }
+        CertificateManager.#cleanupInstalled = false;
     }
 
     /**
@@ -1270,7 +1298,7 @@ export class CertificateManager extends EventEmitter {
 
         // Register for automatic cleanup on process exit
         CertificateManager.#activeInstances.add(this);
-        CertificateManager.#installProcessCleanup();
+        CertificateManager.#installExitCleanup();
     }
 
     async #initialize(): Promise<void> {
@@ -1399,6 +1427,7 @@ export class CertificateManager extends EventEmitter {
             this.#cachedPrivateKey = undefined;
             this.#privateKeyPromise = undefined;
             CertificateManager.#activeInstances.delete(this);
+            CertificateManager.#uninstallExitCleanupIfIdle();
         }
     }
 
@@ -2291,17 +2320,37 @@ export class CertificateManager extends EventEmitter {
             ? parseInt(process.env.OPCUA_PKI_POLLING_INTERVAL, 10)
             : undefined;
         const pollingInterval = Math.min(10 * 60 * 1000, Math.max(100, envInterval ?? this.folderPollingInterval));
+        // depth: 0
+        //   PKI store folders are flat — certificates and CRLs sit
+        //   directly in them. Without an explicit depth chokidar
+        //   recurses without bound (handler.js: `oDepth == null`)
+        //   and descends into any subdirectory that appears, which
+        //   routes through NodeFsHandler._handleRead ->
+        //   FSWatcher._throttle. That schedules *ref'd* 1s timers;
+        //   a directory churning under the watcher can spin
+        //   thousands of them and keep the event loop alive
+        //   indefinitely, so an undisposed CertificateManager stops
+        //   the process from exiting. Note this is a timer problem,
+        //   not a handle problem: the fs.watch handles themselves
+        //   come back correctly unref'd. Flat watching keeps
+        //   _handleRead off subdirectories entirely.
+        //
         const chokidarOptions = {
             usePolling,
             ...(usePolling ? { interval: pollingInterval } : {}),
+            depth: 0,
             persistent: false
         };
 
-        // Workaround for two chokidar v4 bugs with persistent:false:
+        // Workaround for two problems with persistent:false:
         //
-        //   1. Chokidar does not propagate persistent:false to the
-        //      underlying fs.watch() handles. Without .unref(), an
-        //      undisposed CertificateManager blocks process exit.
+        //   1. Chokidar does forward persistent:false into fs.watch
+        //      (handler.js, createFsWatchInstance) and on current
+        //      Node the resulting handles do come back unref'd —
+        //      but that was not enough in practice on Windows when
+        //      0fbe111 was written, where undisposed instances
+        //      pinned the loop open. The explicit .unref() is kept
+        //      as the guarantee rather than trusting the platform.
         //
         //   2. Chokidar does not register an 'error' handler on
         //      fs.watch when persistent:false (handler.js l.160-168).

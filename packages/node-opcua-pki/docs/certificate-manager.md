@@ -12,6 +12,7 @@ management.
 - [Issuer (CA) Certificates](#issuer-ca-certificates)
 - [Certificate Revocation Lists](#certificate-revocation-lists)
 - [File Watching](#file-watching)
+- [Process Lifetime & Shutdown](#process-lifetime--shutdown)
 - [Events](#events)
 - [Folder Accessors](#folder-accessors)
 
@@ -115,6 +116,42 @@ OPCUA_PKI_USE_POLLING=true OPCUA_PKI_POLLING_INTERVAL=2000 node my_server.js
 > **Note:** If external processes modify the PKI folders directly
 > (CLI tools, OPC UA `WriteTrustList`), call `reloadCertificates()`
 > to force an immediate re-scan.
+
+---
+
+## Process Lifetime & Shutdown
+
+**`node-opcua-pki` never terminates your process.** It installs no
+`SIGINT` / `SIGTERM` handler and never calls `process.exit()`.
+Deciding how — and whether — to shut down on a signal belongs to the
+host application.
+
+**No teardown call is required.** The native `fs.watch` handles behind
+the folder watchers are `unref()`'d, so a `CertificateManager` never
+keeps the Node.js event loop alive: a process that has finished its
+work exits normally even if you never disposed anything.
+
+`dispose()` and `disposeAll()` are therefore optional. Use them to:
+
+- release watchers and drop the cached private key from memory before
+  the process ends;
+- tear down cleanly between tests (pair with `checkAllDisposed()`).
+
+Graceful shutdown stays entirely yours to write:
+
+```typescript
+process.on("SIGINT", async () => {
+    await server.shutdown();
+    await CertificateManager.disposeAll(); // optional
+    process.exit(130);
+});
+```
+
+> **Note:** versions up to and including 6.20.0 installed their own
+> `SIGINT`/`SIGTERM` handlers that called `process.exit()`
+> immediately, cutting short any asynchronous shutdown the
+> application had started. If you added a workaround for that, it is
+> no longer needed.
 
 ---
 
