@@ -137,21 +137,23 @@ export function getEnvironmentVarNames(): { key: string; pattern: string }[] {
     });
 }
 
+/**
+ * Build the openssl `subjectAltName` value string (`URI:..., DNS:..., IP:...`)
+ * from SAN parameters. The single implementation of this format — used both
+ * by {@link processAltNames} (which publishes it to the shared env registry)
+ * and by callers that pass it as an explicit per-render override — so a
+ * format fix cannot land in one copy only.
+ */
+export function buildSubjectAltNameString(params: ProcessAltNamesParam): string {
+    return [
+        `URI:${params.applicationUri}`,
+        ...(params.dns ?? []).map((d: string) => `DNS:${d}`),
+        ...(params.ip ?? []).map((d: string) => `IP:${d}`)
+    ].join(", ");
+}
+
 export function processAltNames(params: ProcessAltNamesParam) {
     params.dns = params.dns || [];
     params.ip = params.ip || [];
-
-    // construct subjectAtlName
-    let subjectAltName: string[] = [];
-    subjectAltName.push(`URI:${params.applicationUri}`);
-    subjectAltName = ([] as string[]).concat(
-        subjectAltName,
-        params.dns.map((d: string) => `DNS:${d}`)
-    );
-    subjectAltName = ([] as string[]).concat(
-        subjectAltName,
-        params.ip.map((d: string) => `IP:${d}`)
-    );
-    const subjectAltNameString = subjectAltName.join(", ");
-    setEnv("ALTNAME", subjectAltNameString);
+    setEnv("ALTNAME", buildSubjectAltNameString(params));
 }

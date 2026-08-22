@@ -3,7 +3,7 @@ import path from "node:path";
 import "should";
 import { exploreCertificate, readCertificate } from "node-opcua-crypto";
 import { CertificateAuthority, CertificateManager } from "node-opcua-pki";
-import { execute_openssl } from "node-opcua-pki-priv/toolbox/with_openssl";
+import { cleanupStaticConfig, execute_openssl, generateStaticConfig } from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
 
 // openssl is spawned without a shell: every argv element reaches it as-is.
@@ -85,5 +85,35 @@ describe("openssl is invoked without a shell", function (this: Mocha.Suite) {
         );
         out.should.containEql(hostile);
         await cm.dispose();
+    });
+
+    it("config rendering substitutes values containing replacement-pattern characters ($&, $$) literally", async () => {
+        // `$&`, `$$`, "$`" are String.replace replacement patterns: when the
+        // renderer used the string form of replace, a value containing `$&`
+        // re-inserted the matched `$ENV::NAME` literal into the rendered
+        // config, and every signing operation on that CA then failed with
+        // openssl's "variable has no value". This pins the renderer's
+        // function-form fix. (openssl's own config syntax separately rejects
+        // unquoted `$` in values, so such characters in a CDP URL still fail
+        // at the openssl layer — a pre-existing, documented limitation of the
+        // config template, not of the renderer.)
+        const caLocation = path.join(testData.tmpFolder, "CA_dollar_render");
+        const ca = new CertificateAuthority({ keySize: 2048, location: caLocation, subject: "/CN=DollarRenderCA" });
+        await ca.initialize();
+
+        const hostileValue = "URI:urn:Acme$&$$Co$`x";
+        const rendered = generateStaticConfig(
+            "conf/caconfig.cnf",
+            { cwd: caLocation },
+            { ALTNAME: hostileValue, CDP_URL: "http://crl.example.com/a$&b.crl", AIA_VALUE: "" }
+        );
+        try {
+            const content = fs.readFileSync(path.join(caLocation, rendered), "utf-8");
+            content.should.containEql(hostileValue);
+            content.should.containEql("http://crl.example.com/a$&b.crl");
+            content.includes("$ENV::").should.eql(false, "no substitution placeholder may survive or be re-inserted");
+        } finally {
+            await cleanupStaticConfig(rendered, { cwd: caLocation });
+        }
     });
 });

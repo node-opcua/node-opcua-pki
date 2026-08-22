@@ -18,6 +18,16 @@
                 "default": "./dist/index.js"
             }
         },
+        "./core": {
+            "import": {
+                "types": "./dist/core.d.mts",
+                "default": "./dist/core.mjs"
+            },
+            "require": {
+                "types": "./dist/core.d.ts",
+                "default": "./dist/core.js"
+            }
+        },
         "./package.json": "./package.json"
     },
     "bin": {
@@ -46,6 +56,7 @@
     },
     "author": "Etienne Rossignon",
     "license": "MIT",
+    "sideEffects": false,
     "dependencies": {
         "@ster5/global-mutex": "^3.3.0",
         "byline": "^5.0.0",
@@ -53,7 +64,7 @@
         "chokidar": "4.0.3",
         "command-line-args": "^6.0.2",
         "command-line-usage": "^7.0.4",
-        "node-opcua-crypto": "5.6.0",
+        "node-opcua-crypto": "5.9.0",
         "yauzl": "^3.4.0"
     }
 }

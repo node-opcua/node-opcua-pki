@@ -21,6 +21,61 @@
 //      hangs anyway. We print and force-exit instead, which is also what makes CI fail in
 //      seconds rather than sitting until the job timeout.
 
+// Root hook: a rejection nobody awaited must fail the run.
+//
+// Mocha does not do this for us - a floating `Promise.reject()` inside a test is
+// swallowed entirely: the suite reports "passing", exits 0, and the error is never
+// printed. Verified by probe, not assumed.
+//
+// That matters here because execute_openssl prints a loud OPENSSL ERROR banner to
+// stderr *before* it rejects. Several tests deliberately provoke that and catch the
+// rejection, so the banner alone means nothing. Without this hook a genuinely
+// unawaited openssl failure would look exactly the same in a CI log - a scary banner
+// next to a green tick - and there would be no way to tell them apart.
+const unhandledRejections = [];
+// keyed by promise: node can emit for the same one more than once, and a
+// doubled count would misrepresent how many things actually went wrong
+const seenRejections = new WeakSet();
+
+export async function mochaGlobalSetup() {
+    process.on("unhandledRejection", (reason, promise) => {
+        if (promise && seenRejections.has(promise)) {
+            return;
+        }
+        if (promise) {
+            seenRejections.add(promise);
+        }
+        const error = reason instanceof Error ? reason : new Error(String(reason));
+        unhandledRejections.push(error);
+        // printed as it happens, so it lands next to the test that caused it
+        console.error("");
+        console.error(` UNHANDLED REJECTION: ${error.message}`);
+        console.error(error.stack ?? "(no stack)");
+        console.error("");
+    });
+}
+
+/** Report and fail if anything rejected without an owner. Returns true when it did. */
+function reportUnhandledRejections() {
+    if (unhandledRejections.length === 0) {
+        return false;
+    }
+    console.error("");
+    console.error("──────────────────────────────────────────────────────────────────");
+    console.error(` UNHANDLED REJECTIONS: ${unhandledRejections.length} promise(s) rejected with nobody`);
+    console.error(" awaiting them. Mocha does not fail the run for these, so the suite above");
+    console.error(" reported success despite them.");
+    console.error("");
+    for (const error of unhandledRejections) {
+        console.error(`   ${error.message}`);
+    }
+    console.error("");
+    console.error(" Usually a missing `await`, or a promise created in a test that outlives it.");
+    console.error("──────────────────────────────────────────────────────────────────");
+    console.error("");
+    return true;
+}
+
 // Allow-list of resources that actually indicate a leak, rather than a deny-list of
 // benign ones. stdio alone shows up as PipeWrap/TTYWrap/FileHandle depending on whether
 // output is piped, redirected or a terminal, so a deny-list false-positives on CI - where
@@ -64,6 +119,9 @@ const DRAIN_DEADLINE_MS = 15_000;
 const DRAIN_POLL_MS = 250;
 
 export async function mochaGlobalTeardown() {
+    if (reportUnhandledRejections()) {
+        process.exit(1);
+    }
     const deadline = Date.now() + DRAIN_DEADLINE_MS;
     let leaked = [];
 

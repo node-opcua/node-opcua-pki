@@ -32,6 +32,9 @@ npx node-opcua-pki createPKI
 
 📖 **Full CLI & API reference**: [packages/node-opcua-pki/readme.md](packages/node-opcua-pki/readme.md)
 
+🔐 **Keeping the CA key in an HSM or KMS**: [hsm-kms-signing.md](hsm-kms-signing.md). The CA
+can sign through a hardware module or cloud KMS, so no private key is ever written to disk.
+
 ## 🏢 Professional Support
 
 node-opcua-pki is developed and maintained by [Sterfive](https://www.sterfive.com), the company behind the [node-opcua](https://github.com/node-opcua/node-opcua) ecosystem.

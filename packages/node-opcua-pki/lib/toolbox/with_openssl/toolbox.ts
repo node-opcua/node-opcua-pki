@@ -51,32 +51,66 @@ let _counter = 0;
  *
  *   {{#KEY}}...{{/KEY}}
  *
- * The block content is **kept** (markers removed) iff `KEY` is registered
- * in {@link exportedEnvVars} with a non-empty value, otherwise the entire
- * block — including the markers and the trailing newline — is stripped.
+ * The block content is **kept** (markers removed) iff `KEY` resolves to a
+ * non-empty value — from `envOverrides` if it names the key, otherwise from
+ * the global registry (see {@link exportedEnvVars}) — and stripped
+ * (including the markers and the trailing newline) otherwise.
  *
  * Used to drive opt-in extensions like CRL Distribution Points and
  * Authority Information Access: the same template serves the
  * extension-set case (URL configured) and the extension-omitted case
  * (no URL configured).
  */
-function stripConditionalBlocks(template: string): string {
+function stripConditionalBlocks(template: string, envOverrides?: Readonly<Record<string, string>>): string {
     return template.replace(/\{\{#([A-Z_][A-Z0-9_]*)\}\}([\s\S]*?)\{\{\/\1\}\}\r?\n?/g, (_match, key: string, content: string) => {
-        const keep = hasEnv(key) && getEnv(key) !== "";
+        const keep =
+            envOverrides && Object.prototype.hasOwnProperty.call(envOverrides, key)
+                ? envOverrides[key] !== ""
+                : hasEnv(key) && getEnv(key) !== "";
         return keep ? content : "";
     });
 }
 
-export function generateStaticConfig(configPath: string, options?: ExecuteOptions) {
+/**
+ * Render an OpenSSL config template (`$ENV::NAME` substitution, `{{#NAME}}`
+ * conditional blocks) to a temporary file and return its path.
+ *
+ * `envOverrides`, when given, is consulted before the global env registry
+ * for every key it names — the substituted value never depends on whatever
+ * `setEnv()` calls other, possibly-concurrent code made before or after this
+ * call. Pass it for any value the caller has already computed locally (as
+ * every `CertificateAuthority` operation now does for `ALTNAME` /
+ * `CDP_URL` / `AIA_VALUE`); omit it, as every other caller does, to keep
+ * reading the shared registry exactly as before.
+ */
+export function generateStaticConfig(
+    configPath: string,
+    options?: ExecuteOptions,
+    envOverrides?: Readonly<Record<string, string>>
+) {
     const prePath = options?.cwd || "";
 
     const originalFilename = !path.isAbsolute(configPath) ? path.join(prePath, configPath) : configPath;
     let staticConfig = fs.readFileSync(originalFilename, { encoding: "utf8" });
     // Strip conditional blocks first so unset placeholders never reach
     // the env-var substitution pass below.
-    staticConfig = stripConditionalBlocks(staticConfig);
+    staticConfig = stripConditionalBlocks(staticConfig, envOverrides);
+    // Substituted values go through the function form of String.replace: the
+    // string form interprets `$`-sequences (`$&`, `$$`, "$`", `$'`) in the
+    // VALUE as replacement patterns, so a subject CN or CDP/OCSP URL
+    // containing `$&` would re-insert the `$ENV::NAME` literal into the
+    // rendered config and every openssl call on it would fail with
+    // "variable has no value".
     for (const envVar of getEnvironmentVarNames()) {
-        staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), getEnv(envVar.key));
+        if (envOverrides && Object.prototype.hasOwnProperty.call(envOverrides, envVar.key)) {
+            continue; // overridden below
+        }
+        staticConfig = staticConfig.replace(new RegExp(envVar.pattern, "gi"), () => getEnv(envVar.key));
+    }
+    if (envOverrides) {
+        for (const [key, value] of Object.entries(envOverrides)) {
+            staticConfig = staticConfig.replace(new RegExp(`\\$ENV\\:\\:${key}`, "gi"), () => value);
+        }
     }
     const staticConfigPath = `${configPath}.${process.pid}-${_counter++}.tmp`;
     const temporaryConfigPath = !path.isAbsolute(configPath) ? path.join(prePath, staticConfigPath) : staticConfigPath;
@@ -86,6 +120,18 @@ export function generateStaticConfig(configPath: string, options?: ExecuteOption
     } else {
         return temporaryConfigPath;
     }
+}
+
+/**
+ * Remove a rendered temp config produced by {@link generateStaticConfig}.
+ * `configFile` is whatever that function returned (relative to
+ * `options.cwd` when a cwd was given, absolute otherwise). Every caller of
+ * `generateStaticConfig` is expected to pair it with this in a `finally`,
+ * or the `<name>.<pid>-<n>.tmp` files accumulate next to the real config
+ * forever.
+ */
+export async function cleanupStaticConfig(configFile: string, options?: ExecuteOptions): Promise<void> {
+    await fs.promises.rm(path.resolve(options?.cwd ?? "", configFile), { force: true });
 }
 
 const n = makePath;

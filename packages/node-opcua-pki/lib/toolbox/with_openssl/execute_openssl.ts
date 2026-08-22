@@ -138,7 +138,12 @@ export async function execute(file: string, args: OpensslArgs, options: ExecuteO
 
         const fail = (message: string) => {
             // istanbul ignore next
-            if (!options.hideErrorMessage) {
+            // The banner duplicates what the rejection already carries, and
+            // this is the one place in this module that ignored the library's
+            // own (default-on) silence. Callers that let the error propagate
+            // still get the full command and stderr from the Error itself;
+            // set VERBOSE to see it as it happens.
+            if (!options.hideErrorMessage && !g_config.silent) {
                 const fence = "###########################################";
                 console.error(chalk.bgWhiteBright.redBright(`${fence} OPENSSL ERROR ${fence}`));
                 console.error(chalk.bgWhiteBright.redBright(`CWD = ${options.cwd}`));

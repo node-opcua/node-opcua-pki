@@ -21,29 +21,20 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
-// re-exported so consumers can `instanceof`-check the fail-closed error thrown
-// by CertificateManager.initialize()/getPrivateKey() without depending on
-// node-opcua-crypto directly
-export { PrivateKeyPassphraseRequiredError } from "node-opcua-crypto";
-export { NativeCaBackend } from "./ca/backends/native_ca_backend";
-export { OpenSslCaBackend } from "./ca/backends/openssl_ca_backend";
-export {
-    CertificateAuthority,
-    type CertificateAuthorityOptions,
-    type GenerateKeyPairAndSignOptions,
-    type GenerateKeyPairAndSignPFXOptions,
-    type InitializeCSRResult,
-    type InstallCACertificateResult,
-    type PkiBackendCapabilities,
-    type SignCertificateOptions
-} from "./ca/certificate_authority";
-export type { CaBackend } from "./ca/core/ca_backend";
-export {
-    CertificateAuthorityCore,
-    type CertificateAuthorityCoreOptions
-} from "./ca/core/certificate_authority_core";
-export * from "./misc/subject";
-export * from "./pki/certificate_manager";
-export * from "./pki/toolbox_pfx";
-export * from "./toolbox/common";
-export { install_prerequisite } from "./toolbox/with_openssl/install_prerequisite";
+/**
+ * The openssl-free half of the CA.
+ *
+ * Everything in this folder is subject to one rule, enforced by
+ * `test/test_import_boundaries.ts`: **nothing here may reach the openssl
+ * toolbox**, directly or transitively. That is what allows a program to
+ * build a CA around its own {@link CaBackend} - the native one, or an
+ * HSM-backed one of its own - without the `openssl` machinery ending up in
+ * its bundle.
+ *
+ * The backends themselves live in `../backends`, and `CertificateAuthority`
+ * (one level up) is the batteries-included subclass that picks one for you
+ * and therefore does reference openssl.
+ */
+export type { CaBackend } from "./ca_backend";
+export * from "./ca_database";
+export * from "./certificate_authority_core";

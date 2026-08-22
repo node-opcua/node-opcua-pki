@@ -30,7 +30,7 @@ import { makePath } from "../common2";
 import { displayTitle } from "../display";
 import { processAltNames } from "./_env";
 import { ensure_openssl_installed, execute_openssl } from "./execute_openssl";
-import { generateStaticConfig } from "./toolbox";
+import { cleanupStaticConfig, generateStaticConfig } from "./toolbox";
 
 const n = makePath;
 
@@ -82,72 +82,76 @@ export async function createSelfSignedCertificate(certificate: string, params: C
     const certificateRequestFilename = `${certificate}.csr`;
 
     const configFile = generateStaticConfig(params.configFile);
-    const configOption = ["-config", n(configFile)];
+    try {
+        const configOption = ["-config", n(configFile)];
 
-    let extension: string;
-    switch (params.purpose) {
-        case CertificatePurpose.ForApplication:
-            extension = "v3_selfsigned";
-            break;
-        case CertificatePurpose.ForCertificateAuthority:
-            extension = "v3_ca";
-            break;
-        default:
-            extension = "v3_selfsigned";
+        let extension: string;
+        switch (params.purpose) {
+            case CertificatePurpose.ForApplication:
+                extension = "v3_selfsigned";
+                break;
+            case CertificatePurpose.ForCertificateAuthority:
+                extension = "v3_ca";
+                break;
+            default:
+                extension = "v3_selfsigned";
+        }
+
+        displayTitle("Generate a certificate request");
+
+        // Once the private key is generated a Certificate Signing Request can be generated.
+        // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
+        // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
+        // The second option is to self-sign the CSR, which will be demonstrated in the next section
+        await execute_openssl(
+            [
+                "req",
+                "-new",
+                "-sha256",
+                "-text",
+                "-extensions",
+                extension,
+                ...configOption,
+                "-key",
+                n(privateKeyFilename),
+                "-out",
+                n(certificateRequestFilename),
+                "-subj",
+                subject
+            ],
+            {}
+        );
+
+        // Xx // Step 3: Remove Passphrase from Key
+        // Xx execute("cp private/cakey.pem private/cakey.pem.org");
+        // Xx execute(openssl_path + " rsa -in private/cakey.pem.org
+        // Xx -out private/cakey.pem -passin pass:"+paraphrase);
+
+        displayTitle("Generate Certificate (self-signed)");
+        await execute_openssl(
+            [
+                "x509",
+                "-req",
+                "-days",
+                String(params.validity),
+                "-extensions",
+                extension,
+                "-extfile",
+                n(configFile),
+                "-in",
+                n(certificateRequestFilename),
+                "-signkey",
+                n(privateKeyFilename),
+                "-text",
+                "-out",
+                certificate
+            ],
+            {}
+        );
+        // remove unnecessary certificate request file
+
+        await fs.promises.unlink(certificateRequestFilename);
+    } finally {
+        await cleanupStaticConfig(configFile);
     }
-
-    displayTitle("Generate a certificate request");
-
-    // Once the private key is generated a Certificate Signing Request can be generated.
-    // The CSR is then used in one of two ways. Ideally, the CSR will be sent to a Certificate Authority, such as
-    // Thawte or Verisign who will verify the identity of the requestor and issue a signed certificate.
-    // The second option is to self-sign the CSR, which will be demonstrated in the next section
-    await execute_openssl(
-        [
-            "req",
-            "-new",
-            "-sha256",
-            "-text",
-            "-extensions",
-            extension,
-            ...configOption,
-            "-key",
-            n(privateKeyFilename),
-            "-out",
-            n(certificateRequestFilename),
-            "-subj",
-            subject
-        ],
-        {}
-    );
-
-    // Xx // Step 3: Remove Passphrase from Key
-    // Xx execute("cp private/cakey.pem private/cakey.pem.org");
-    // Xx execute(openssl_path + " rsa -in private/cakey.pem.org
-    // Xx -out private/cakey.pem -passin pass:"+paraphrase);
-
-    displayTitle("Generate Certificate (self-signed)");
-    await execute_openssl(
-        [
-            "x509",
-            "-req",
-            "-days",
-            String(params.validity),
-            "-extensions",
-            extension,
-            "-extfile",
-            n(configFile),
-            "-in",
-            n(certificateRequestFilename),
-            "-signkey",
-            n(privateKeyFilename),
-            "-text",
-            "-out",
-            certificate
-        ],
-        {}
-    );
-    // remove unnecessary certificate request file
-
-    await fs.promises.unlink(certificateRequestFilename);
 }

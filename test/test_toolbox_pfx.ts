@@ -22,6 +22,7 @@ import {
     extractCertificateFromPFX,
     extractPrivateKeyFromPFX
 } from "node-opcua-pki";
+import { execute_openssl, passinArg, passoutArg } from "node-opcua-pki-priv/toolbox/with_openssl";
 import { beforeTest } from "./helpers";
 
 describe("PFX (PKCS#12) Toolbox", function () {
@@ -488,6 +489,138 @@ describe("PFX (PKCS#12) Toolbox", function () {
             }
             threw.should.be.true("should throw when the shell-metacharacter passphrase is wrong, not execute part of it");
             fs.existsSync("/tmp/pwned").should.be.false("passphrase content must never be interpreted by a shell");
+        });
+    });
+
+    // ── openssl interoperability ───────────────────────────────
+    //
+    // These helpers no longer spawn `openssl pkcs12`, so "openssl and this
+    // package agree on the format" stopped being true by construction and
+    // became a claim that has to be checked. Both directions matter: users
+    // hold bundles openssl wrote, and hand bundles to tools that expect
+    // openssl to be able to read them.
+    describe("openssl interoperability", () => {
+        it("reads a bundle that openssl created", async () => {
+            const opensslPfx = path.join(testData.tmpFolder, "made_by_openssl.pfx");
+            const passout = passoutArg("openssl made me");
+            await execute_openssl(["pkcs12", "-export", "-in", certFile, "-inkey", keyFile, "-out", opensslPfx, ...passout.args], {
+                env: passout.env
+            });
+
+            const result = await extractAllFromPFX({ pfxFile: opensslPfx, passphrase: "openssl made me" });
+            const originalCert = await readCertificateChainAsync(certFile);
+            makeSHA1Thumbprint(convertPEMtoDER(result.certificate))
+                .toString("hex")
+                .should.eql(makeSHA1Thumbprint(originalCert[0]).toString("hex"));
+            certificateMatchesPrivateKey(convertPEMtoDER(result.certificate), readPrivateKey(keyFile)).should.be.true();
+        });
+
+        it("writes a bundle that openssl can read", async () => {
+            const nativePfx = path.join(testData.tmpFolder, "made_by_us.pfx");
+            await createPFX({
+                certificateFile: certFile,
+                privateKeyFile: keyFile,
+                outputFile: nativePfx,
+                passphrase: "we made it",
+                caCertificateFiles: [caCertFile]
+            });
+
+            const passin = passinArg("we made it");
+            const dumped = await execute_openssl(["pkcs12", "-in", nativePfx, "-nokeys", "-clcerts", "-nodes", ...passin.args], {
+                env: passin.env
+            });
+            const opensslView = convertPEMtoDER(dumped);
+            const originalCert = await readCertificateChainAsync(certFile);
+            makeSHA1Thumbprint(opensslView)
+                .toString("hex")
+                .should.eql(makeSHA1Thumbprint(originalCert[0]).toString("hex"), "openssl must see the same identity we wrote");
+        });
+
+        it("explains, rather than leaks an OID, when asked to read an openssl 1.x RC2 bundle", async function () {
+            // openssl 1.x encrypted the certificate safe with 40-bit RC2 by
+            // default. That cipher is broken; openssl 3 will not produce or
+            // read it without -legacy, and this package will not read it at
+            // all. What it must do is say so in terms someone can act on.
+            const legacyPfx = path.join(testData.tmpFolder, "legacy_rc2.pfx");
+            const passout = passoutArg("legacy");
+            try {
+                await execute_openssl(
+                    ["pkcs12", "-export", "-legacy", "-in", certFile, "-inkey", keyFile, "-out", legacyPfx, ...passout.args],
+                    { env: passout.env, hideErrorMessage: true }
+                );
+            } catch {
+                // no legacy provider in this openssl build, so the bundle
+                // this test is about cannot be produced here
+                return this.skip();
+            }
+
+            let message = "";
+            try {
+                await extractCertificateFromPFX({ pfxFile: legacyPfx, passphrase: "legacy" });
+            } catch (err) {
+                message = (err as Error).message;
+            }
+            message.should.match(/not supported/, "the failure must be reported, not swallowed");
+            message.should.match(/-legacy/, "the message must name the flag that converts the file");
+            message.should.match(/openssl pkcs12 -export/, "the message must show the conversion command");
+        });
+    });
+
+    // ── properties the openssl implementation could not offer ──
+
+    describe("bundle contents", () => {
+        it("round-trips a friendly name", async () => {
+            const named = path.join(testData.tmpFolder, "named.pfx");
+            await createPFX({
+                certificateFile: certFile,
+                privateKeyFile: keyFile,
+                outputFile: named,
+                friendlyName: "my application identity"
+            });
+
+            (await extractAllFromPFX({ pfxFile: named })).friendlyName?.should.eql("my application identity");
+            (await dumpPFX(named)).should.containEql("my application identity");
+        });
+
+        it("treats extra PEM blocks in the certificate file as the issuer chain", async () => {
+            // a leaf+chain PEM is how most tools hand over an identity, and
+            // the CA certificate must end up in the chain rather than being
+            // dropped or mistaken for the identity
+            const combined = path.join(testData.tmpFolder, "leaf_and_chain.pem");
+            fs.writeFileSync(combined, `${fs.readFileSync(certFile, "utf-8")}\n${fs.readFileSync(caCertFile, "utf-8")}`);
+
+            const out = path.join(testData.tmpFolder, "from_chain_pem.pfx");
+            await createPFX({ certificateFile: combined, privateKeyFile: keyFile, outputFile: out });
+
+            const result = await extractAllFromPFX({ pfxFile: out });
+            const leaf = await readCertificateChainAsync(certFile);
+            makeSHA1Thumbprint(convertPEMtoDER(result.certificate))
+                .toString("hex")
+                .should.eql(makeSHA1Thumbprint(leaf[0]).toString("hex"), "the first block is the identity");
+            const ca = await readCertificateChainAsync(caCertFile);
+            makeSHA1Thumbprint(convertPEMtoDER(result.caCertificates))
+                .toString("hex")
+                .should.eql(makeSHA1Thumbprint(ca[0]).toString("hex"), "the rest are the chain");
+        });
+
+        it("refuses a key that does not belong to the certificate", async () => {
+            // `openssl pkcs12 -export` fails with "No certificate matches
+            // private key"; without this guard the native path would write a
+            // well-formed bundle that no consumer can use.
+            const out = path.join(testData.tmpFolder, "mismatched.pfx");
+            let message = "";
+            try {
+                await createPFX({ certificateFile: caCertFile, privateKeyFile: keyFile, outputFile: out });
+            } catch (err) {
+                message = (err as Error).message;
+            }
+            message.should.match(/does not match/);
+            fs.existsSync(out).should.eql(false, "a bundle that cannot be used must not be written");
+        });
+
+        it("states in the dump that the enclosed key matches the certificate", async () => {
+            // the question a bundle that will not load is usually being asked
+            (await dumpPFX(pfxFile)).should.containEql("matches this certificate");
         });
     });
 });
