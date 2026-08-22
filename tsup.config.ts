@@ -9,7 +9,11 @@ const externalDeps = Object.keys(innerPkg.dependencies || {});
 export default defineConfig([
     {
         entry: {
-            index: `${pkgDir}/lib/index.ts`
+            index: `${pkgDir}/lib/index.ts`,
+            // built separately, not split out of index: a single pre-bundled
+            // file is not reliably tree-shakeable, so the openssl-free entry
+            // has to be its own output to actually be openssl-free
+            core: `${pkgDir}/lib/core.ts`
         },
         outDir: `${pkgDir}/dist`,
         format: ["esm", "cjs"],

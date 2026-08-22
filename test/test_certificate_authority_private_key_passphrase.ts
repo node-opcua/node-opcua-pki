@@ -197,4 +197,46 @@ describe("CertificateAuthority private key passphrase", function (this: Mocha.Su
             .filter((f) => f.endsWith(".tmp"))
             .should.eql([]);
     });
+
+    it("createSelfSignedCertificate should accept a passphrase-protected CA key (-passin regression)", async () => {
+        const location = path.join(testData.tmpFolder, "CA_pass_selfsigned");
+        const ca = new CertificateAuthority({
+            keySize: 2048,
+            location,
+            subject: "/CN=SelfSignCA",
+            privateKeyPassphrase: passphrase
+        });
+        await ca.initialize();
+        fs.readFileSync(ca.privateKey, "utf-8").should.match(/ENCRYPTED PRIVATE KEY/);
+
+        // createSelfSignedCertificate signs whatever subject `params` gives it
+        // (independent of the CA's own subject) — pass one explicitly so the
+        // assertion below proves the passphrase-protected key was actually
+        // used to sign, not just that some default-subject cert exists.
+        const certificateFile = path.join(testData.tmpFolder, "self_signed_with_passphrase.pem");
+        await ca.createSelfSignedCertificate(certificateFile, ca.privateKey, {
+            applicationUri: "urn:test:ca-pass:selfsigned",
+            subject: "/CN=SelfSignedLeaf",
+            startDate: new Date(),
+            validity: 30
+        });
+        fs.existsSync(certificateFile).should.eql(true);
+        exploreCertificate(readCertificate(certificateFile)).tbsCertificate.subject.commonName?.should.eql("SelfSignedLeaf");
+    });
+
+    it("a CA lifecycle (init, sign, revoke) should leave no rendered .tmp config files behind", async () => {
+        const location = path.join(testData.tmpFolder, "CA_pass_no_tmp_leak");
+        const ca = new CertificateAuthority({ keySize: 2048, location, subject: "/CN=NoLeakCA", privateKeyPassphrase: passphrase });
+        await ca.initialize();
+
+        const { cm, csr } = await makeLeafCsr(path.join(testData.tmpFolder, "PKI_ca_no_leak_leaf"));
+        const cert = path.join(cm.rootDir, "own/certs/signed.pem");
+        await ca.signCertificateRequest(cert, csr, { applicationUri: "urn:test:ca-pass", startDate: new Date(), validity: 30 });
+        await ca.revokeCertificate(cert, { reason: "keyCompromise" });
+        await cm.dispose();
+
+        fs.readdirSync(path.join(location, "conf"))
+            .filter((f) => f.endsWith(".tmp"))
+            .should.eql([], "generateStaticConfig's rendered temp files must be cleaned up after each openssl call");
+    });
 });

@@ -1159,20 +1159,25 @@ export class CertificateManager extends EventEmitter {
                 return VerificationStatus.BadCertificateUntrusted;
             }
         }
-        const _c2 = chain[1] ? exploreCertificateInfo(chain[1]) : "non";
-        debugLog("chain[1] info=", _c2);
-
         // Has SoftwareCertificate passed its issue date and has it not expired ?
         // check dates
-        const certificateInfo = exploreCertificateInfo(chain[0]);
+        //
+        // exploreCertificate rather than exploreCertificateInfo: only the two
+        // dates are wanted, and exploreCertificateInfo additionally insists on
+        // an RSA-sized public key. It threw on an EC certificate, which the
+        // caller then saw as BadCertificateInvalid - a verdict about the key
+        // type, reported as if the certificate were malformed. An issuer
+        // parsed the same way, purely to be written to the debug log, made
+        // that fatal for any chain with an EC issuer in it.
+        const { validity } = exploreCertificate(chain[0]).tbsCertificate;
         const now = new Date();
 
         let isTimeInvalid = false;
         // check that certificate is active
-        if (certificateInfo.notBefore.getTime() > now.getTime()) {
+        if (validity.notBefore.getTime() > now.getTime()) {
             // certificate is not active yet
             debugLog(
-                `${chalk.red("certificate is invalid : certificate is not active yet !")} not before date =${certificateInfo.notBefore}`
+                `${chalk.red("certificate is invalid : certificate is not active yet !")} not before date =${validity.notBefore}`
             );
             if (!options.acceptPendingCertificate) {
                 isTimeInvalid = true;
@@ -1180,11 +1185,9 @@ export class CertificateManager extends EventEmitter {
         }
 
         //  check that certificate has not expired
-        if (certificateInfo.notAfter.getTime() <= now.getTime()) {
+        if (validity.notAfter.getTime() <= now.getTime()) {
             // certificate is obsolete
-            debugLog(
-                `${chalk.red("certificate is invalid : certificate has expired !")} not after date =${certificateInfo.notAfter}`
-            );
+            debugLog(`${chalk.red("certificate is invalid : certificate has expired !")} not after date =${validity.notAfter}`);
             if (!options.acceptOutdatedCertificate) {
                 isTimeInvalid = true;
             }
@@ -1229,10 +1232,14 @@ export class CertificateManager extends EventEmitter {
         const chain = coerceCertificateChain(certificate);
         for (const element of chain) {
             try {
-                // exploreCertificateInfo will throw if the DER
-                // element is not a valid X.509 certificate
-                // (e.g. it is a CRL or other ASN.1 structure).
-                exploreCertificateInfo(element);
+                // exploreCertificate throws if the DER element is not a
+                // valid X.509 certificate (e.g. it is a CRL or some other
+                // ASN.1 structure), which is the only question being asked
+                // here. exploreCertificateInfo used to stand in for it, but
+                // it also insists on an RSA-sized public key, so every chain
+                // containing an EC certificate was reported invalid on
+                // structural grounds it never actually failed.
+                exploreCertificate(element);
             } catch (_err) {
                 return VerificationStatus.BadCertificateInvalid;
             }
@@ -1845,17 +1852,17 @@ export class CertificateManager extends EventEmitter {
 
             // ── Step 5: Validity Period ──────────────────────────
             if (!opts.acceptExpiredCertificate) {
-                let certDetails: ReturnType<typeof exploreCertificateInfo>;
-                try {
-                    certDetails = exploreCertificateInfo(currentCert);
-                } catch (_err) {
-                    return VerificationStatus.BadCertificateInvalid;
-                }
+                // currentInfo is kept in lockstep with currentCert, so the
+                // dates are already parsed. Re-reading them through
+                // exploreCertificateInfo cost a second parse and rejected any
+                // EC certificate outright, since that helper also insists on
+                // an RSA-sized public key.
+                const { validity } = currentInfo.tbsCertificate;
                 const now = new Date();
-                if (certDetails.notBefore.getTime() > now.getTime()) {
+                if (validity.notBefore.getTime() > now.getTime()) {
                     return VerificationStatus.BadCertificateTimeInvalid;
                 }
-                if (certDetails.notAfter.getTime() <= now.getTime()) {
+                if (validity.notAfter.getTime() <= now.getTime()) {
                     return depth === 1
                         ? VerificationStatus.BadCertificateTimeInvalid
                         : VerificationStatus.BadCertificateIssuerTimeInvalid;

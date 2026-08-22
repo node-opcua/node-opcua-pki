@@ -31,7 +31,7 @@ import { makePath } from "../common2";
 import { displaySubtitle } from "../display";
 import { processAltNames } from "./_env";
 import { execute_openssl } from "./execute_openssl";
-import { generateStaticConfig } from "./toolbox";
+import { cleanupStaticConfig, generateStaticConfig } from "./toolbox";
 
 const n = makePath;
 
@@ -55,27 +55,30 @@ export async function createCertificateSigningRequestWithOpenSSL(
     // note : this openssl command requires a config file
     processAltNames(params);
     const configFile = generateStaticConfig(params.configFile, { cwd: params.rootDir });
+    try {
+        const options = { cwd: params.rootDir, openssl_conf: path.relative(params.rootDir, configFile) };
 
-    const options = { cwd: params.rootDir, openssl_conf: path.relative(params.rootDir, configFile) };
+        const subject = params.subject ? new Subject(params.subject).toString() : undefined;
 
-    const subject = params.subject ? new Subject(params.subject).toString() : undefined;
-
-    displaySubtitle("- Creating a Certificate Signing Request with openssl");
-    await execute_openssl(
-        [
-            "req",
-            "-new",
-            "-sha256",
-            "-batch",
-            "-text",
-            "-config",
-            n(configFile),
-            "-key",
-            n(params.privateKey),
-            ...(subject ? ["-subj", subject] : []),
-            "-out",
-            n(certificateSigningRequestFilename)
-        ],
-        options
-    );
+        displaySubtitle("- Creating a Certificate Signing Request with openssl");
+        await execute_openssl(
+            [
+                "req",
+                "-new",
+                "-sha256",
+                "-batch",
+                "-text",
+                "-config",
+                n(configFile),
+                "-key",
+                n(params.privateKey),
+                ...(subject ? ["-subj", subject] : []),
+                "-out",
+                n(certificateSigningRequestFilename)
+            ],
+            options
+        );
+    } finally {
+        await cleanupStaticConfig(configFile, { cwd: params.rootDir });
+    }
 }

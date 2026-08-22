@@ -21,14 +21,47 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
+/**
+ * PFX (PKCS#12) bundling, implemented in pure JavaScript.
+ *
+ * These helpers used to shell out to `openssl pkcs12`. They no longer do:
+ * every function here goes through `node-opcua-crypto`, so a program that
+ * only bundles and unbundles PFX files needs no `openssl` executable on the
+ * machine. The exported API is unchanged.
+ *
+ * Two consequences are worth knowing about:
+ *
+ * - **What is written.** Bundles are protected with PBES2 / AES-256-CBC
+ *   under an SHA-256 MAC, which is what openssl 3 produces by default and
+ *   what openssl 1.x produced only when asked. Both read them back.
+ * - **What can be read.** A bundle whose certificate safe uses the 40-bit
+ *   RC2 encryption that openssl 1.x chose by default cannot be read here.
+ *   That cipher is broken, and openssl 3 itself refuses it without
+ *   `-legacy`. {@link readPfxFile} turns the failure into a message saying
+ *   how to convert the file, rather than leaving an OID to be decoded by
+ *   hand.
+ */
+
 import assert from "node:assert";
 import fs from "node:fs";
 
-import type { Filename } from "../toolbox/common";
-import { makePath } from "../toolbox/common2";
-import { execute_openssl, passinArg, passoutArg } from "../toolbox/with_openssl/execute_openssl";
+import {
+    type Certificate,
+    certificateMatchesPrivateKey,
+    certificatesToPem,
+    coercePrivateKeyPem,
+    createPfx,
+    makeSHA1Thumbprint,
+    type ParsedPfx,
+    Pkcs12UnsupportedAlgorithmError,
+    parsePfx,
+    readCertificateChain,
+    readPrivateKey,
+    toPem,
+    x509
+} from "node-opcua-crypto";
 
-const n = makePath;
+import type { Filename } from "../toolbox/common";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -64,6 +97,13 @@ export interface CreatePFXOptions {
      * to include in the PFX bundle.
      */
     caCertificateFiles?: Filename[];
+
+    /**
+     * Optional display label stored on the bundle, the equivalent of
+     * openssl's `-name`. The Windows certificate store and `keytool` show
+     * it; {@link extractAllFromPFX} and {@link dumpPFX} report it back.
+     */
+    friendlyName?: string;
 }
 
 /**
@@ -95,6 +135,48 @@ export interface ExtractPFXResult {
      * (empty string if none).
      */
     caCertificates: string;
+
+    /** The display label the bundle carries, if it has one. */
+    friendlyName?: string;
+}
+
+// ── Reading a bundle ───────────────────────────────────────────
+
+/**
+ * Open and decrypt a PFX file, reporting failures in terms of the file the
+ * caller named.
+ *
+ * The one failure worth translating is a bundle encrypted with an algorithm
+ * this implementation will not touch. In practice that means openssl 1.x's
+ * default certificate-safe cipher, 40-bit RC2: the underlying error names
+ * an OID, which tells the reader nothing about what to do next.
+ */
+async function readPfxFile(options: ExtractPFXOptions): Promise<ParsedPfx> {
+    const { pfxFile, passphrase = "" } = options;
+
+    assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
+
+    try {
+        return await parsePfx(await fs.promises.readFile(pfxFile), passphrase);
+    } catch (err) {
+        if (err instanceof Pkcs12UnsupportedAlgorithmError) {
+            const explained = new Error(
+                [
+                    `${pfxFile} uses an encryption algorithm that is not supported (${err.message}).`,
+                    "Bundles written by openssl 1.x default to 40-bit RC2, which openssl 3 itself",
+                    "rejects unless given -legacy. Convert the file once with:",
+                    "  openssl pkcs12 -legacy -in old.pfx -nodes -out tmp.pem",
+                    "  openssl pkcs12 -export -in tmp.pem -out new.pfx"
+                ].join("\n")
+            );
+            // assigned rather than passed to the constructor: `lib` is empty
+            // in this project, so the ES2022 ErrorOptions overload is not in
+            // scope even though every supported Node runtime honours it.
+            (explained as Error & { cause?: unknown }).cause = err;
+            throw explained;
+        }
+        throw err;
+    }
 }
 
 // ── Create PFX ─────────────────────────────────────────────────
@@ -102,22 +184,16 @@ export interface ExtractPFXResult {
 /**
  * Create a PFX (PKCS#12) file from a certificate and private key.
  *
- * Wraps:
- * ```
- * openssl pkcs12 -export
- *   -in <cert> -inkey <key>
- *   [-certfile <ca>]
- *   -out <pfx>
- *   -passin  env:NODE_OPCUA_PKI_OPENSSL_PASSIN
- *   -passout env:NODE_OPCUA_PKI_OPENSSL_PASSOUT
- * ```
- * Both passphrases are passed via per-invocation environment variables,
- * never placed in argv — see {@link ExecuteOptions.env}.
- * `-passin` is always present (empty when the key is plaintext) so that an
- * encrypted key without a `privateKeyPassphrase` fails fast rather than
- * leaving openssl waiting on a terminal prompt that never comes.
+ * The bundle is protected with PBES2 / AES-256-CBC under an SHA-256 MAC. If
+ * `certificateFile` holds more than one PEM block, the first is the
+ * identity and the rest join the issuer chain, ahead of any
+ * `caCertificateFiles`.
  *
- * @param options — see {@link CreatePFXOptions}
+ * Nothing is written unless every input reads back cleanly and the private
+ * key belongs to the certificate, so a wrong `privateKeyPassphrase` or a
+ * mismatched pair leaves no half-made file behind.
+ *
+ * @param options - see {@link CreatePFXOptions}
  */
 export async function createPFX(options: CreatePFXOptions): Promise<void> {
     const { certificateFile, privateKeyFile, privateKeyPassphrase, outputFile, passphrase = "", caCertificateFiles } = options;
@@ -125,20 +201,37 @@ export async function createPFX(options: CreatePFXOptions): Promise<void> {
     assert(fs.existsSync(certificateFile), `Certificate file does not exist: ${certificateFile}`);
     assert(fs.existsSync(privateKeyFile), `Private key file does not exist: ${privateKeyFile}`);
 
-    const args = ["pkcs12", "-export", "-in", n(certificateFile), "-inkey", n(privateKeyFile)];
-
-    if (caCertificateFiles) {
-        for (const caFile of caCertificateFiles) {
-            assert(fs.existsSync(caFile), `CA certificate file does not exist: ${caFile}`);
-            args.push("-certfile", n(caFile));
-        }
+    const [certificate, ...bundledIssuers] = readCertificateChain(certificateFile);
+    if (!certificate) {
+        throw new Error(`Certificate file holds no certificate: ${certificateFile}`);
     }
 
-    const passin = passinArg(privateKeyPassphrase);
-    const passout = passoutArg(passphrase);
-    args.push("-out", n(outputFile), ...passin.args, ...passout.args);
+    const certificateChain: Certificate[] = [...bundledIssuers];
+    for (const caFile of caCertificateFiles ?? []) {
+        assert(fs.existsSync(caFile), `CA certificate file does not exist: ${caFile}`);
+        certificateChain.push(...readCertificateChain(caFile));
+    }
 
-    await execute_openssl(args, { env: { ...passin.env, ...passout.env } });
+    // throws on an encrypted key with no passphrase - where the openssl
+    // version would instead block on a terminal prompt that never came
+    const privateKey = readPrivateKey(privateKeyFile, privateKeyPassphrase);
+
+    // `openssl pkcs12 -export` refuses a key that does not go with the
+    // certificate ("No certificate matches private key"); keep that guard,
+    // or the result is a bundle nothing can use.
+    if (!certificateMatchesPrivateKey(certificate, privateKey)) {
+        throw new Error(`The private key ${privateKeyFile} does not match the certificate ${certificateFile}`);
+    }
+
+    const pfx = await createPfx({
+        certificate,
+        certificateChain,
+        privateKey,
+        password: passphrase,
+        friendlyName: options.friendlyName
+    });
+
+    await fs.promises.writeFile(outputFile, pfx);
 }
 
 // ── Extract certificate from PFX ───────────────────────────────
@@ -146,25 +239,11 @@ export async function createPFX(options: CreatePFXOptions): Promise<void> {
 /**
  * Extract the client/server certificate from a PFX file.
  *
- * Wraps:
- * ```
- * openssl pkcs12 -in <pfx> -clcerts -nokeys
- *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
- * ```
- * The passphrase is passed via a per-invocation environment variable, never
- * placed in argv — see {@link ExecuteOptions.env}.
- *
  * @returns the certificate in PEM format.
  */
 export async function extractCertificateFromPFX(options: ExtractPFXOptions): Promise<string> {
-    const { pfxFile, passphrase = "" } = options;
-
-    assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
-
-    const passin = passinArg(passphrase);
-    return await execute_openssl(["pkcs12", "-in", n(pfxFile), "-clcerts", "-nokeys", "-nodes", ...passin.args], {
-        env: passin.env
-    });
+    const { certificate } = await readPfxFile(options);
+    return toPem(certificate, "CERTIFICATE");
 }
 
 // ── Extract private key from PFX ───────────────────────────────
@@ -172,23 +251,11 @@ export async function extractCertificateFromPFX(options: ExtractPFXOptions): Pro
 /**
  * Extract the private key from a PFX file.
  *
- * Wraps:
- * ```
- * openssl pkcs12 -in <pfx> -nocerts -nodes
- *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
- * ```
- * The passphrase is passed via a per-invocation environment variable, never
- * placed in argv — see {@link ExecuteOptions.env}.
- *
- * @returns the private key in PEM format.
+ * @returns the private key as unencrypted PKCS#8 PEM.
  */
 export async function extractPrivateKeyFromPFX(options: ExtractPFXOptions): Promise<string> {
-    const { pfxFile, passphrase = "" } = options;
-
-    assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
-
-    const passin = passinArg(passphrase);
-    return await execute_openssl(["pkcs12", "-in", n(pfxFile), "-nocerts", "-nodes", ...passin.args], { env: passin.env });
+    const { privateKey } = await readPfxFile(options);
+    return coercePrivateKeyPem(privateKey);
 }
 
 // ── Extract CA certificates from PFX ───────────────────────────
@@ -196,26 +263,12 @@ export async function extractPrivateKeyFromPFX(options: ExtractPFXOptions): Prom
 /**
  * Extract the CA / intermediate certificates from a PFX file.
  *
- * Wraps:
- * ```
- * openssl pkcs12 -in <pfx> -cacerts -nokeys -nodes
- *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
- * ```
- * The passphrase is passed via a per-invocation environment variable, never
- * placed in argv — see {@link ExecuteOptions.env}.
- *
  * @returns the CA certificates in PEM format
  *          (empty string if none are present).
  */
 export async function extractCACertificatesFromPFX(options: ExtractPFXOptions): Promise<string> {
-    const { pfxFile, passphrase = "" } = options;
-
-    assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
-
-    const passin = passinArg(passphrase);
-    return await execute_openssl(["pkcs12", "-in", n(pfxFile), "-cacerts", "-nokeys", "-nodes", ...passin.args], {
-        env: passin.env
-    });
+    const { certificateChain } = await readPfxFile(options);
+    return certificateChain.length === 0 ? "" : certificatesToPem(certificateChain);
 }
 
 // ── Extract everything from PFX ────────────────────────────────
@@ -224,56 +277,112 @@ export async function extractCACertificatesFromPFX(options: ExtractPFXOptions): 
  * Extract certificate + private key + CA certs from a PFX file
  * in a single call.
  *
+ * Prefer this over the single-part helpers when you want more than one
+ * part: the file is read, decrypted and MAC-verified once here, against
+ * once per part.
+ *
  * @returns an {@link ExtractPFXResult} with all PEM-encoded parts.
  */
 export async function extractAllFromPFX(options: ExtractPFXOptions): Promise<ExtractPFXResult> {
-    const [certificate, privateKey, caCertificates] = await Promise.all([
-        extractCertificateFromPFX(options),
-        extractPrivateKeyFromPFX(options),
-        extractCACertificatesFromPFX(options)
-    ]);
-    return { certificate, privateKey, caCertificates };
+    const { certificate, certificateChain, privateKey, friendlyName } = await readPfxFile(options);
+    return {
+        certificate: toPem(certificate, "CERTIFICATE"),
+        privateKey: coercePrivateKeyPem(privateKey),
+        caCertificates: certificateChain.length === 0 ? "" : certificatesToPem(certificateChain),
+        friendlyName
+    };
 }
 
 // ── Convert PFX to PEM (combined) ──────────────────────────────
 
 /**
- * Convert a PFX file to a single PEM file containing both the
- * certificate and the private key.
- *
- * Wraps:
- * ```
- * openssl pkcs12 -in <pfx> -out <pem> -nodes
- *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
- * ```
- * The passphrase is passed via a per-invocation environment variable, never
- * placed in argv — see {@link ExecuteOptions.env}.
+ * Convert a PFX file to a single PEM file holding the private key, the
+ * certificate, and any issuer certificates the bundle carries, in that
+ * order.
  */
 export async function convertPFXtoPEM(pfxFile: Filename, pemFile: Filename, passphrase = ""): Promise<void> {
-    assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
+    const { certificate, certificateChain, privateKey } = await readPfxFile({ pfxFile, passphrase });
 
-    const passin = passinArg(passphrase);
-    await execute_openssl(["pkcs12", "-in", n(pfxFile), "-out", n(pemFile), "-nodes", ...passin.args], { env: passin.env });
+    const parts = [coercePrivateKeyPem(privateKey), toPem(certificate, "CERTIFICATE")];
+    if (certificateChain.length > 0) {
+        parts.push(certificatesToPem(certificateChain));
+    }
+    await fs.promises.writeFile(pemFile, `${parts.map((part) => part.trimEnd()).join("\n")}\n`, "utf-8");
 }
 
 // ── Inspect PFX ────────────────────────────────────────────────
 
+function formatThumbprint(certificate: Certificate): string {
+    return (makeSHA1Thumbprint(certificate).toString("hex").toUpperCase().match(/../g) ?? []).join(":");
+}
+
+/**
+ * The shape of a WebCrypto algorithm descriptor, spelled out locally: this
+ * project compiles with an empty `lib`, so the DOM's `KeyAlgorithm` is not
+ * in scope. RSA keys carry a `modulusLength` and EC keys a `namedCurve`;
+ * neither is guaranteed, hence both optional.
+ */
+interface AlgorithmDescription {
+    name: string;
+    modulusLength?: number;
+    namedCurve?: string;
+}
+
+function describePublicKey(certificate: x509.X509Certificate): string {
+    const algorithm = certificate.publicKey.algorithm as AlgorithmDescription;
+    if (algorithm.modulusLength) {
+        return `${algorithm.name} ${algorithm.modulusLength} bits`;
+    }
+    if (algorithm.namedCurve) {
+        return `${algorithm.name} ${algorithm.namedCurve}`;
+    }
+    return algorithm.name;
+}
+
+function describeCertificate(der: Certificate, indent: string): string[] {
+    const certificate = new x509.X509Certificate(der);
+    return [
+        `${indent}subject          : ${certificate.subject}`,
+        `${indent}issuer           : ${certificate.issuer}`,
+        `${indent}serial number    : ${certificate.serialNumber}`,
+        `${indent}not before       : ${certificate.notBefore.toISOString()}`,
+        `${indent}not after        : ${certificate.notAfter.toISOString()}`,
+        `${indent}public key       : ${describePublicKey(certificate)}`,
+        `${indent}signature        : ${(certificate.signatureAlgorithm as unknown as AlgorithmDescription).name}`,
+        `${indent}SHA-1 thumbprint : ${formatThumbprint(der)}`
+    ];
+}
+
 /**
  * Dump the contents of a PFX file in human-readable form.
  *
- * Wraps:
- * ```
- * openssl pkcs12 -in <pfx> -info -noout
- *   -passin env:NODE_OPCUA_PKI_OPENSSL_PASSIN
- * ```
- * The passphrase is passed via a per-invocation environment variable, never
- * placed in argv — see {@link ExecuteOptions.env}.
+ * The layout is this package's own, not `openssl pkcs12 -info`'s: it
+ * describes the identity the bundle carries rather than the algorithms it
+ * was encrypted with, and it states outright whether the enclosed key
+ * matches the enclosed certificate - the question a bundle that will not
+ * load is usually being asked. Treat the text as something to read, not to
+ * parse; use {@link extractAllFromPFX} to get at the parts.
  *
  * @returns the human-readable dump as a string.
  */
 export async function dumpPFX(pfxFile: Filename, passphrase = ""): Promise<string> {
-    assert(fs.existsSync(pfxFile), `PFX file does not exist: ${pfxFile}`);
+    const { certificate, certificateChain, privateKey, friendlyName } = await readPfxFile({ pfxFile, passphrase });
 
-    const passin = passinArg(passphrase);
-    return await execute_openssl(["pkcs12", "-in", n(pfxFile), "-info", "-nodes", ...passin.args], { env: passin.env });
+    const lines = [`PFX bundle : ${pfxFile}`];
+    if (friendlyName) {
+        lines.push(`friendly name : ${friendlyName}`);
+    }
+
+    const keyVerdict = certificateMatchesPrivateKey(certificate, privateKey)
+        ? "matches this certificate"
+        : "DOES NOT match this certificate";
+
+    lines.push("", "certificate", ...describeCertificate(certificate, "  "), `  private key      : ${keyVerdict}`);
+
+    lines.push("", `issuer chain : ${certificateChain.length} certificate(s)`);
+    for (const [index, issuer] of certificateChain.entries()) {
+        lines.push(`  [${index}]`, ...describeCertificate(issuer, "    "));
+    }
+
+    return `${lines.join("\n")}\n`;
 }

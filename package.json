@@ -1,67 +1,67 @@
 {
-  "name": "node-opcua-pki-project",
-  "private": true,
-  "description": "PKI management for node-opcua (monorepo)",
-  "workspaces": [
-    "packages/node-opcua-pki"
-  ],
-  "scripts": {
-    "build": "tsup",
-    "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
-    "test": "mocha -r ./node_modules/source-map-support/register -r tsconfig-paths/register -t 700000 test/**/*.ts",
-    "test:cjs": "node test-cjs/test_cjs.js",
-    "test:esm": "node test-esm/test_esm.mjs",
-    "test:all": "npm run test && npm run test:cjs && npm run test:esm",
-    "cost-of-modules": "npx cost-of-modules --no-install",
-    "//check:package": "verifies the published shape of node-opcua-pki: exports map, files globs, and the per-condition types each consumer resolves. attw is what catches an ESM consumer being handed CommonJS types (FalseCJS) - present in 6.18.0 - which a runtime import() smoke test does not. Run after build: it packs the real dist.",
-    "check:package": "cd packages/node-opcua-pki && npx -y publint && npx -y @arethetypeswrong/cli --pack .",
-    "__comment": "lerna version bumps version, generates CHANGELOG.md, commits, tags, and pushes. Publish is done by GitHub Actions.",
-    "release": "npm run build && npm run test && npx lerna version",
-    "release:minor": "npm run build && npm run test && npx lerna version minor",
-    "release:major": "npm run build && npm run test && npx lerna version major",
-    "ncu": "npx npm-check-updates -u  --deep -x chokidar,rimraf,env-paths,chalk,update-notifier,@types/node,typescript",
-    "ncu2": "npx npm-check-updates -u  --deep  -f chokidar,rimraf,env-paths,chalk,update-notifier,@types/node,typescript -t minor",
-    "lint": "biome lint",
-    "format": "biome format --write",
-    "makelinks": "npx tsx ../make-links/makelinks.ts",
-    "prepare": "husky"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/node-opcua/node-opcua-pki.git"
-  },
-  "bugs": {
-    "url": "https://github.com/node-opcua/node-opcua-pki/issues"
-  },
-  "author": "Etienne Rossignon",
-  "license": "MIT",
-  "devDependencies": {
-    "@biomejs/biome": "^2.5.8",
-    "@types/byline": "^4.2.36",
-    "@types/command-line-args": "^5.2.3",
-    "@types/command-line-usage": "^5.0.4",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^26.1.2",
-    "@types/node-dir": "0.0.37",
-
-    "@types/sinon": "^22.0.0",
-    "@types/yauzl": "^3.4.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.3.0",
-    "mocha": "^11.8.0",
-    "node-dir": "^0.1.17",
-    "should": "^13.2.3",
-    "sinon": "^22.1.0",
-    "source-map-support": "^0.5.21",
-    "tsconfig-paths": "^4.2.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.23.12",
-    "typescript": "^6.0.3"
-  },
-  "lint-staged": {
-    "*.{ts,js}": [
-      "biome format --write",
-      "biome check --write"
-    ]
-  }
+    "name": "node-opcua-pki-project",
+    "private": true,
+    "description": "PKI management for node-opcua (monorepo)",
+    "workspaces": [
+        "packages/node-opcua-pki"
+    ],
+    "scripts": {
+        "build": "tsup",
+        "clean": "npx rimraf node_modules .nyc_output tmp private_key.pem certificates",
+        "test": "mocha -r ./node_modules/source-map-support/register -r tsconfig-paths/register -t 700000 test/**/*.ts",
+        "test:cjs": "node test-cjs/test_cjs.js",
+        "test:esm": "node test-esm/test_esm.mjs",
+        "test:all": "npm run test && npm run test:cjs && npm run test:esm",
+        "cost-of-modules": "npx cost-of-modules --no-install",
+        "//check:package": "verifies the published shape of node-opcua-pki: exports map, files globs, and the per-condition types each consumer resolves. attw is what catches an ESM consumer being handed CommonJS types (FalseCJS) - present in 6.18.0 - which a runtime import() smoke test does not. Run after build: it packs the real dist.",
+        "//check:package-profile": "node16 profile, not strict: strict also evaluates node10, TypeScript's pre-'exports' resolution, which cannot resolve a subpath export like ./core at all and is long out of date. Dropping that target is narrower than ignoring the no-resolution rule - NoResolution stays enforced for node16 and bundler, so a genuine regression on '.' is still caught.",
+        "check:package": "cd packages/node-opcua-pki && npx -y publint && npx -y @arethetypeswrong/cli --pack . --profile node16",
+        "__comment": "lerna version bumps version, generates CHANGELOG.md, commits, tags, and pushes. Publish is done by GitHub Actions.",
+        "release": "npm run build && npm run test && npx lerna version",
+        "release:minor": "npm run build && npm run test && npx lerna version minor",
+        "release:major": "npm run build && npm run test && npx lerna version major",
+        "ncu": "npx npm-check-updates -u  --deep -x chokidar,rimraf,env-paths,chalk,update-notifier,@types/node,typescript",
+        "ncu2": "npx npm-check-updates -u  --deep  -f chokidar,rimraf,env-paths,chalk,update-notifier,@types/node,typescript -t minor",
+        "lint": "biome lint",
+        "format": "biome format --write",
+        "makelinks": "npx tsx ../make-links/makelinks.ts",
+        "prepare": "husky"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/node-opcua/node-opcua-pki.git"
+    },
+    "bugs": {
+        "url": "https://github.com/node-opcua/node-opcua-pki/issues"
+    },
+    "author": "Etienne Rossignon",
+    "license": "MIT",
+    "devDependencies": {
+        "@biomejs/biome": "^2.5.8",
+        "@types/byline": "^4.2.36",
+        "@types/command-line-args": "^5.2.3",
+        "@types/command-line-usage": "^5.0.4",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^26.1.2",
+        "@types/node-dir": "0.0.37",
+        "@types/sinon": "^22.0.0",
+        "@types/yauzl": "^3.4.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^17.3.0",
+        "mocha": "^11.8.0",
+        "node-dir": "^0.1.17",
+        "should": "^13.2.3",
+        "sinon": "^22.1.0",
+        "source-map-support": "^0.5.21",
+        "tsconfig-paths": "^4.2.0",
+        "tsup": "^8.5.1",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3"
+    },
+    "lint-staged": {
+        "*.{ts,js}": [
+            "biome format --write",
+            "biome check --write"
+        ]
+    }
 }
