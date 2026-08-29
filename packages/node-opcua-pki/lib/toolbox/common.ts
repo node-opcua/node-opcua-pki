@@ -31,7 +31,7 @@ export type Filename = string;
 /** Status of a certificate in the trust store. */
 export type CertificateStatus = "unknown" | "trusted" | "rejected";
 
-import type { CertificatePurpose, PrivateKey } from "node-opcua-crypto";
+import type { CaSigner, CertificatePurpose, PrivateKey } from "node-opcua-crypto";
 import type { SubjectOptions } from "../misc/subject";
 
 /**
@@ -74,13 +74,24 @@ export interface CreateCertificateSigningRequestWithConfigOptions extends Create
     /** Path to the OpenSSL configuration file. */
     configFile: Filename;
     /**
-     * The private key: either a filesystem path to a PEM file (unencrypted;
-     * the historical behavior), or an already-resolved in-memory
-     * {@link PrivateKey} — see {@link CreateSelfSignCertificateWithConfigParam.privateKey}.
+     * The private key: a filesystem path to a PEM file (unencrypted;
+     * the historical behavior), an already-resolved in-memory
+     * {@link PrivateKey}, or an opaque {@link CaSigner} (HSM/KMS-held key;
+     * only the openssl-free toolbox supports it — openssl needs a key file)
+     * — see {@link CreateSelfSignCertificateWithConfigParam.privateKey}.
      */
-    privateKey: Filename | PrivateKey;
+    privateKey: Filename | PrivateKey | CaSigner;
     /** Intended purpose of the certificate. */
     purpose: CertificatePurpose;
+}
+
+/**
+ * Narrows the `privateKey` union of the toolbox options: a {@link CaSigner}
+ * is the only member that carries a `sign` method — a path is a string and
+ * a {@link PrivateKey} envelope has only `hidden`.
+ */
+export function isOpaqueSigner(privateKey: Filename | PrivateKey | CaSigner): privateKey is CaSigner {
+    return typeof privateKey !== "string" && typeof (privateKey as CaSigner).sign === "function";
 }
 
 /**
@@ -124,13 +135,14 @@ export interface CreateSelfSignCertificateWithConfigParam extends CreateSelfSign
     /** Path to the OpenSSL configuration file. */
     configFile: Filename;
     /**
-     * The private key: either a filesystem path to a PEM file (unencrypted;
-     * the historical behavior), or an already-resolved in-memory
+     * The private key: a filesystem path to a PEM file (unencrypted;
+     * the historical behavior), an already-resolved in-memory
      * {@link PrivateKey} — used when the key is passphrase-protected on
      * disk, so the decrypted key material is never written back out in
-     * cleartext.
+     * cleartext — or an opaque {@link CaSigner} (HSM/KMS-held key; only
+     * the openssl-free toolbox supports it — openssl needs a key file).
      */
-    privateKey: Filename | PrivateKey;
+    privateKey: Filename | PrivateKey | CaSigner;
     /** Intended purpose of the certificate. */
     purpose: CertificatePurpose;
 }

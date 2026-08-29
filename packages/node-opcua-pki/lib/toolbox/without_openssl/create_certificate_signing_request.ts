@@ -22,7 +22,7 @@
 import assert from "node:assert";
 import fs from "node:fs";
 import { coercePrivateKeyPem, createCertificateSigningRequest, pemToPrivateKey, Subject } from "node-opcua-crypto";
-import type { CreateCertificateSigningRequestWithConfigOptions } from "../common";
+import { type CreateCertificateSigningRequestWithConfigOptions, isOpaqueSigner } from "../common";
 import { display, displaySubtitle } from "../display";
 
 /**
@@ -47,11 +47,16 @@ export async function createCertificateSigningRequestAsync(
     const subject = params.subject ? new Subject(params.subject).toString() : undefined;
     displaySubtitle("- Creating a Certificate Signing Request with subtile");
 
-    const privateKeyPem =
-        typeof params.privateKey === "string"
-            ? await fs.promises.readFile(params.privateKey, "utf-8")
-            : coercePrivateKeyPem(params.privateKey);
-    const privateKey = await pemToPrivateKey(privateKeyPem);
+    // an opaque signer is handed to the CSR primitive as-is: the
+    // proof-of-possession signature and the embedded public key both come
+    // from the signer, and there is no PEM to coerce
+    const privateKey = isOpaqueSigner(params.privateKey)
+        ? params.privateKey
+        : await pemToPrivateKey(
+              typeof params.privateKey === "string"
+                  ? await fs.promises.readFile(params.privateKey, "utf-8")
+                  : coercePrivateKeyPem(params.privateKey)
+          );
 
     const { csr } = await createCertificateSigningRequest({
         privateKey,
@@ -63,7 +68,15 @@ export async function createCertificateSigningRequestAsync(
     });
     await fs.promises.writeFile(certificateSigningRequestFilename, csr, "utf-8");
 
-    display(`- privateKey ${typeof params.privateKey === "string" ? params.privateKey : "<in-memory>"}`);
+    display(
+        `- privateKey ${
+            typeof params.privateKey === "string"
+                ? params.privateKey
+                : isOpaqueSigner(params.privateKey)
+                  ? "<opaque-signer>"
+                  : "<in-memory>"
+        }`
+    );
     display(`- certificateSigningRequestFilename ${certificateSigningRequestFilename}`);
 
     // to verify that the CSR is correct:

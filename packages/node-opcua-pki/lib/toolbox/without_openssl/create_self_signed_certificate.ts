@@ -29,7 +29,7 @@ import {
     pemToPrivateKey,
     Subject
 } from "node-opcua-crypto";
-import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common";
+import { adjustDate, type CreateSelfSignCertificateWithConfigParam, isOpaqueSigner } from "../common";
 import { displayTitle } from "../display";
 
 export async function createSelfSignedCertificateAsync(
@@ -69,6 +69,12 @@ export async function createSelfSignedCertificateAsync(
 
     displayTitle("Generate a certificate request");
 
+    // TEMPORARY: node-opcua-crypto 5.10.0's createSelfSignedCertificate only
+    // accepts a raw CryptoKey; opaque support lands with >= 5.11.0
+    // (node-opcua/node-opcua-crypto#89) — pass the signer through once bumped.
+    if (isOpaqueSigner(params.privateKey)) {
+        throw new Error("createSelfSignedCertificate over an opaque signer requires node-opcua-crypto >= 5.11.0");
+    }
     const privateKeyPem =
         typeof params.privateKey === "string"
             ? await fs.promises.readFile(params.privateKey, "utf-8")
