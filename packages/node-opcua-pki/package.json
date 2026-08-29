@@ -64,7 +64,7 @@
         "chokidar": "4.0.3",
         "command-line-args": "^6.0.2",
         "command-line-usage": "^7.0.4",
-        "node-opcua-crypto": "5.10.0",
+        "node-opcua-crypto": "5.10.1",
         "yauzl": "^3.4.0"
     }
 }
