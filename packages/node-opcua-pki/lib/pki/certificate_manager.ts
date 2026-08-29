@@ -14,10 +14,12 @@ import { drainPendingLocks, withLock } from "@ster5/global-mutex";
 import chalk from "chalk";
 import chokidar, { type FSWatcher as ChokidarFSWatcher } from "chokidar";
 import {
+    type CaSigner,
     type Certificate,
     type CertificateInternals,
     type CertificateRevocationList,
     type CertificateRevocationListInfo,
+    caSignerFromKeyOperations,
     type DER,
     exploreCertificate,
     exploreCertificateInfo,
@@ -979,6 +981,19 @@ export class CertificateManager extends EventEmitter {
     }
 
     /**
+     * The key to hand to a certificate-issuance primitive: the raw
+     * {@link PrivateKey} for a local configuration, or a {@link CaSigner}
+     * adapted from `keyOperations` when the key is opaque — which requires
+     * the provider to implement `getPublicKey` (the adapter says so if not).
+     */
+    async #resolveSigningKey(): Promise<PrivateKey | CaSigner> {
+        if (this.#keyOperations) {
+            return caSignerFromKeyOperations(this.#keyOperations);
+        }
+        return await this.getPrivateKey();
+    }
+
+    /**
      * Enable, disable, or rotate the passphrase protecting the on-disk
      * private key: decrypt with `oldPassphrase` (omit if the key is
      * currently unencrypted), then write back encrypted with
@@ -1602,7 +1617,7 @@ export class CertificateManager extends EventEmitter {
         if (typeof params.applicationUri !== "string") {
             throw new Error("createSelfSignedCertificate: expecting applicationUri to be a string");
         }
-        if (!this.#privateKeyProvider && !fs.existsSync(this.privateKey)) {
+        if (!this.#privateKeyProvider && !this.#keyOperations && !fs.existsSync(this.privateKey)) {
             throw new Error(`Cannot find private key ${this.privateKey}`);
         }
         let certificateFilename = path.join(this.rootDir, "own/certs/self_signed_certificate.pem");
@@ -1614,7 +1629,7 @@ export class CertificateManager extends EventEmitter {
             ...(params as unknown as CreateSelfSignCertificateWithConfigParam),
             rootDir: this.rootDir,
             configFile: this.configFile,
-            privateKey: await this.getPrivateKey(),
+            privateKey: await this.#resolveSigningKey(),
             subject: params.subject || "CN=FIXME"
         };
         await this.withLock2(async () => {
@@ -1645,7 +1660,7 @@ export class CertificateManager extends EventEmitter {
             ...(params as CreateSelfSignCertificateWithConfigParam),
             rootDir: path.resolve(this.rootDir),
             configFile: path.resolve(this.configFile),
-            privateKey: await this.getPrivateKey()
+            privateKey: await this.#resolveSigningKey()
         };
 
         return await this.withLock2<string>(async () => {

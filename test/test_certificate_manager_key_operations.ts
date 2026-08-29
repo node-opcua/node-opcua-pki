@@ -2,7 +2,7 @@ import nodeCrypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import "should";
-import { type IKeyOperations, keyOperationsFromPrivateKey } from "node-opcua-crypto";
+import { type IKeyOperations, keyOperationsFromPrivateKey, x509 } from "node-opcua-crypto";
 import { CertificateManager, PrivateKeyUnavailableError } from "node-opcua-pki";
 import { beforeTest } from "./helpers";
 
@@ -138,5 +138,66 @@ describe("CertificateManager keyOperations (opaque private key)", function (this
     it("keyOperations-related exports are available from node-opcua-pki itself", () => {
         PrivateKeyUnavailableError.should.be.a.Function();
         new PrivateKeyUnavailableError().name.should.eql("PrivateKeyUnavailableError");
+    });
+
+    it("createCertificateRequest works over an opaque key: the CSR verifies and carries the provider's public key", async () => {
+        const location = path.join(testData.tmpFolder, "PKI_ops_csr");
+        const { ops } = makeMockOpaqueOps();
+        const cm = new CertificateManager({ location, keyOperations: ops });
+        await cm.initialize();
+
+        const csrFile = await cm.createCertificateRequest({
+            applicationUri: "urn:test:opaque-renewal",
+            subject: "CN=OpaqueRenewal",
+            dns: ["localhost"]
+        });
+        fs.existsSync(csrFile).should.eql(true);
+
+        const csrPem = await fs.promises.readFile(csrFile, "utf-8");
+        const request = new x509.Pkcs10CertificateRequest(csrPem);
+        (await request.verify()).should.eql(true, "the proof-of-possession signature must verify");
+        if (!ops.getPublicKey) {
+            throw new Error("test setup: ops must expose getPublicKey");
+        }
+        Buffer.from(request.publicKey.rawData)
+            .equals(Buffer.from(await ops.getPublicKey()))
+            .should.eql(true, "the CSR must embed the provider's public key");
+
+        await cm.dispose();
+    });
+
+    it("createCertificateRequest names the missing capability when the provider lacks getPublicKey", async () => {
+        const location = path.join(testData.tmpFolder, "PKI_ops_csr_nopub");
+        const { ops } = makeMockOpaqueOps();
+        delete ops.getPublicKey;
+        const cm = new CertificateManager({ location, keyOperations: ops });
+        await cm.initialize();
+
+        await cm
+            .createCertificateRequest({ applicationUri: "urn:test:nopub", subject: "CN=NoPub", dns: [] })
+            .should.be.rejectedWith(/getPublicKey/);
+
+        await cm.dispose();
+    });
+
+    it("createSelfSignedCertificate over an opaque key states the node-opcua-crypto floor until 5.11.0 is in", async () => {
+        // TEMPORARY companion of the toolbox guard: becomes a positive test
+        // when node-opcua-crypto >= 5.11.0 (node-opcua/node-opcua-crypto#89) is bumped in
+        const location = path.join(testData.tmpFolder, "PKI_ops_selfsigned");
+        const { ops } = makeMockOpaqueOps();
+        const cm = new CertificateManager({ location, keyOperations: ops });
+        await cm.initialize();
+
+        await cm
+            .createSelfSignedCertificate({
+                applicationUri: "urn:test:opaque-selfsigned",
+                subject: "CN=OpaqueSelfSigned",
+                dns: ["localhost"],
+                startDate: new Date(),
+                validity: 365
+            })
+            .should.be.rejectedWith(/node-opcua-crypto >= 5\.11\.0/);
+
+        await cm.dispose();
     });
 });
