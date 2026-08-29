@@ -180,23 +180,31 @@ describe("CertificateManager keyOperations (opaque private key)", function (this
         await cm.dispose();
     });
 
-    it("createSelfSignedCertificate over an opaque key states the node-opcua-crypto floor until 5.11.0 is in", async () => {
-        // TEMPORARY companion of the toolbox guard: becomes a positive test
-        // when node-opcua-crypto >= 5.11.0 (node-opcua/node-opcua-crypto#89) is bumped in
+    it("createSelfSignedCertificate works over an opaque key: the certificate verifies and carries the provider's public key", async () => {
         const location = path.join(testData.tmpFolder, "PKI_ops_selfsigned");
         const { ops } = makeMockOpaqueOps();
         const cm = new CertificateManager({ location, keyOperations: ops });
         await cm.initialize();
 
-        await cm
-            .createSelfSignedCertificate({
-                applicationUri: "urn:test:opaque-selfsigned",
-                subject: "CN=OpaqueSelfSigned",
-                dns: ["localhost"],
-                startDate: new Date(),
-                validity: 365
-            })
-            .should.be.rejectedWith(/node-opcua-crypto >= 5\.11\.0/);
+        await cm.createSelfSignedCertificate({
+            applicationUri: "urn:test:opaque-selfsigned",
+            subject: "CN=OpaqueSelfSigned",
+            dns: ["localhost"],
+            startDate: new Date(),
+            validity: 365
+        });
+
+        const certificateFile = path.join(location, "own/certs/self_signed_certificate.pem");
+        fs.existsSync(certificateFile).should.eql(true);
+        const certificate = new x509.X509Certificate(await fs.promises.readFile(certificateFile, "utf-8"));
+        certificate.subject.should.eql("CN=OpaqueSelfSigned");
+        (await certificate.verify()).should.eql(true, "a self-signed certificate must verify against its own public key");
+        if (!ops.getPublicKey) {
+            throw new Error("test setup: ops must expose getPublicKey");
+        }
+        Buffer.from(certificate.publicKey.rawData)
+            .equals(Buffer.from(await ops.getPublicKey()))
+            .should.eql(true, "the certificate must carry the provider's public key");
 
         await cm.dispose();
     });

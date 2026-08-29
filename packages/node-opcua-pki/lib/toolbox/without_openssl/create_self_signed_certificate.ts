@@ -69,17 +69,16 @@ export async function createSelfSignedCertificateAsync(
 
     displayTitle("Generate a certificate request");
 
-    // TEMPORARY: node-opcua-crypto 5.10.0's createSelfSignedCertificate only
-    // accepts a raw CryptoKey; opaque support lands with >= 5.11.0
-    // (node-opcua/node-opcua-crypto#89) — pass the signer through once bumped.
-    if (isOpaqueSigner(params.privateKey)) {
-        throw new Error("createSelfSignedCertificate over an opaque signer requires node-opcua-crypto >= 5.11.0");
-    }
-    const privateKeyPem =
-        typeof params.privateKey === "string"
-            ? await fs.promises.readFile(params.privateKey, "utf-8")
-            : coercePrivateKeyPem(params.privateKey);
-    const privateKey = await pemToPrivateKey(privateKeyPem);
+    // an opaque signer is handed to the primitive as-is: the public half
+    // comes from getPublicKey() and signing routes through the signer
+    // (node-opcua-crypto >= 5.10.1); there is no PEM to coerce
+    const privateKey = isOpaqueSigner(params.privateKey)
+        ? params.privateKey
+        : await pemToPrivateKey(
+              typeof params.privateKey === "string"
+                  ? await fs.promises.readFile(params.privateKey, "utf-8")
+                  : coercePrivateKeyPem(params.privateKey)
+          );
 
     const { cert } = await createSelfSignedCertificate1({
         privateKey,
