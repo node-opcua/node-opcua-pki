@@ -23,8 +23,12 @@ import {
     exploreCertificateInfo,
     exploreCertificateRevocationList,
     generatePrivateKeyFile,
+    type IKeyOperations,
+    keyOperationsFromPrivateKey,
+    type LocalKeyOperations,
     makeSHA1Thumbprint,
     type PrivateKey,
+    PrivateKeyUnavailableError,
     readCertificateChain,
     readCertificateChainAsync,
     readCertificateRevocationList,
@@ -241,6 +245,30 @@ export interface CertificateManagerOptions {
      * ignored.
      */
     privateKeyProvider?: PrivateKeyProvider;
+
+    /**
+     * Use a private key this manager can never read: an opaque
+     * {@link IKeyOperations} provider (HSM, KMS, TPM, OS keystore, ...).
+     *
+     * The distinction with `privateKeyProvider` matters: a
+     * `privateKeyProvider` *sources raw key material* from elsewhere and
+     * hands it back; `keyOperations` never reveals the key — only sign and
+     * decrypt operations on it. Prefer `keyOperations` whenever the key
+     * does not need to be exportable.
+     *
+     * When set:
+     * - {@link CertificateManager.getPrivateKey} and
+     *   {@link CertificateManager.reencryptPrivateKey} throw
+     *   `PrivateKeyUnavailableError` — there is no key material to return
+     *   or rewrite, and no on-disk key is generated or expected;
+     * - {@link CertificateManager.getKeyOperations} returns this object;
+     * - `initialize()` fails closed if the provider cannot answer
+     *   `getKeyMetadata()` (unreachable HSM, misconfiguration);
+     * - mutually exclusive with `privateKeyProvider` and
+     *   `privateKeyPassphrase` — both describe key *material*, which an
+     *   opaque configuration does not have.
+     */
+    keyOperations?: IKeyOperations;
 }
 
 /**
@@ -744,6 +772,9 @@ export class CertificateManager extends EventEmitter {
     readonly #disableFileWatchers: boolean;
     readonly #privateKeyPassphrase?: PrivateKeyPassphrase;
     readonly #privateKeyProvider?: PrivateKeyProvider;
+    readonly #keyOperations?: IKeyOperations;
+    /** The stable lazy wrap handed out by {@link getKeyOperations} for non-opaque configurations. */
+    #lazyLocalKeyOperations?: IKeyOperations;
     /**
      * The on-disk key, decrypted once and kept for the instance's lifetime,
      * so the passphrase (or its resolver function) is consulted at most
@@ -792,6 +823,19 @@ export class CertificateManager extends EventEmitter {
         this.#disableFileWatchers = options.disableFileWatchers ?? process.env.OPCUA_PKI_DISABLE_FILE_WATCHERS === "true";
         this.#privateKeyPassphrase = options.privateKeyPassphrase;
         this.#privateKeyProvider = options.privateKeyProvider;
+        this.#keyOperations = options.keyOperations;
+        if (this.#keyOperations && this.#privateKeyProvider) {
+            throw new Error(
+                "CertificateManager: 'keyOperations' and 'privateKeyProvider' are mutually exclusive:" +
+                    " one hides the key, the other sources its material"
+            );
+        }
+        if (this.#keyOperations && this.#privateKeyPassphrase) {
+            throw new Error(
+                "CertificateManager: 'privateKeyPassphrase' is meaningless with 'keyOperations':" +
+                    " there is no key material for a passphrase to protect"
+            );
+        }
 
         mkdirRecursiveSync(options.location);
 
@@ -839,6 +883,13 @@ export class CertificateManager extends EventEmitter {
      * authority on what the current key is.
      */
     public async getPrivateKey(): Promise<PrivateKey> {
+        if (this.#keyOperations) {
+            throw new PrivateKeyUnavailableError(
+                "CertificateManager.getPrivateKey is not available when keyOperations is configured:" +
+                    " the private key is held by the key-operations provider (HSM/KMS) and cannot be read" +
+                    " — use getKeyOperations() instead"
+            );
+        }
         if (this.#privateKeyProvider) {
             return await this.#privateKeyProvider.getPrivateKey();
         }
@@ -866,6 +917,68 @@ export class CertificateManager extends EventEmitter {
     #privateKeyPromise?: Promise<PrivateKey>;
 
     /**
+     * True when this manager's key is opaque — configured through
+     * `keyOperations`, held by an HSM/KMS, never obtainable as material.
+     * When true, {@link getPrivateKey} throws `PrivateKeyUnavailableError`
+     * and {@link getKeyOperations} is the only way to use the key.
+     */
+    public isPrivateKeyOpaque(): boolean {
+        return !!this.#keyOperations;
+    }
+
+    /**
+     * The key as an opaque {@link IKeyOperations} — the recommended way to
+     * *use* the private key regardless of where it lives.
+     *
+     * Returns the configured `keyOperations` object when the key is opaque.
+     * Otherwise returns a stable lazy wrap over {@link getPrivateKey}: its
+     * methods resolve the key on first use (disk read, passphrase,
+     * `privateKeyProvider` — all async), so the wrap offers no synchronous
+     * fast path; callers that need one resolve the key themselves and build
+     * a `LocalKeyOperations` over it. The wrap follows key rotation: a
+     * `privateKeyProvider` that starts returning a different key gets a
+     * fresh underlying `LocalKeyOperations`.
+     */
+    public getKeyOperations(): IKeyOperations {
+        if (this.#keyOperations) {
+            return this.#keyOperations;
+        }
+        if (!this.#lazyLocalKeyOperations) {
+            let cached: { key: PrivateKey; ops: LocalKeyOperations } | undefined;
+            const resolve = async (): Promise<LocalKeyOperations> => {
+                const key = await this.getPrivateKey();
+                // keyed by identity: the disk path always returns the cached envelope,
+                // while a provider that rotates the key yields a fresh wrap
+                if (!cached || cached.key !== key) {
+                    cached = { key, ops: keyOperationsFromPrivateKey(key) };
+                }
+                return cached.ops;
+            };
+            this.#lazyLocalKeyOperations = {
+                sign: async (data, params) => (await resolve()).sign(data, params),
+                decryptBlock: async (block, params) => (await resolve()).decryptBlock(block, params),
+                getKeyMetadata: async () => (await resolve()).getKeyMetadata(),
+                getPublicKey: async () => (await resolve()).getPublicKey()
+            };
+        }
+        return this.#lazyLocalKeyOperations;
+    }
+
+    /**
+     * Fail closed at `initialize()` time, not on the first certificate
+     * operation, if the key cannot actually be used: wrong/missing
+     * passphrase on an encrypted key, a broken `privateKeyProvider`, or an
+     * unreachable `keyOperations` provider (probed via `getKeyMetadata`).
+     */
+    async #probePrivateKey(): Promise<void> {
+        if (this.#keyOperations) {
+            await this.#keyOperations.getKeyMetadata();
+            return;
+        }
+        await this.getPrivateKey();
+    }
+
+    /**
      * Enable, disable, or rotate the passphrase protecting the on-disk
      * private key: decrypt with `oldPassphrase` (omit if the key is
      * currently unencrypted), then write back encrypted with
@@ -886,6 +999,11 @@ export class CertificateManager extends EventEmitter {
      * disk file for this method to rewrite).
      */
     public async reencryptPrivateKey(oldPassphrase?: PrivateKeyPassphrase, newPassphrase?: PrivateKeyPassphrase): Promise<void> {
+        if (this.#keyOperations) {
+            throw new PrivateKeyUnavailableError(
+                "reencryptPrivateKey: not supported when keyOperations is configured — there is no key material to rewrite"
+            );
+        }
         if (this.#privateKeyProvider) {
             throw new Error("reencryptPrivateKey: not supported when a privateKeyProvider is configured");
         }
@@ -1323,9 +1441,9 @@ export class CertificateManager extends EventEmitter {
         mkdirRecursiveSync(path.join(pkiDir, "issuers/certs")); // contains Trusted CA certificates
         mkdirRecursiveSync(path.join(pkiDir, "issuers/crl")); // contains CRL of revoked CA certificates
 
-        // when a privateKeyProvider is configured it overrides disk entirely,
-        // so there is no on-disk key to generate, encrypt, or check for existence
-        const ownsDiskKey = !this.#privateKeyProvider;
+        // when a privateKeyProvider or keyOperations is configured it overrides disk
+        // entirely, so there is no on-disk key to generate, encrypt, or check for existence
+        const ownsDiskKey = !this.#privateKeyProvider && !this.#keyOperations;
         const needsKeyGeneration = ownsDiskKey && !fs.existsSync(this.privateKey);
         // Secure by default: a passphrase configured on an install whose key
         // is still plaintext means "protect this key", not "ignore me". Node's
@@ -1375,17 +1493,14 @@ export class CertificateManager extends EventEmitter {
                     // and confirm them on a freshly generated key
                     restrictPrivateFilePermissions(this.privateKey, 0o600);
                 }
-                // Fail closed now, not on the first certificate operation, if
-                // the key cannot actually be read: wrong/missing passphrase
-                // on an encrypted key, or a broken privateKeyProvider.
-                await this.getPrivateKey();
+                await this.#probePrivateKey();
                 await this.#readCertificates();
             });
         } else {
             if (ownsDiskKey) {
                 restrictPrivateFilePermissions(this.privateKey, 0o600);
             }
-            await this.getPrivateKey();
+            await this.#probePrivateKey();
             await this.#readCertificates();
         }
     }

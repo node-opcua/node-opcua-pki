@@ -24,7 +24,18 @@
 // re-exported so consumers can `instanceof`-check the fail-closed error thrown
 // by CertificateManager.initialize()/getPrivateKey() without depending on
 // node-opcua-crypto directly
-export { PrivateKeyPassphraseRequiredError } from "node-opcua-crypto";
+// re-exported so consumers can implement an opaque key-operations provider
+// (CertificateManagerOptions.keyOperations) and catch the error its
+// configuration makes getPrivateKey() throw, without depending on
+// node-opcua-crypto directly
+export {
+    type AsymmetricDecryptParams,
+    type AsymmetricSignParams,
+    type IKeyOperations,
+    type KeyMetadata,
+    PrivateKeyPassphraseRequiredError,
+    PrivateKeyUnavailableError
+} from "node-opcua-crypto";
 export { NativeCaBackend } from "./ca/backends/native_ca_backend";
 export { OpenSslCaBackend } from "./ca/backends/openssl_ca_backend";
 export {
