@@ -9,6 +9,7 @@ passphrase-encrypted keys on a `CertificateManager`.
 - [What is protected by default](#what-is-protected-by-default)
 - [Passphrase-encrypted keys (opt-in)](#passphrase-encrypted-keys-opt-in)
 - [Key provider (HSM / KMS)](#key-provider-hsm--kms)
+- [Opaque keys: `keyOperations` (HSM / KMS, key never enters the process)](#opaque-keys-keyoperations-hsm--kms-key-never-enters-the-process)
 - [Enabling, rotating, or removing a passphrase on an existing install](#enabling-rotating-or-removing-a-passphrase-on-an-existing-install)
 - [Compatibility: who else reads the key file](#compatibility-who-else-reads-the-key-file)
 - [How passphrases reach openssl](#how-passphrases-reach-openssl)
@@ -126,6 +127,108 @@ consulted on every `getPrivateKey()` call (it is the authority on the current
 key; nothing is cached). `reencryptPrivateKey()` throws, since there is no file
 to rewrite.
 
+Note that a `privateKeyProvider` still **hands the key material back** to the
+process: it changes where the key is stored, not who can read it. If the key
+does not need to be exportable, prefer the opaque
+[`keyOperations`](#opaque-keys-keyoperations-hsm--kms-key-never-enters-the-process)
+option below.
+
+---
+
+## Opaque keys: `keyOperations` (HSM / KMS, key never enters the process)
+
+`keyOperations` goes one step further than `privateKeyProvider`: the manager
+gets an object it can *use* — sign, decrypt — but through which the key can
+never be read. The key stays inside the HSM, KMS, TPM or OS keystore,
+non-exportable, and every use of it is visible in that system's audit log.
+
+|  | `privateKeyPassphrase` | `privateKeyProvider` | `keyOperations` |
+| --- | --- | --- | --- |
+| Key at rest | encrypted file on disk | wherever the provider reads it from | inside the HSM/KMS |
+| Key in process memory | yes (decrypted once) | yes (returned by the provider) | **never** |
+| `getPrivateKey()` | returns the key | returns the key | throws `PrivateKeyUnavailableError` |
+| Certificate renewal (CSR) | yes | yes | yes, signed inside the HSM |
+| Use when | the key may live on disk, encrypted | the key is stored elsewhere but may be exported | the key must be non-exportable |
+
+A provider implements `IKeyOperations` (re-exported from `node-opcua-pki`,
+defined in `node-opcua-crypto`). The minimal, KMS-style shape:
+
+```typescript
+import type { AsymmetricDecryptParams, AsymmetricSignParams, IKeyOperations, KeyMetadata } from "node-opcua-pki";
+
+class MyKmsKeyOperations implements IKeyOperations {
+    async sign(data: Uint8Array, params: AsymmetricSignParams): Promise<Buffer> {
+        // params.padding: "RSA-PKCS1-v1_5" | "RSA-PSS" (salt length = digest length)
+        // params.hash:    "SHA-1" | "SHA-256"
+        return Buffer.from(await myKms.sign({ keyName: "opcua-app-key", data, algorithm: toKmsSignAlgorithm(params) }));
+    }
+    async decryptBlock(block: Uint8Array, params: AsymmetricDecryptParams): Promise<Buffer> {
+        // exactly ONE RSA block per call (block.length === modulusLength)
+        return Buffer.from(await myKms.decrypt({ keyName: "opcua-app-key", ciphertext: block, algorithm: toKmsDecryptAlgorithm(params) }));
+    }
+    async getKeyMetadata(): Promise<KeyMetadata> {
+        // declared, not inspected: an HSM-held key exposes nothing to introspect
+        return { keyType: "RSA", modulusLength: 256 }; // bytes: a 2048-bit key
+    }
+    async getPublicKey(): Promise<ArrayBuffer> {
+        return await myKms.getPublicKey("opcua-app-key"); // SPKI DER
+    }
+}
+```
+
+`getPublicKey` is formally optional on the interface, but certificate
+operations need it (a CSR embeds the public key, a self-signed certificate
+carries it), and with an opaque key there is nowhere else it can come from —
+omit it and those operations fail with an error naming it.
+
+Behaviour once the option is set:
+
+- `own/private/private_key.pem` is neither generated nor read.
+- `initialize()` **fails closed** if the provider cannot answer
+  `getKeyMetadata()` (unreachable HSM, misconfiguration).
+- `getPrivateKey()` and `reencryptPrivateKey()` throw
+  `PrivateKeyUnavailableError` (re-exported from `node-opcua-pki`): there is
+  no key material to return or rewrite. Use `getKeyOperations()` instead;
+  `isPrivateKeyOpaque()` tells the two configurations apart.
+- Mutually exclusive with `privateKeyProvider` and `privateKeyPassphrase`,
+  which both describe key *material*.
+
+The certificate lifecycle works with the key staying put — including the
+renewal workflow (new certificate, same HSM key):
+
+```typescript
+import { CertificateManager } from "node-opcua-pki";
+
+const cm = new CertificateManager({ location: "./my_pki", keyOperations: new MyKmsKeyOperations() });
+await cm.initialize();
+
+// bootstrap: a self-signed certificate over the HSM-held key
+await cm.createSelfSignedCertificate({
+    applicationUri: "urn:myhost:myapp",
+    subject: "CN=MyApp",
+    dns: ["myhost"],
+    startDate: new Date(),
+    validity: 365,
+});
+
+// renewal: a CSR over the SAME key, to be signed by your CA —
+// the proof-of-possession signature is produced inside the HSM
+const csrFile = await cm.createCertificateRequest({
+    applicationUri: "urn:myhost:myapp",
+    subject: "CN=MyApp",
+    dns: ["myhost"],
+});
+```
+
+Only the openssl-free code paths support an opaque key (openssl reads a key
+*file*); `CertificateManager` uses those paths for both operations above.
+
+For the **CA-side** equivalent — keeping the CA's own signing key in an
+HSM/KMS via a `CaSigner` — see
+[hsm-kms-signing.md](../../../hsm-kms-signing.md). One HSM integration can
+serve both: `caSignerFromKeyOperations` (from `node-opcua-crypto`) adapts an
+`IKeyOperations` to the `CaSigner` interface.
+
 ---
 
 ## Enabling, rotating, or removing a passphrase on an existing install
@@ -209,6 +312,13 @@ Where a passphrase is involved (`createPFX`, `extract*FromPFX`,
   on disk, not your passphrase management. Prefer the function form of
   `privateKeyPassphrase`, sourced from a real secret store, over a literal in
   a configuration file.
+- Even with an opaque `keyOperations` key, an attacker with code execution
+  inside the process can still *use* the key through the provider while
+  resident. What the opaque configuration guarantees is that the key cannot
+  be exfiltrated — memory dumps, disk or backup theft reveal nothing — and
+  that every use is visible in the HSM/KMS audit log. The accurate claim is
+  "non-exportable, auditable identity key", not "keys never used by a
+  compromised process".
 
 Security vulnerabilities should be reported privately as described in
 [SECURITY.md](../../../SECURITY.md).
