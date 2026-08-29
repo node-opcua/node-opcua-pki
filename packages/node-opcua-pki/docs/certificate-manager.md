@@ -50,11 +50,15 @@ await cm.createSelfSignedCertificate({
 | `keySize`              | `1024\|2048\|3072\|4096`                 | RSA key size (default: `2048`)                                                                                                                               |
 | `privateKeyPassphrase` | `string \| () => Promise<string>`        | Opt-in: encrypt the private key at rest; an existing plaintext key is encrypted in place, a wrong/missing passphrase fails `initialize()` closed. See [Private Key Protection](./private-key-protection.md). |
 | `privateKeyProvider`   | `{ getPrivateKey(): Promise<PrivateKey> }` | Opt-in: source the key from an HSM/KMS; no key file is written or read. See [Private Key Protection](./private-key-protection.md).                           |
+| `keyOperations`        | `IKeyOperations`                         | Opt-in: an opaque HSM/KMS-held key the manager can use but never read; `getPrivateKey()` throws, self-signed certificates and CSRs are signed inside the provider. See [Private Key Protection](./private-key-protection.md). |
 | `disableFileWatchers`  | `boolean`                                | Skip chokidar watchers (initial scan still runs); see [File Watching](#file-watching)                                                                          |
 
 Private-key related methods: `getPrivateKey()` returns the in-memory
-`PrivateKey`; `reencryptPrivateKey(old?, new?)` enables, rotates, or removes
-the passphrase on the on-disk key. Both are described in
+`PrivateKey` (throws `PrivateKeyUnavailableError` when `keyOperations` is
+configured); `getKeyOperations()` returns the key as an opaque sign/decrypt
+object regardless of where it lives; `isPrivateKeyOpaque()` tells the two
+configurations apart; `reencryptPrivateKey(old?, new?)` enables, rotates, or
+removes the passphrase on the on-disk key. All are described in
 [Private Key Protection](./private-key-protection.md).
 
 ---
