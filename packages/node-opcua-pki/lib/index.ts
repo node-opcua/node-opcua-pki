@@ -21,13 +21,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
-// re-exported so consumers can `instanceof`-check the fail-closed error thrown
-// by CertificateManager.initialize()/getPrivateKey() without depending on
-// node-opcua-crypto directly
-// re-exported so consumers can implement an opaque key-operations provider
-// (CertificateManagerOptions.keyOperations) and catch the error its
-// configuration makes getPrivateKey() throw, without depending on
-// node-opcua-crypto directly
+// re-exported so consumers can `instanceof`-check the fail-closed errors thrown
+// by CertificateManager.initialize()/getPrivateKey(), and implement an opaque
+// key-operations provider (CertificateManagerOptions.keyOperations), without
+// depending on node-opcua-crypto directly
 export {
     type AsymmetricDecryptParams,
     type AsymmetricSignParams,
