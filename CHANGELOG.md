@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [6.22.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.21.0...v6.22.0) (2026-08-29)
+
+### Features
+
+* **certificate-manager:** CSR over an opaque key ([4177bfa](https://github.com/node-opcua/node-opcua-pki/commit/4177bfad7b399ddb44999690b7c59d8300f2cd24))
+* **certificate-manager:** opaque private key via keyOperations ([e92b784](https://github.com/node-opcua/node-opcua-pki/commit/e92b784e9c132e4fe51311eb678c021b393c6341))
+* **certificate-manager:** self-signed certificate over an opaque key ([41f7c5f](https://github.com/node-opcua/node-opcua-pki/commit/41f7c5fbaad421975a0370bc4f959fed56f4de9a))
+
+
 # [6.21.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.20.0...v6.21.0) (2026-08-22)
 
 ### Bug Fixes
