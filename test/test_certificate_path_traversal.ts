@@ -53,8 +53,23 @@ describe("GHSA-m7pm-7jm9-cfp4 — CN path traversal is contained", () => {
             should(() => safeStoreJoin(folder, "../trusted/certs/pwned[ABCDEF0123].pem")).throw(/escapes its store folder/);
         });
 
-        it("throws for a Windows-separator escape too", () => {
-            should(() => safeStoreJoin(folder, "..\\trusted\\certs\\pwned.pem")).throw(/escapes its store folder/);
+        it("handles a backslash payload according to the platform's separator", () => {
+            // On Windows "\\" is a path separator, so this climbs out and is refused.
+            // On POSIX "\\" is an ordinary filename character, so it does NOT escape —
+            // the whole thing is one inert filename that stays inside the folder.
+            const payload = "..\\trusted\\certs\\pwned.pem";
+            if (path.sep === "\\") {
+                should(() => safeStoreJoin(folder, payload)).throw(/escapes its store folder/);
+            } else {
+                const full = safeStoreJoin(folder, payload);
+                should(full.startsWith(folder + path.sep)).eql(true, `must stay in folder -> ${full}`);
+            }
+        });
+
+        it("throws for a native-separator escape on any platform", () => {
+            // Build the payload with the platform's own separator so it always climbs.
+            const payload = ["..", "trusted", "certs", "pwned.pem"].join(path.sep);
+            should(() => safeStoreJoin(folder, payload)).throw(/escapes its store folder/);
         });
 
         it("throws for an absolute-path filename", () => {
