@@ -24,8 +24,8 @@ import exp from "node:constants";
 
 const _exp = exp;
 
-export * from "./_env";
-export * from "./create_certificate_signing_request";
-export * from "./execute_openssl";
-export * from "./install_prerequisite";
-export * from "./toolbox";
+export * from "./_env.js";
+export * from "./create_certificate_signing_request.js";
+export * from "./execute_openssl.js";
+export * from "./install_prerequisite.js";
+export * from "./toolbox.js";

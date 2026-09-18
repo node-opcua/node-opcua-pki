@@ -24,13 +24,13 @@
 import assert from "node:assert";
 import fs from "node:fs";
 import { CertificatePurpose } from "node-opcua-crypto";
-import { Subject } from "../../misc/subject";
-import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common";
-import { makePath } from "../common2";
-import { displayTitle } from "../display";
-import { processAltNames } from "./_env";
-import { ensure_openssl_installed, execute_openssl } from "./execute_openssl";
-import { cleanupStaticConfig, generateStaticConfig } from "./toolbox";
+import { Subject } from "../../misc/subject.js";
+import { adjustDate, type CreateSelfSignCertificateWithConfigParam } from "../common.js";
+import { makePath } from "../common2.js";
+import { displayTitle } from "../display.js";
+import { processAltNames } from "./_env.js";
+import { ensure_openssl_installed, execute_openssl } from "./execute_openssl.js";
+import { cleanupStaticConfig, generateStaticConfig } from "./toolbox.js";
 
 const n = makePath;
 

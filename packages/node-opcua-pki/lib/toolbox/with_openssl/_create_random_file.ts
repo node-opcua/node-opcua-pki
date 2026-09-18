@@ -23,8 +23,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { g_config } from "../config";
-import { type ExecuteOptions, execute_openssl } from "./execute_openssl";
+import { g_config } from "../config.js";
+import { type ExecuteOptions, execute_openssl } from "./execute_openssl.js";
 
 export async function createRandomFile(randomFile: string, options: ExecuteOptions): Promise<void> {
     // istanbul ignore next

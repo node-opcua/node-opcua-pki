@@ -36,10 +36,10 @@ import {
     Subject,
     x509
 } from "node-opcua-crypto";
-import { displaySubtitle, displayTitle, type Params, type ProcessAltNamesParam } from "../../toolbox";
-import type { CaBackend } from "../core/ca_backend";
-import { CaDatabase } from "../core/ca_database";
-import type { CertificateAuthorityCore } from "../core/certificate_authority_core";
+import { displaySubtitle, displayTitle, type Params, type ProcessAltNamesParam } from "../../toolbox/index.js";
+import type { CaBackend } from "../core/ca_backend.js";
+import { CaDatabase } from "../core/ca_database.js";
+import type { CertificateAuthorityCore } from "../core/certificate_authority_core.js";
 
 /** The CA-certificate lifetime the openssl backend hard-codes (`x509 -req -days 3650`). */
 const CA_CERT_VALIDITY_DAYS = 3650;

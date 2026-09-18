@@ -27,11 +27,11 @@ import fs from "node:fs";
 import os from "node:os";
 import byline from "byline";
 import chalk from "chalk";
-import { makePath } from "../common2";
-import { g_config } from "../config";
-import { debugLog, displayError, doDebug, warningLog } from "../debug";
-import { buildChildEnv, redactEnvForLog, setEnv } from "./_env";
-import { get_openssl_exec_path } from "./install_prerequisite";
+import { makePath } from "../common2.js";
+import { g_config } from "../config.js";
+import { debugLog, displayError, doDebug, warningLog } from "../debug.js";
+import { buildChildEnv, redactEnvForLog, setEnv } from "./_env.js";
+import { get_openssl_exec_path } from "./install_prerequisite.js";
 
 let opensslPath: string | undefined; // not initialized
 

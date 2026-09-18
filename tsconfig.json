@@ -7,11 +7,14 @@
         "ignoreDeprecations": "6.0",
         "skipLibCheck": true,
         "target": "es2022",
-        // node16 rather than the removed node10: it is what makes TypeScript honour the
-        // "exports" maps of dependencies, which is how the node-opcua-crypto 5.4.0
-        // per-condition types are resolved correctly from this CommonJS package.
-        "moduleResolution": "node16",
-        "module": "node16",
+        // bundler resolution here (typecheck + tsx-run tests only; the shipped build
+        // uses NodeNext via packages/node-opcua-pki/tsconfig.build.json). tsx is a
+        // bundler-like loader, so bundler is the honest model: it honours dependency
+        // "exports" maps (how node-opcua-crypto's types resolve) without NodeNext's
+        // explicit-.js-extension rule, and without the CJS-cannot-import-ESM boundary
+        // that would otherwise flag the CommonJS test files importing the ESM package.
+        "moduleResolution": "bundler",
+        "module": "esnext",
         "declaration": true,
         "noEmit": true,
         "sourceMap": true,

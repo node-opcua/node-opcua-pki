@@ -21,8 +21,8 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
-import type { Params, ProcessAltNamesParam } from "../../toolbox";
-import type { CertificateAuthorityCore } from "./certificate_authority_core";
+import type { Params, ProcessAltNamesParam } from "../../toolbox/index.js";
+import type { CertificateAuthorityCore } from "./certificate_authority_core.js";
 
 /**
  * Everything a {@link CertificateAuthorityCore} delegates to a signing backend:

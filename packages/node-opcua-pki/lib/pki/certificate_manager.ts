@@ -41,7 +41,7 @@ import {
     writePrivateKeyFile
 } from "node-opcua-crypto";
 
-import type { SubjectOptions } from "../misc/subject";
+import type { SubjectOptions } from "../misc/subject.js";
 import type {
     CertificateStatus,
     CreateSelfSignCertificateParam,
@@ -51,19 +51,19 @@ import type {
     PrivateKeyPassphrase,
     PrivateKeyProvider,
     Thumbprint
-} from "../toolbox/common";
-import { resolvePrivateKeyPassphrase } from "../toolbox/common";
+} from "../toolbox/common.js";
+import { resolvePrivateKeyPassphrase } from "../toolbox/common.js";
 import {
     ensurePrivateDirectory,
     isEncryptedPrivateKeyFile,
     makePath,
     mkdirRecursiveSync,
     restrictPrivateFilePermissions
-} from "../toolbox/common2";
-import { debugLog, warningLog } from "../toolbox/debug";
-import { createCertificateSigningRequestAsync, createSelfSignedCertificate } from "../toolbox/without_openssl";
+} from "../toolbox/common2.js";
+import { debugLog, warningLog } from "../toolbox/debug.js";
+import { createCertificateSigningRequestAsync, createSelfSignedCertificate } from "../toolbox/without_openssl/index.js";
 
-import _simple_config_template from "./templates/simple_config_template.cnf";
+import _simple_config_template from "./templates/simple_config_template.cnf.js";
 
 /**
  *

@@ -2,37 +2,17 @@
     "name": "node-opcua-pki",
     "version": "6.22.0",
     "description": "PKI management for node-opcua",
-    "type": "commonjs",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "//main": "main/types are the pre-'exports' fallback, used only by resolvers that ignore the exports map. They are deliberately left as the CommonJS pair, matching \"type\": \"commonjs\", so that path behaves exactly as it did before - do not 'fix' one without the other.",
-    "//exports": "types are declared PER CONDITION on purpose. A single shared \"types\" key is resolved for BOTH import and require; since this package is \"type\": \"commonjs\", a bare .d.ts is a CommonJS module, so an ESM consumer got CJS types describing the real .mjs it imports. attw reports that as FalseCJS ('Masquerading as CJS'); it was present in 6.18.0. The .d.mts file already existed - tsup emits it from dts:true with format esm+cjs - the map simply never pointed at it.",
+    "type": "module",
+    "main": "./dist/lib/index.js",
+    "types": "./dist/lib/index.d.ts",
     "exports": {
-        ".": {
-            "import": {
-                "types": "./dist/index.d.mts",
-                "default": "./dist/index.mjs"
-            },
-            "require": {
-                "types": "./dist/index.d.ts",
-                "default": "./dist/index.js"
-            }
-        },
-        "./core": {
-            "import": {
-                "types": "./dist/core.d.mts",
-                "default": "./dist/core.mjs"
-            },
-            "require": {
-                "types": "./dist/core.d.ts",
-                "default": "./dist/core.js"
-            }
-        },
+        ".": "./dist/lib/index.js",
+        "./core": "./dist/lib/core.js",
         "./package.json": "./package.json"
     },
     "bin": {
-        "pki": "./dist/bin/pki.mjs",
-        "node-opcua-pki": "./dist/bin/pki.mjs"
+        "pki": "./dist/bin/pki.js",
+        "node-opcua-pki": "./dist/bin/pki.js"
     },
     "files": [
         "dist",
@@ -66,5 +46,6 @@
         "command-line-usage": "^7.0.4",
         "node-opcua-crypto": "5.10.1",
         "yauzl": "^3.4.0"
-    }
+    },
+    "//scheme": "ESM-only, unbundled tsc build matching the node-opcua monorepo scheme (dist mirrors lib/ + bin/, no CJS). String export targets carry no 'require' condition, so require('node-opcua-pki') resolves here on Node 22.12+ (require of an ES module; the graph has no top-level await) and fails with ERR_REQUIRE_ESM on older Node."
 }

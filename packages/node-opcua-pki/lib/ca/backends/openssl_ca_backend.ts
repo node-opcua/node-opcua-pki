@@ -24,7 +24,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Subject } from "node-opcua-crypto";
-import { displaySubtitle, displayTitle, makePath, type Params, type ProcessAltNamesParam } from "../../toolbox";
+import { displaySubtitle, displayTitle, makePath, type Params, type ProcessAltNamesParam } from "../../toolbox/index.js";
 import {
     buildSubjectAltNameString,
     cleanupStaticConfig,
@@ -36,9 +36,9 @@ import {
     passinArg,
     setEnv,
     x509Date
-} from "../../toolbox/with_openssl";
-import type { CaBackend } from "../core/ca_backend";
-import type { CertificateAuthorityCore } from "../core/certificate_authority_core";
+} from "../../toolbox/with_openssl/index.js";
+import type { CaBackend } from "../core/ca_backend.js";
+import type { CertificateAuthorityCore } from "../core/certificate_authority_core.js";
 
 const n = makePath;
 

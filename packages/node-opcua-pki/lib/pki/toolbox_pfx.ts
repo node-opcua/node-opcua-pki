@@ -61,7 +61,7 @@ import {
     x509
 } from "node-opcua-crypto";
 
-import type { Filename } from "../toolbox/common";
+import type { Filename } from "../toolbox/common.js";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -340,7 +340,9 @@ function describePublicKey(certificate: x509.X509Certificate): string {
 }
 
 function describeCertificate(der: Certificate, indent: string): string[] {
-    const certificate = new x509.X509Certificate(der);
+    // der is a DER Buffer; wrap in a plain Uint8Array so the type is
+    // Uint8Array<ArrayBuffer> (not Buffer<ArrayBufferLike>) for x509's AsnEncodedType.
+    const certificate = new x509.X509Certificate(new Uint8Array(der));
     return [
         `${indent}subject          : ${certificate.subject}`,
         `${indent}issuer           : ${certificate.issuer}`,

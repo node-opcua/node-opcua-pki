@@ -21,11 +21,11 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 import assert from "node:assert";
-import type { KeyLength } from "../common";
-import { makePath } from "../common2";
-import { createRandomFileIfNotExist, useRandFile } from "./_create_random_file";
-import { getEnv, hasEnv } from "./_env";
-import { execute_openssl } from "./execute_openssl";
+import type { KeyLength } from "../common.js";
+import { makePath } from "../common2.js";
+import { createRandomFileIfNotExist, useRandFile } from "./_create_random_file.js";
+import { getEnv, hasEnv } from "./_env.js";
+import { execute_openssl } from "./execute_openssl.js";
 
 const n = makePath;
 

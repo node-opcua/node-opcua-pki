@@ -1,0 +1,18 @@
+{
+    "//": "Unbundled ESM build (node-opcua scheme): emits per-file dist mirroring lib/ + bin/. Standalone (not the root typecheck config) so it resolves real dependencies, not the source path aliases.",
+    "compilerOptions": {
+        "target": "es2022",
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "declaration": true,
+        "sourceMap": true,
+        "outDir": "./dist",
+        "rootDir": ".",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "types": ["node"]
+    },
+    "include": ["lib/**/*.ts", "bin/**/*.ts"],
+    "exclude": ["node_modules", "dist", "**/*.d.ts"]
+}

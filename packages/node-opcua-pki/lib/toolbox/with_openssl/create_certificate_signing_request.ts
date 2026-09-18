@@ -25,13 +25,13 @@ import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 
-import { Subject } from "../../misc/subject";
-import type { CreateCertificateSigningRequestWithConfigOptions } from "../common";
-import { makePath } from "../common2";
-import { displaySubtitle } from "../display";
-import { processAltNames } from "./_env";
-import { execute_openssl } from "./execute_openssl";
-import { cleanupStaticConfig, generateStaticConfig } from "./toolbox";
+import { Subject } from "../../misc/subject.js";
+import type { CreateCertificateSigningRequestWithConfigOptions } from "../common.js";
+import { makePath } from "../common2.js";
+import { displaySubtitle } from "../display.js";
+import { processAltNames } from "./_env.js";
+import { execute_openssl } from "./execute_openssl.js";
+import { cleanupStaticConfig, generateStaticConfig } from "./toolbox.js";
 
 const n = makePath;
 

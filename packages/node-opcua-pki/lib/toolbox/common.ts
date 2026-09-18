@@ -32,7 +32,7 @@ export type Filename = string;
 export type CertificateStatus = "unknown" | "trusted" | "rejected";
 
 import type { CaSigner, CertificatePurpose, PrivateKey } from "node-opcua-crypto";
-import type { SubjectOptions } from "../misc/subject";
+import type { SubjectOptions } from "../misc/subject.js";
 
 /**
  * @deprecated Use {@link KeySize} instead.

@@ -21,8 +21,8 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 import chalk from "chalk";
-import { g_config } from "./config";
-import { warningLog } from "./debug";
+import { g_config } from "./config.js";
+import { warningLog } from "./debug.js";
 
 // istanbul ignore next
 export function displayChapter(str: string) {

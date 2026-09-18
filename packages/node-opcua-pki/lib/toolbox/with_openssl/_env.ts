@@ -20,9 +20,9 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-import type { ProcessAltNamesParam } from "../common";
-import { g_config } from "../config";
-import { warningLog } from "../debug";
+import type { ProcessAltNamesParam } from "../common.js";
+import { g_config } from "../config.js";
+import { warningLog } from "../debug.js";
 
 /**
  * Environment variables passed through to every openssl child process,

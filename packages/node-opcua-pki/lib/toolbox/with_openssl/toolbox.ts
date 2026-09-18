@@ -26,11 +26,11 @@ import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { Filename } from "../common";
-import { makePath } from "../common2";
-import { g_config } from "../config";
-import { getEnv, getEnvironmentVarNames, hasEnv } from "./_env";
-import { type ExecuteOptions, execute_openssl, passinArg } from "./execute_openssl";
+import type { Filename } from "../common.js";
+import { makePath } from "../common2.js";
+import { g_config } from "../config.js";
+import { getEnv, getEnvironmentVarNames, hasEnv } from "./_env.js";
+import { type ExecuteOptions, execute_openssl, passinArg } from "./execute_openssl.js";
 
 function openssl_require2DigitYearInDate() {
     // istanbul ignore next

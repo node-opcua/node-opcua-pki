@@ -33,8 +33,8 @@ export {
     PrivateKeyPassphraseRequiredError,
     PrivateKeyUnavailableError
 } from "node-opcua-crypto";
-export { NativeCaBackend } from "./ca/backends/native_ca_backend";
-export { OpenSslCaBackend } from "./ca/backends/openssl_ca_backend";
+export { NativeCaBackend } from "./ca/backends/native_ca_backend.js";
+export { OpenSslCaBackend } from "./ca/backends/openssl_ca_backend.js";
 export {
     CertificateAuthority,
     type CertificateAuthorityOptions,
@@ -44,14 +44,14 @@ export {
     type InstallCACertificateResult,
     type PkiBackendCapabilities,
     type SignCertificateOptions
-} from "./ca/certificate_authority";
-export type { CaBackend } from "./ca/core/ca_backend";
+} from "./ca/certificate_authority.js";
+export type { CaBackend } from "./ca/core/ca_backend.js";
 export {
     CertificateAuthorityCore,
     type CertificateAuthorityCoreOptions
-} from "./ca/core/certificate_authority_core";
-export * from "./misc/subject";
-export * from "./pki/certificate_manager";
-export * from "./pki/toolbox_pfx";
-export * from "./toolbox/common";
-export { install_prerequisite } from "./toolbox/with_openssl/install_prerequisite";
+} from "./ca/core/certificate_authority_core.js";
+export * from "./misc/subject.js";
+export * from "./pki/certificate_manager.js";
+export * from "./pki/toolbox_pfx.js";
+export * from "./toolbox/common.js";
+export { install_prerequisite } from "./toolbox/with_openssl/install_prerequisite.js";

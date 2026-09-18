@@ -51,6 +51,6 @@
  * certificate: a directory created here is still a valid `openssl ca`
  * directory, so external openssl tooling can take it over later.
  */
-export { NativeCaBackend } from "./ca/backends/native_ca_backend";
-export * from "./ca/core";
-export * from "./misc/subject";
+export { NativeCaBackend } from "./ca/backends/native_ca_backend.js";
+export * from "./ca/core/index.js";
+export * from "./misc/subject.js";

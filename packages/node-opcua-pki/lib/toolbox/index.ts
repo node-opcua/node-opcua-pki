@@ -20,8 +20,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
-export * from "./common";
-export * from "./common2";
-export * from "./config";
-export * from "./debug";
-export * from "./display";
+export * from "./common.js";
+export * from "./common2.js";
+export * from "./config.js";
+export * from "./debug.js";
+export * from "./display.js";

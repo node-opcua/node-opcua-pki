@@ -29,8 +29,8 @@ import {
     pemToPrivateKey,
     Subject
 } from "node-opcua-crypto";
-import { adjustDate, type CreateSelfSignCertificateWithConfigParam, isOpaqueSigner } from "../common";
-import { displayTitle } from "../display";
+import { adjustDate, type CreateSelfSignCertificateWithConfigParam, isOpaqueSigner } from "../common.js";
+import { displayTitle } from "../display.js";
 
 export async function createSelfSignedCertificateAsync(
     certificate: string,

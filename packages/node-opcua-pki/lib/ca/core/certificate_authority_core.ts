@@ -67,14 +67,14 @@ import {
     resolvePrivateKeyPassphrase,
     restrictPrivateFilePermissions,
     warningLog
-} from "../../toolbox";
-import type { CaBackend } from "./ca_backend";
-import { CaDatabase, type IssuedCertificateRecord } from "./ca_database";
+} from "../../toolbox/index.js";
+import type { CaBackend } from "./ca_backend.js";
+import { CaDatabase, type IssuedCertificateRecord } from "./ca_database.js";
 
 /** Default X.500 subject used when no custom subject is provided. */
 export const defaultSubject = "/C=FR/ST=IDF/L=Paris/O=Local NODE-OPCUA Certificate Authority/CN=NodeOPCUA-CA";
 
-import _ca_config_template from "../templates/ca_config_template.cnf";
+import _ca_config_template from "../templates/ca_config_template.cnf.js";
 
 export const configurationFileTemplate: string = _ca_config_template;
 

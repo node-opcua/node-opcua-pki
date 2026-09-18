@@ -14,7 +14,7 @@ function makeChildScript(loc: string, env?: Record<string, string>): string {
     // Use absolute path to the built dist — the child process
     // doesn't have tsconfig-paths so bare require("node-opcua-pki")
     // would fail on CI/Docker.
-    const distPath = path.resolve(__dirname, "../packages/node-opcua-pki/dist/index.js").replace(/\\/g, "/");
+    const distPath = path.resolve(__dirname, "../packages/node-opcua-pki/dist/lib/index.js").replace(/\\/g, "/");
 
     return `
         ${envSetup}

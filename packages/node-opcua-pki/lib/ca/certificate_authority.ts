@@ -21,15 +21,15 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
-import { type OpensslPassArg, passinArg, setEnv, unsetEnv } from "../toolbox/with_openssl";
-import { NativeCaBackend } from "./backends/native_ca_backend";
-import { caConfigEnvOverrides, OpenSslCaBackend } from "./backends/openssl_ca_backend";
-import { CertificateAuthorityCore, type CertificateAuthorityCoreOptions } from "./core/certificate_authority_core";
+import { type OpensslPassArg, passinArg, setEnv, unsetEnv } from "../toolbox/with_openssl/index.js";
+import { NativeCaBackend } from "./backends/native_ca_backend.js";
+import { caConfigEnvOverrides, OpenSslCaBackend } from "./backends/openssl_ca_backend.js";
+import { CertificateAuthorityCore, type CertificateAuthorityCoreOptions } from "./core/certificate_authority_core.js";
 
 // Everything the CA exposes lives in the core module; re-exported here so
 // that `import { ... } from "./ca/certificate_authority"` keeps resolving
 // exactly as it did before the split.
-export * from "./core/certificate_authority_core";
+export * from "./core/certificate_authority_core.js";
 
 /**
  * Options for {@link CertificateAuthority}: the core's, except that the

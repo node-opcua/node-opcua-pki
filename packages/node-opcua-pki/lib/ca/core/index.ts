@@ -35,6 +35,6 @@
  * (one level up) is the batteries-included subclass that picks one for you
  * and therefore does reference openssl.
  */
-export type { CaBackend } from "./ca_backend";
-export * from "./ca_database";
-export * from "./certificate_authority_core";
+export type { CaBackend } from "./ca_backend.js";
+export * from "./ca_database.js";
+export * from "./certificate_authority_core.js";

@@ -1,1 +1,1 @@
-export * from "./certificate_authority";
+export * from "./certificate_authority.js";

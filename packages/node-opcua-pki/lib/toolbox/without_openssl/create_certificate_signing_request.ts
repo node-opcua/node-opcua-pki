@@ -22,8 +22,8 @@
 import assert from "node:assert";
 import fs from "node:fs";
 import { coercePrivateKeyPem, createCertificateSigningRequest, pemToPrivateKey, Subject } from "node-opcua-crypto";
-import { type CreateCertificateSigningRequestWithConfigOptions, isOpaqueSigner } from "../common";
-import { display, displaySubtitle } from "../display";
+import { type CreateCertificateSigningRequestWithConfigOptions, isOpaqueSigner } from "../common.js";
+import { display, displaySubtitle } from "../display.js";
 
 /**
  * create a certificate signing request

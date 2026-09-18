@@ -27,12 +27,20 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ESM provides no __filename/__dirname; reconstruct them from import.meta.url so
+// the config-template lookups and createRequire below resolve relative to this
+// compiled file (dist/lib/ca/...), matching the pre-ESM behaviour.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import chalk from "chalk";
 import { CertificatePurpose, generatePrivateKeyFile, Subject, type SubjectOptions } from "node-opcua-crypto";
 
-import { makeApplicationUrn } from "../misc/applicationurn";
-import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "../misc/hostname";
-import { CertificateManager, type CreateSelfSignCertificateParam1 } from "../pki/certificate_manager";
+import { makeApplicationUrn } from "../misc/applicationurn.js";
+import { extractFullyQualifiedDomainName, getFullyQualifiedDomainName } from "../misc/hostname.js";
+import { CertificateManager, type CreateSelfSignCertificateParam1 } from "../pki/certificate_manager.js";
 import {
     type CreateCertificateSigningRequestWithConfigOptions,
     debugLog,
@@ -45,7 +53,7 @@ import {
     makePath,
     mkdirRecursiveSync,
     warningLog
-} from "../toolbox";
+} from "../toolbox/index.js";
 import {
     createCertificateSigningRequestWithOpenSSL,
     dumpCertificate,
@@ -54,8 +62,8 @@ import {
     getPublicKeyFromPrivateKey,
     setEnv,
     toDer
-} from "../toolbox/with_openssl";
-import { CertificateAuthority, defaultSubject } from "./certificate_authority";
+} from "../toolbox/with_openssl/index.js";
+import { CertificateAuthority, defaultSubject } from "./certificate_authority.js";
 
 const epilog = "Copyright (c) sterfive - node-opcua - 2017-2026";
 

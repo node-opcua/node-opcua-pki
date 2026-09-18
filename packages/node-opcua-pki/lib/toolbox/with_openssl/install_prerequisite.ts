@@ -32,8 +32,8 @@ import byline from "byline";
 import chalk from "chalk";
 import yauzl from "yauzl";
 
-import { warningLog } from "../debug";
-import { buildChildEnv } from "./_env";
+import { warningLog } from "../debug.js";
+import { buildChildEnv } from "./_env.js";
 
 const doDebug = process.env.NODEOPCUAPKIDEBUG || false;
 

@@ -27,9 +27,9 @@ import path from "node:path";
 
 import chalk from "chalk";
 
-import { g_config } from "./config";
+import { g_config } from "./config.js";
 
-import { debugLog, warningLog } from "./debug";
+import { debugLog, warningLog } from "./debug.js";
 
 export function certificateFileExist(certificateFile: string): boolean {
     // istanbul ignore next

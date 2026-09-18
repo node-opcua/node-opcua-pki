@@ -33,7 +33,10 @@ function resolveLocal(fromFile: string, specifier: string): string | undefined {
     if (!specifier.startsWith(".")) {
         return undefined; // a package, not our source
     }
-    const base = path.resolve(path.dirname(fromFile), specifier);
+    // source now carries explicit ESM extensions ("./x.js", "./dir/index.js");
+    // strip the .js so we can find the .ts it was emitted from.
+    const spec = specifier.replace(/\.js$/, "");
+    const base = path.resolve(path.dirname(fromFile), spec);
     for (const candidate of [`${base}.ts`, path.join(base, "index.ts")]) {
         if (fs.existsSync(candidate)) {
             return candidate;
