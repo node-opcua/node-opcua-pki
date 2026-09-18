@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.22.1](https://github.com/node-opcua/node-opcua-pki/compare/v6.22.0...v6.22.1) (2026-09-18)
+
+Security backport onto the CommonJS 6.x line: both certificate-store hardening
+fixes, without the ESM-only build or the node-opcua-crypto 6 bump that ship in
+7.0.0. Consumers that cannot yet move to the ESM-only 7.0.0 should upgrade to
+this release.
+
+### Bug Fixes
+
+* **security:** contain certificate store writes to prevent CN path traversal (GHSA-m7pm-7jm9-cfp4) ([f892108](https://github.com/node-opcua/node-opcua-pki/commit/f892108162e4d016d01490a9a537fc759eb9056d))
+* **security:** reject best-fit-unsafe characters in openssl arguments (GHSA-65c3-pff5-j8cp) ([a871ca4](https://github.com/node-opcua/node-opcua-pki/commit/a871ca494af8871ef42dad3de7a38b7c1de0508c))
+
 # [6.22.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.21.0...v6.22.0) (2026-08-29)
 
 ### Features
