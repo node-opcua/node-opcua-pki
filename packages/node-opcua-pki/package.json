@@ -44,7 +44,7 @@
         "chokidar": "4.0.3",
         "command-line-args": "^6.0.2",
         "command-line-usage": "^7.0.4",
-        "node-opcua-crypto": "5.10.1",
+        "node-opcua-crypto": "6.0.0",
         "yauzl": "^3.4.0"
     },
     "//scheme": "ESM-only, unbundled tsc build matching the node-opcua monorepo scheme (dist mirrors lib/ + bin/, no CJS). String export targets carry no 'require' condition, so require('node-opcua-pki') resolves here on Node 22.12+ (require of an ES module; the graph has no top-level await) and fails with ERR_REQUIRE_ESM on older Node."
