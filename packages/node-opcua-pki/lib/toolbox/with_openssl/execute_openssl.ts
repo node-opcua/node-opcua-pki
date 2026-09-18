@@ -104,6 +104,55 @@ function renderForDisplay(file: string, args: OpensslArgs): string {
 }
 
 /**
+ * True when a string carries a character we should not hand to the openssl
+ * child. Two kinds are rejected:
+ *
+ *  - ASCII control characters, which have no place in an option or a path; and
+ *  - any *non-ASCII* punctuation, symbol, separator or format character.
+ *
+ * The second kind matters on Windows: a spawned program rebuilds its argument
+ * list from the command line through the active ANSI code page, and that
+ * conversion can "best-fit" a look-alike character onto a plain ASCII one — a
+ * full-width quotation mark onto `"`, a non-breaking space onto a space, and so
+ * on — which would change where one argument ends and the next begins. Every
+ * option and path this library passes to openssl is plain ASCII, so refusing
+ * these characters costs nothing in normal use.
+ *
+ * Non-ASCII *letters, digits and combining marks* are deliberately allowed, so
+ * a PKI folder living under an accented or non-Latin user profile (for example
+ * `C:\\Users\\José\\pki`) keeps working.
+ */
+function hasUnsafeArgChar(value: string): boolean {
+    for (const ch of value) {
+        const code = ch.codePointAt(0) as number;
+        if (code < 0x20 || code === 0x7f) {
+            return true; // ASCII control character
+        }
+        if (code < 0x80) {
+            continue; // ordinary ASCII: options, flags and paths use these
+        }
+        if (/[\p{L}\p{N}\p{M}]/u.test(ch)) {
+            continue; // real text (letters / digits / marks) in a configured path
+        }
+        return true; // non-ASCII punctuation, symbol, separator or format char
+    }
+    return false;
+}
+
+/**
+ * Make sure the openssl binary path and every argument are safe to pass to the
+ * child process (see {@link hasUnsafeArgChar}). Throws with the offending value
+ * rather than letting it reach openssl.
+ */
+function checkArgs(file: string, args: OpensslArgs): void {
+    for (const value of [file, ...args]) {
+        if (typeof value === "string" && hasUnsafeArgChar(value)) {
+            throw new Error(`execute_openssl: refusing argument with an unexpected character: ${JSON.stringify(value)}`);
+        }
+    }
+}
+
+/**
  * Run `file` with `args` directly (no shell): each element of `args` reaches
  * the child as one argv entry, so a value can never be reinterpreted as a
  * shell metacharacter, a redirection, or a second command. stdin is
@@ -116,6 +165,8 @@ function renderForDisplay(file: string, args: OpensslArgs): string {
  */
 export async function execute(file: string, args: OpensslArgs, options: ExecuteOptions): Promise<string> {
     const from = new Error();
+
+    checkArgs(file, args);
 
     options.cwd = options.cwd || process.cwd();
 

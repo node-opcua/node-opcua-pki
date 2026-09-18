@@ -396,18 +396,36 @@ export function makeFingerprint(certificate: Certificate | Certificate[] | Certi
 function short(stringToShorten: string) {
     return stringToShorten.substring(0, 10);
 }
-// biome-ignore lint/suspicious/noControlCharactersInRegex: we need to filter control characters
-const forbiddenChars = /[\x00-\x1F<>:"/\\|?*]/g;
+// Characters we keep in the human-readable part of a stored certificate
+// filename: plain ASCII letters, digits, and a few separators. Everything else
+// is dropped. The Common Name is free text supplied in the certificate, so it
+// is only ever decorative here — the fingerprint in brackets is what actually
+// identifies the file — and keeping the label to a small, known set makes the
+// name portable and predictable across file systems.
+const disallowedInLabel = /[^A-Za-z0-9._ -]/g;
+
+// Exported for tests; not re-exported from the package index (internal helper).
+export function toFilenameLabel(commonName: string): string {
+    // Normalising to NFKC first lets common "wide"/decorative letter forms fold
+    // to their plain ASCII equivalent, so a legitimate name stays readable
+    // instead of collapsing into underscores. Anything left outside the allowed
+    // set becomes "_", any remaining non-ASCII is dropped, and the length is
+    // capped since the fingerprint already guarantees uniqueness.
+    const label = (commonName || "")
+        .normalize("NFKC")
+        .replace(disallowedInLabel, "_")
+        .replace(/[^\x20-\x7E]/g, "")
+        .slice(0, 64)
+        .trim();
+    return label || "certificate";
+}
 
 function buildIdealCertificateName(certificate: Certificate | Certificate[]): string {
     const chain = coerceCertificateChain(certificate as Certificate | Certificate[]);
     const fingerprint = makeFingerprint(chain);
     try {
         const commonName = exploreCertificate(chain[0]).tbsCertificate.subject.commonName || "";
-        // commonName may contain invalid characters for a filename such as / or \ or :
-        // that we need to replace with a valid character.
-        // replace / or \ or : with _
-        const sanitizedCommonName = commonName.replace(forbiddenChars, "_");
+        const sanitizedCommonName = toFilenameLabel(commonName);
         return `${sanitizedCommonName}[${fingerprint}]`;
     } catch (_err) {
         // make be certificate is incorrect !
