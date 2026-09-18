@@ -432,6 +432,23 @@ function buildIdealCertificateName(certificate: Certificate | Certificate[]): st
         return `invalid_certificate_[${fingerprint}]`;
     }
 }
+
+// Defense-in-depth for the store layout: a certificate filename is always
+// `<label>.pem` with no path separators — `toFilenameLabel` guarantees this. This
+// helper joins a store folder with such a filename and verifies the *resolved*
+// path stays inside that folder, so a future sanitizer regression, a new call
+// site, or an unforeseen encoding can never write a certificate outside its
+// store. It fails closed (throws) rather than silently writing elsewhere.
+// Exported for tests; not re-exported from the package index (internal helper).
+export function safeStoreJoin(folder: string, filename: string): string {
+    const full = path.resolve(folder, filename);
+    const base = path.resolve(folder);
+    if (full !== base && !full.startsWith(base + path.sep)) {
+        warningLog("refusing to write certificate outside its store folder:", filename);
+        throw new Error(`certificate filename escapes its store folder: ${filename}`);
+    }
+    return full;
+}
 function findMatchingIssuerKey(entries: Entry[], wantedIssuerKey: string): Entry[] {
     return entries.filter((entry) => {
         const info = getOrComputeInfo(entry);
@@ -1176,7 +1193,7 @@ export class CertificateManager extends EventEmitter {
                     return "BadCertificateInvalid";
                 }
 
-                const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(leafCertificate)}.pem`);
+                const filename = safeStoreJoin(this.rejectedFolder, `${buildIdealCertificateName(leafCertificate)}.pem`);
                 debugLog("certificate has never been seen before and is now rejected (untrusted) ", filename);
 
                 await fsWriteFile(filename, toPem(chain, "CERTIFICATE"));
@@ -1713,7 +1730,7 @@ export class CertificateManager extends EventEmitter {
             return VerificationStatus.Good;
         }
         // write certificate
-        const filename = path.join(this.issuersCertFolder, `issuer_${buildIdealCertificateName(certificate)}.pem`);
+        const filename = safeStoreJoin(this.issuersCertFolder, `issuer_${buildIdealCertificateName(certificate)}.pem`);
         await fs.promises.writeFile(filename, pemCertificate, "ascii");
 
         // first time seen, let's save it.
@@ -2298,7 +2315,7 @@ export class CertificateManager extends EventEmitter {
             if (status === "unknown") {
                 // # unknown means rejected — write full chain to disk
                 const pem = toPem(chain, "CERTIFICATE");
-                const filename = path.join(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
+                const filename = safeStoreJoin(this.rejectedFolder, `${buildIdealCertificateName(certificate)}.pem`);
                 await fs.promises.writeFile(filename, pem);
                 this.#thumbs.rejected.set(fingerprint, { certificate, filename });
                 status = "rejected";
@@ -2319,7 +2336,7 @@ export class CertificateManager extends EventEmitter {
                     throw new Error(`#moveCertificate: certificate ${fingerprint.substring(0, 10)} not found in ${status} index`);
                 }
                 const destFolder = newStatus === "trusted" ? this.trustedFolder : this.rejectedFolder;
-                const certificateDest = path.join(destFolder, path.basename(srcEntry.filename));
+                const certificateDest = safeStoreJoin(destFolder, path.basename(srcEntry.filename));
 
                 debugLog("#moveCertificate", fingerprint.substring(0, 10), "old name", srcEntry.filename);
                 debugLog("#moveCertificate", fingerprint.substring(0, 10), "new name", certificateDest);
