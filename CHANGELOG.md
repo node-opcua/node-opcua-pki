@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [7.0.1](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.0...v7.0.1) (2026-09-27)
+
+**Note:** Version bump only for package node-opcua-pki-project
+
+
+
+
+
 # [7.0.0](https://github.com/node-opcua/node-opcua-pki/compare/v6.22.0...v7.0.0) (2026-09-18)
 
 * feat!: ESM-only, unbundled tsc build matching the node-opcua scheme ([4477b5b](https://github.com/node-opcua/node-opcua-pki/commit/4477b5bfe96213d24c1c3332ebfaccef0838845b))
