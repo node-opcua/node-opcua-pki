@@ -278,7 +278,7 @@ async function install_and_check_win32_openssl_version(): Promise<string> {
             throw new Error(`Downloaded file is empty: ${outputFilename}`);
         }
 
-        warningLog(chalk.green("Download complete: ") + `${stat.size} bytes`);
+        warningLog(`${chalk.green("Download complete: ")}${stat.size} bytes`);
         return { downloadedFile: outputFilename };
     }
 

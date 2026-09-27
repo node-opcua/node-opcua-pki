@@ -1,5 +1,5 @@
-import "should";
 import { buildChildEnv, redactEnvForLog, SAFE_ENV_PASSTHROUGH } from "node-opcua-pki-priv/toolbox/with_openssl/_env";
+import should from "should";
 
 describe("openssl child process environment", () => {
     it("buildChildEnv should pass through only allowlisted variables plus the per-call extras", () => {
@@ -9,8 +9,8 @@ describe("openssl child process environment", () => {
             process.env.LD_LIBRARY_PATH = "/opt/openssl/lib";
             const env = buildChildEnv({ NODE_OPCUA_PKI_OPENSSL_PASSIN: "pass" });
             (env.NODE_OPCUA_TEST_SECRET_TOKEN === undefined).should.eql(true, "unrelated host secrets must not reach the child");
-            env.LD_LIBRARY_PATH!.should.eql("/opt/openssl/lib");
-            env.NODE_OPCUA_PKI_OPENSSL_PASSIN!.should.eql("pass");
+            should(env.LD_LIBRARY_PATH).eql("/opt/openssl/lib");
+            should(env.NODE_OPCUA_PKI_OPENSSL_PASSIN).eql("pass");
             for (const key of Object.keys(env)) {
                 if (key === "NODE_OPCUA_PKI_OPENSSL_PASSIN") continue;
                 SAFE_ENV_PASSTHROUGH.has(key.toLowerCase()).should.eql(true, `unexpected passthrough: ${key}`);
@@ -38,7 +38,7 @@ describe("openssl child process environment", () => {
         const options = { cwd: "/x", hideErrorMessage: false, env: { NODE_OPCUA_PKI_OPENSSL_PASSIN: "s3cret" } };
         const redacted = redactEnvForLog(options);
         JSON.stringify(redacted).should.not.match(/s3cret/);
-        redacted.env!.should.eql(["NODE_OPCUA_PKI_OPENSSL_PASSIN"]);
+        should(redacted.env).eql(["NODE_OPCUA_PKI_OPENSSL_PASSIN"]);
         redacted.cwd.should.eql("/x");
         // and the original is untouched
         options.env.NODE_OPCUA_PKI_OPENSSL_PASSIN.should.eql("s3cret");
