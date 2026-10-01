@@ -97,6 +97,14 @@ interface CRLData {
     serialNumbers: { [key: string]: Date };
     crls: CRLEntry[];
 }
+function addSerialNumbers(data: CRLData, crlInfo: CertificateRevocationListInfo): void {
+    for (const revokedCertificate of crlInfo.tbsCertList.revokedCertificates) {
+        const serialNumber = revokedCertificate.userCertificate;
+        if (!data.serialNumbers[serialNumber]) {
+            data.serialNumbers[serialNumber] = revokedCertificate.revocationDate;
+        }
+    }
+}
 interface Thumbs {
     trusted: Map<string, Entry>;
     rejected: Map<string, Entry>;
@@ -2424,31 +2432,32 @@ export class CertificateManager extends EventEmitter {
         }
     }
     async #processNextCrl() {
+        const nextCRL = this.#queue.shift();
+        if (!nextCRL) return;
+        const { index, filename } = nextCRL;
         try {
-            const nextCRL = this.#queue.shift();
-            if (!nextCRL) return;
-            const { index, filename } = nextCRL;
             const crl = await readCertificateRevocationList(filename);
             const crlInfo = exploreCertificateRevocationList(crl);
             debugLog(chalk.cyan("add CRL in folder "), filename);
             const fingerprint = crlInfo.tbsCertList.issuerFingerprint;
+            // The file may already be indexed (rewritten under the same
+            // name, or re-read after a watcher event): replace it, in the
+            // same synchronous step, so the issuer never looks CRL-less.
+            this.#removeCrlFile(index, filename);
             if (!index.has(fingerprint)) {
                 index.set(fingerprint, { crls: [], serialNumbers: {} });
             }
             const data = index.get(fingerprint) || { crls: [], serialNumbers: {} };
             data.crls.push({ crlInfo, filename });
-
-            // now inject serial numbers
-            for (const revokedCertificate of crlInfo.tbsCertList.revokedCertificates) {
-                const serialNumber = revokedCertificate.userCertificate;
-                if (!data.serialNumbers[serialNumber]) {
-                    data.serialNumbers[serialNumber] = revokedCertificate.revocationDate;
-                }
-            }
+            addSerialNumbers(data, crlInfo);
             debugLog(chalk.cyan("CRL"), fingerprint, "serial numbers = ", Object.keys(data.serialNumbers));
         } catch (err) {
             debugLog("CRL filename error =");
             debugLog(err);
+            if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+                // gone again before it could be read
+                this.#removeCrlFile(index, filename);
+            }
         }
         this.#pendingCrlToProcess -= 1;
         if (this.#pendingCrlToProcess === 0) {
@@ -2458,6 +2467,27 @@ export class CertificateManager extends EventEmitter {
             this.#onCrlProcessWaiters.length = 0;
         } else {
             this.#processNextCrl();
+        }
+    }
+    /**
+     * Drop every CRL read from `filename` from the index, rebuilding the
+     * revoked serial numbers of the issuers it touched.
+     */
+    #removeCrlFile(index: Map<string, CRLData>, filename: string): void {
+        for (const [key, data] of index.entries()) {
+            const remaining = data.crls.filter((c) => c.filename !== filename);
+            if (remaining.length === data.crls.length) {
+                continue;
+            }
+            if (remaining.length === 0) {
+                index.delete(key);
+                continue;
+            }
+            data.crls = remaining;
+            data.serialNumbers = {};
+            for (const c of remaining) {
+                addSerialNumbers(data, c.crlInfo);
+            }
         }
     }
     async #readCertificates(): Promise<void> {
@@ -2697,12 +2727,16 @@ export class CertificateManager extends EventEmitter {
         let ready = false;
 
         w.on("unlink", (filename: string) => {
-            for (const [key, data] of index.entries()) {
-                data.crls = data.crls.filter((c) => c.filename !== filename);
-                if (data.crls.length === 0) {
-                    index.delete(key);
-                }
+            // The event can arrive after the file was written again under
+            // the same name (clearRevocationLists + addRevocationList puts
+            // back `crl_[<issuer>].pem`). Trust the disk, not the event:
+            // re-read a file that exists, drop only one that is gone.
+            if (fs.existsSync(filename)) {
+                debugLog("unlink in folder ", folder, filename, "but the file exists again: re-reading it");
+                this.#onCrlFileAdded(index, filename);
+                return;
             }
+            this.#removeCrlFile(index, filename);
             if (ready) {
                 this.emit("crlRemoved", { store, filename });
             }
@@ -2715,6 +2749,8 @@ export class CertificateManager extends EventEmitter {
         });
         w.on("change", (changedPath: string) => {
             debugLog("change in folder ", folder, changedPath);
+            // a quick unlink + add is reported as a change (chokidar `atomic`)
+            this.#onCrlFileAdded(index, changedPath);
         });
         this.#watchers.push(w as unknown as fs.FSWatcher);
         this.#pendingUnrefs.add(unreffAll);
@@ -2740,8 +2776,32 @@ export class CertificateManager extends EventEmitter {
             debugLog(`chokidar cert watcher error on ${folder}:`, err);
         });
         let ready = false;
+        // re-read a file into the index, replacing what it held before; throws if unreadable
+        const reindex = (filename: string) => {
+            const certificate = readCertificateChain(filename)[0];
+            const fingerprint = makeFingerprint(certificate);
+            const oldHash = this.#filenameToHash.get(filename);
+            if (oldHash && oldHash !== fingerprint) {
+                index.delete(oldHash);
+            }
+            index.set(fingerprint, { certificate, filename, info: exploreCertificate(certificate) });
+            this.#filenameToHash.set(filename, fingerprint);
+            return { certificate, fingerprint };
+        };
         w.on("unlink", (filename: string) => {
             debugLog(chalk.cyan(`unlink in folder ${folder}`), filename);
+            // The event can arrive after the file was written again under
+            // the same name (remove + add of the same certificate, or a
+            // move back and forth between trusted and rejected). Trust the
+            // disk, not the event: keep a file that exists.
+            if (fs.existsSync(filename)) {
+                try {
+                    reindex(filename);
+                    return;
+                } catch (err) {
+                    debugLog(`unlink event: failed to re-read ${filename}`, err);
+                }
+            }
             const h = this.#filenameToHash.get(filename);
             if (h && index.has(h)) {
                 index.delete(h);
@@ -2776,15 +2836,8 @@ export class CertificateManager extends EventEmitter {
         w.on("change", (changedPath: string) => {
             debugLog(chalk.cyan(`change in folder ${folder}`), changedPath);
             try {
-                const certificate = readCertificateChain(changedPath)[0];
-                const newFingerprint = makeFingerprint(certificate);
-                const oldHash = this.#filenameToHash.get(changedPath);
-                if (oldHash && oldHash !== newFingerprint) {
-                    index.delete(oldHash);
-                }
-                index.set(newFingerprint, { certificate, filename: changedPath, info: exploreCertificate(certificate) });
-                this.#filenameToHash.set(changedPath, newFingerprint);
-                this.emit("certificateChange", { store, certificate, fingerprint: newFingerprint, filename: changedPath });
+                const { certificate, fingerprint } = reindex(changedPath);
+                this.emit("certificateChange", { store, certificate, fingerprint, filename: changedPath });
             } catch (err) {
                 debugLog(`change event: failed to re-read ${changedPath}`, err);
             }
