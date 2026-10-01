@@ -457,10 +457,17 @@ function findMatchingIssuerKey(entries: Entry[], wantedIssuerKey: string): Entry
 }
 
 function isSelfSigned2(info: CertificateInternals): boolean {
-    return (
-        info.tbsCertificate.extensions?.subjectKeyIdentifier ===
-        info.tbsCertificate.extensions?.authorityKeyIdentifier?.keyIdentifier
-    );
+    const extensions = info.tbsCertificate.extensions;
+    const authorityKey = extensions?.authorityKeyIdentifier?.keyIdentifier;
+    if (authorityKey) {
+        return extensions?.subjectKeyIdentifier === authorityKey;
+    }
+    // No authority keyIdentifier to match on: the extension is absent, or
+    // present but empty (some SDKs emit `SEQUENCE {}` on their self-signed
+    // certificates). Fall back to RFC 5280 self-issued: subject and issuer are
+    // the same name. Callers still verify the signature.
+    const { subject, issuer } = info.tbsCertificate;
+    return JSON.stringify(subject) === JSON.stringify(issuer);
 }
 
 function isSelfSigned3(certificate: Buffer): boolean {

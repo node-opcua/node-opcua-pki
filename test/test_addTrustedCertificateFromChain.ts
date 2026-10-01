@@ -1,6 +1,8 @@
+import fs from "node:fs";
 import path from "node:path";
 import { combine_der, makeSHA1Thumbprint, readCertificateChainAsync, readCertificateRevocationList } from "node-opcua-crypto";
 import { CertificateAuthority, CertificateManager, type CertificateManagerOptions, VerificationStatus } from "node-opcua-pki";
+import should from "should";
 import { beforeTest } from "./helpers";
 
 describe("addTrustedCertificateFromChain — OPC UA Part 4 conformance", function () {
@@ -125,6 +127,42 @@ describe("addTrustedCertificateFromChain — OPC UA Part 4 conformance", functio
             const caCert = await readCertificateChainAsync(rootCACertFilename);
             const status = await cm.addTrustedCertificateFromChain(caCert[0]);
             status.should.eql(VerificationStatus.Good);
+        });
+
+        // A real certificate from a third-party SDK test server: subject and
+        // issuer are the same name, it carries a subjectKeyIdentifier, and its
+        // authorityKeyIdentifier extension is present but empty (`SEQUENCE {}`).
+        // Comparing the two key identifiers alone took it for a CA-issued
+        // certificate and answered BadCertificateChainIncomplete.
+        describe("self-signed with an empty authorityKeyIdentifier", () => {
+            const fixture = path.join(__dirname, "fixtures/self_signed_empty_authority_key_identifier.der");
+            let lenientCm: CertificateManager;
+            before(async () => {
+                // the fixture has fixed validity dates: do not let the test rot
+                lenientCm = await makeCM({
+                    addCertificateValidationOptions: {
+                        ignoreMissingRevocationList: true,
+                        acceptExpiredCertificate: true
+                    }
+                });
+            });
+            after(async () => {
+                await lenientCm.dispose();
+            });
+
+            it("should be its own issuer", async () => {
+                const cert = fs.readFileSync(fixture);
+                const issuer = await lenientCm.findIssuerCertificate(cert);
+                should(issuer).not.eql(null);
+                should(makeSHA1Thumbprint(issuer as Buffer).toString("hex")).eql(makeSHA1Thumbprint(cert).toString("hex"));
+            });
+
+            it("should accept and trust it", async () => {
+                const cert = fs.readFileSync(fixture);
+                const status = await lenientCm.addTrustedCertificateFromChain(cert);
+                should(status).eql(VerificationStatus.Good);
+                should(await lenientCm.isCertificateTrusted(cert)).eql("Good");
+            });
         });
     });
 
