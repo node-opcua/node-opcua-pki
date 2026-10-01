@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [7.0.3](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.2...v7.0.3) (2026-10-01)
+
+### Bug Fixes
+
+* **certificate-manager:** a late watcher unlink no longer drops a file written back ([8ebb172](https://github.com/node-opcua/node-opcua-pki/commit/8ebb172ffbeff4c6b5b4dd19f33d5e29c618c15d))
+* treat a certificate with an empty authorityKeyIdentifier as self-signed ([c0e4011](https://github.com/node-opcua/node-opcua-pki/commit/c0e4011f52f7838056e3f8f244b312a0cfee51ab))
+
+
 ## [7.0.2](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.1...v7.0.2) (2026-10-01)
 
 **Note:** Version bump only for package node-opcua-pki
