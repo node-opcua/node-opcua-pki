@@ -38,7 +38,8 @@ import {
     split_der,
     toPem,
     verifyCertificateSignature,
-    writePrivateKeyFile
+    writePrivateKeyFile,
+    x509
 } from "node-opcua-crypto";
 
 import type { SubjectOptions } from "../misc/subject.js";
@@ -493,6 +494,33 @@ function _isIssuerInfo(info: CertificateInternals): boolean {
         return true;
     }
     return false;
+}
+
+/**
+ * Whether `certificate` may sign a certificate that has `subordinateCAs`
+ * CA certificates between the two of them (RFC 5280 4.2.1.9): it must
+ * assert basicConstraints cA, its keyUsage, when present, must include
+ * keyCertSign, and its pathLenConstraint, when present, must allow that
+ * many CAs below it.
+ */
+function mayIssueWithSubordinateCAs(certificate: Certificate, subordinateCAs: number): boolean {
+    try {
+        // x509 rather than exploreCertificate: the latter reports a
+        // pathLengthConstraint of 0 for a certificate that carries none.
+        const der = coerceCertificateChain(certificate)[0];
+        const parsed = new x509.X509Certificate(new Uint8Array(der));
+        const basicConstraints = parsed.getExtension(x509.BasicConstraintsExtension);
+        if (!basicConstraints?.ca) {
+            return false;
+        }
+        const keyUsage = parsed.getExtension(x509.KeyUsagesExtension);
+        if (keyUsage && (keyUsage.usages & x509.KeyUsageFlags.keyCertSign) === 0) {
+            return false;
+        }
+        return basicConstraints.pathLength === undefined || basicConstraints.pathLength >= subordinateCAs;
+    } catch (_err) {
+        return false;
+    }
 }
 
 /**
@@ -1317,12 +1345,33 @@ export class CertificateManager extends EventEmitter {
                 debugLog("issuerTrustedStatus", issuerTrustedStatus);
 
                 if (issuerTrustedStatus === "unknown") {
-                    hasTrustedIssuer = false;
+                    // OPC 10000-4 6.1.3 (Trust List Check): the certificate is
+                    // untrusted only when "none of the CA Certificates in the
+                    // chain is trusted". An issuer that is merely known (in
+                    // the issuers store, or presented in the chain) therefore
+                    // carries the trust of the CA above it. Its own
+                    // verification just walked that chain - signature,
+                    // validity, revocation - and answers Good only when it
+                    // ends at a trusted CA.
+                    hasTrustedIssuer = issuerStatus === VerificationStatus.Good;
                 } else if (issuerTrustedStatus === "trusted") {
                     hasTrustedIssuer = true;
                 } else if (issuerTrustedStatus === "rejected") {
                     // we should never get there: this should have been detected before !!!
                     return VerificationStatus.BadSecurityChecksFailed;
+                }
+                // Trust that flows THROUGH a certificate needs that
+                // certificate to be a CA allowed that many CAs below it.
+                // Without this, any end-entity certificate a trusted CA
+                // issued could sign certificates of its own and have them
+                // accepted. An issuer the store trusts directly, signing the
+                // certificate under verification itself, keeps its
+                // historical latitude: that is the operator's explicit choice.
+                if (hasTrustedIssuer && (level > 0 || issuerTrustedStatus === "unknown")) {
+                    if (!mayIssueWithSubordinateCAs(issuerCertificate, level)) {
+                        debugLog(" the issuer is not a CA, or its path length does not allow this chain");
+                        hasTrustedIssuer = false;
+                    }
                 }
             } else {
                 // verify that certificate was signed by issuer (self in this case)
