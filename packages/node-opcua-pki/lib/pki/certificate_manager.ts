@@ -1314,7 +1314,14 @@ export class CertificateManager extends EventEmitter {
                     // return VerificationStatus.BadSecurityChecksFailed;
                 }
 
-                if (issuerStatus !== VerificationStatus.Good && issuerStatus !== VerificationStatus.BadCertificateUntrusted) {
+                // An outdated issuer reaches this point only when the caller
+                // accepts one (acceptOutDatedIssuerCertificate, above).
+                const issuerIsOutdated = issuerStatus === VerificationStatus.BadCertificateTimeInvalid;
+                if (
+                    issuerStatus !== VerificationStatus.Good &&
+                    issuerStatus !== VerificationStatus.BadCertificateUntrusted &&
+                    !issuerIsOutdated
+                ) {
                     // if the issuer has other issue => let's drop!
                     return VerificationStatus.BadSecurityChecksFailed;
                 }
@@ -1353,7 +1360,9 @@ export class CertificateManager extends EventEmitter {
                     // verification just walked that chain - signature,
                     // validity, revocation - and answers Good only when it
                     // ends at a trusted CA.
-                    hasTrustedIssuer = issuerStatus === VerificationStatus.Good;
+                    // (An accepted outdated issuer answered TimeInvalid, which
+                    // is only ever returned once its trust is established.)
+                    hasTrustedIssuer = issuerStatus === VerificationStatus.Good || issuerIsOutdated;
                 } else if (issuerTrustedStatus === "trusted") {
                     hasTrustedIssuer = true;
                 } else if (issuerTrustedStatus === "rejected") {
@@ -2411,12 +2420,6 @@ export class CertificateManager extends EventEmitter {
             }
         });
     }
-    #findAssociatedCRLs(issuerCertificate: Certificate): CRLData | null {
-        const issuerCertificateInfo = exploreCertificate(issuerCertificate);
-        const key = issuerCertificateInfo.tbsCertificate.subjectFingerPrint;
-        return this.#thumbs.issuersCrl.get(key) ?? this.#thumbs.crl.get(key) ?? null;
-    }
-
     /**
      * Check whether a certificate has been revoked by its issuer's CRL.
      *
@@ -2452,19 +2455,23 @@ export class CertificateManager extends EventEmitter {
         if (!issuerCertificate) {
             return VerificationStatus.BadCertificateChainIncomplete;
         }
-        const crls = this.#findAssociatedCRLs(issuerCertificate);
-
-        if (!crls) {
+        // Every CRL of the ISSUER, from both stores: the issuers one and the
+        // trusted one may hold different editions, and the newer is not
+        // necessarily in the store that is looked at first. Only the
+        // issuer's: a serial number means nothing in another CA's CRL, and
+        // the CA above the issuer numbers its certificates independently.
+        const issuerKey = exploreCertificate(issuerCertificate).tbsCertificate.subjectFingerPrint;
+        const crls = [this.#thumbs.issuersCrl.get(issuerKey), this.#thumbs.crl.get(issuerKey)].filter(
+            (crl): crl is CRLData => !!crl
+        );
+        if (crls.length === 0) {
             return VerificationStatus.BadCertificateRevocationUnknown;
         }
         const certInfo = exploreCertificate(firstCertificate);
         const serialNumber =
             certInfo.tbsCertificate.serialNumber || certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.serial || "";
 
-        const key = certInfo.tbsCertificate.extensions?.authorityKeyIdentifier?.authorityCertIssuerFingerPrint || "<unknown>";
-        const crl2 = this.#thumbs.crl.get(key) ?? null;
-
-        if (crls.serialNumbers[serialNumber] || crl2?.serialNumbers[serialNumber]) {
+        if (crls.some((crl) => crl.serialNumbers[serialNumber])) {
             return VerificationStatus.BadCertificateRevoked;
         }
         return VerificationStatus.Good;
