@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [7.0.4](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.3...v7.0.4) (2026-10-05)
+
+### Bug Fixes
+
+* **certificate-manager:** a trusted CA above a known issuer makes the chain trusted ([5b097e7](https://github.com/node-opcua/node-opcua-pki/commit/5b097e7e5a73202268ec40026a95704b933b327a))
+* **certificate-manager:** revocation is read in the issuer's own CRLs; an accepted outdated issuer passes ([4057962](https://github.com/node-opcua/node-opcua-pki/commit/405796201121108f89deb2c72e699ee122baebda))
+
+
 ## [7.0.3](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.2...v7.0.3) (2026-10-01)
 
 ### Bug Fixes
