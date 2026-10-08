@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [7.1.0](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.4...v7.1.0) (2026-10-08)
+
+**Note:** Version bump only for package node-opcua-pki-project
+
+
+
+
+
 ## [7.0.4](https://github.com/node-opcua/node-opcua-pki/compare/v7.0.3...v7.0.4) (2026-10-05)
 
 ### Bug Fixes
