@@ -9,9 +9,11 @@
  */
 
 import { webcrypto } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { exploreCertificate, exploreCertificateRevocationList, x509 } from "node-opcua-crypto";
 import { CertificateAuthority, CertificateManager, type KeySize, VerificationStatus } from "node-opcua-pki";
+import { CaDatabase } from "node-opcua-pki-priv/ca/core/ca_database";
 import should from "should";
 
 import { beforeTest } from "./helpers";
@@ -72,14 +74,26 @@ describe("verifyCertificate: revocation lookup and outdated issuers", function (
             const revokedByRoot = revokedSerialsOf(root);
             revokedByRoot.length.should.be.greaterThan(0);
 
-            // The issuing CA numbers its certificates on its own: one of its
-            // leaves soon carries a serial the root revoked.
+            // Each CA numbers its certificates on its own, so a leaf of the
+            // issuing CA may carry a serial the root revoked. Serials are
+            // random, so the collision is made on purpose: the issuing CA
+            // hands out the root's first revoked serial once.
+            const wanted = revokedByRoot[0].replace(/:/g, "").toUpperCase();
+            const seed = CaDatabase.prototype.seedRandomSerial;
+            CaDatabase.prototype.seedRandomSerial = function (this: CaDatabase) {
+                fs.writeFileSync(path.join(issuing.rootDir, "serial"), wanted);
+                return wanted;
+            };
             let leaf: Buffer | undefined;
-            for (let i = 0; i < 12 && !leaf; i++) {
-                const candidate = await newLeaf(`collision-${i}`);
-                if (revokedByRoot.includes(serialOf(candidate))) leaf = candidate;
+            try {
+                leaf = await newLeaf("collision");
+            } finally {
+                CaDatabase.prototype.seedRandomSerial = seed;
             }
-            should.exist(leaf, "no leaf of the issuing CA shares a serial number with a certificate the root revoked");
+            should(serialOf(leaf).replace(/:/g, "").toUpperCase()).eql(
+                wanted,
+                "the leaf of the issuing CA shares a serial number with a certificate the root revoked"
+            );
             should(revokedSerialsOf(issuing)).not.containEql(serialOf(leaf as Buffer));
 
             const cm = await emptyStore("revlookup_collision");
