@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [7.1.4](https://github.com/node-opcua/node-opcua-pki/compare/v7.1.3...v7.1.4) (2026-10-24)
+
+### Bug Fixes
+
+* **watcher:** stop watching a deleted store folder ([#52](https://github.com/node-opcua/node-opcua-pki/issues/52)) ([3547b31](https://github.com/node-opcua/node-opcua-pki/commit/3547b3152b227c61b15c1e30e3823ec67e2fe3c8)), closes [paulmillr/chokidar#1467](https://github.com/paulmillr/chokidar/issues/1467)
+
+
 ## [7.1.3](https://github.com/node-opcua/node-opcua-pki/compare/v7.1.2...v7.1.3) (2026-10-24)
 
 ### Bug Fixes
