@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { drainPendingLocks, withLock } from "@ster5/global-mutex";
 import chalk from "chalk";
-import chokidar, { type FSWatcher as ChokidarFSWatcher } from "chokidar";
+import chokidar, { type FSWatcher as ChokidarFSWatcher, type ChokidarOptions } from "chokidar";
 import {
     type CaSigner,
     type Certificate,
@@ -713,6 +713,48 @@ export interface ChainCompletionResult {
     message: string;
 }
 
+// ── fs.watch interception ────────────────────────────────────
+// See #readCertificates for why chokidar's fs.watch handles are
+// intercepted. Captures can overlap (five watchers at start-up,
+// a watcher resumed on a recreated folder, several managers), so
+// fs.watch is wrapped while at least one capture is open and
+// restored when the last one is released.
+const openFsWatchCaptures = new Set<fs.FSWatcher[]>();
+let originalFsWatch: typeof fs.watch | undefined;
+let interceptingFsWatch: typeof fs.watch | undefined;
+
+function captureFsWatchHandles(): { handles: fs.FSWatcher[]; release: () => void } {
+    if (openFsWatchCaptures.size === 0) {
+        const original = fs.watch;
+        originalFsWatch = original;
+        interceptingFsWatch = ((...args: Parameters<typeof fs.watch>) => {
+            const handle = original.apply(fs, args);
+            handle.setMaxListeners(handle.getMaxListeners() + 1);
+            handle.on("error", () => {
+                /* swallow – watched directory was removed */
+            });
+            for (const handles of openFsWatchCaptures) {
+                handles.push(handle);
+            }
+            return handle;
+        }) as typeof fs.watch;
+        fs.watch = interceptingFsWatch;
+    }
+    const handles: fs.FSWatcher[] = [];
+    openFsWatchCaptures.add(handles);
+    const release = () => {
+        if (!openFsWatchCaptures.delete(handles) || openFsWatchCaptures.size > 0) {
+            return;
+        }
+        if (fs.watch === interceptingFsWatch && originalFsWatch) {
+            fs.watch = originalFsWatch;
+        }
+        originalFsWatch = undefined;
+        interceptingFsWatch = undefined;
+    };
+    return { handles, release };
+}
+
 // ── CertificateManager ───────────────────────────────────────
 
 export class CertificateManager extends EventEmitter {
@@ -845,6 +887,10 @@ export class CertificateManager extends EventEmitter {
     readonly #location: string;
     readonly #watchers: fs.FSWatcher[] = [];
     readonly #pendingUnrefs: Set<() => void> = new Set();
+    /** Timers waiting for a deleted store folder to come back. */
+    readonly #folderWaiters: Set<NodeJS.Timeout> = new Set();
+    #chokidarOptions: ChokidarOptions = {};
+    #folderWaitInterval = 5000;
     #readCertificatesCalled = false;
     readonly #filenameToHash = new Map<string, string>();
     #initializingPromise?: Promise<void>;
@@ -1656,17 +1702,7 @@ export class CertificateManager extends EventEmitter {
             // fire-and-forget trustCertificate calls) to complete
             // so their setInterval timers are properly cleared.
             await drainPendingLocks();
-            // Ensure all fs.watch handles are unref'd even if
-            // chokidar hasn't reached "ready" yet.
-            for (const unreff of this.#pendingUnrefs) {
-                unreff();
-            }
-            this.#pendingUnrefs.clear();
-            await Promise.all(this.#watchers.map((w) => w.close()));
-            this.#watchers.forEach((w) => {
-                w.removeAllListeners();
-            });
-            this.#watchers.splice(0);
+            await this.#closeWatchers();
         } finally {
             this.state = CertificateManagerState.Disposed;
             this.#cachedPrivateKey = undefined;
@@ -1687,11 +1723,7 @@ export class CertificateManager extends EventEmitter {
      */
     public async reloadCertificates(): Promise<void> {
         // Close existing watchers
-        await Promise.all(this.#watchers.map((w) => w.close()));
-        for (const w of this.#watchers) {
-            w.removeAllListeners();
-        }
-        this.#watchers.splice(0);
+        await this.#closeWatchers();
 
         // Clear in-memory indexes
         this.#thumbs.rejected.clear();
@@ -2623,45 +2655,15 @@ export class CertificateManager extends EventEmitter {
         //      when the watched directory is removed, which becomes
         //      an uncaught exception that crashes the process.
         //
-        // We install a single shared fs.watch() interception BEFORE
-        // creating all 5 watchers.  Every captured handle gets both
-        // an error handler (fix #2) and is later .unref()'d (fix #1).
-        //
-        // The interception stays active until ALL watchers have
-        // emitted "ready" — chokidar creates fs.watch handles
-        // asynchronously during directory scanning, so we must keep
-        // the interception alive until that completes.
-        const allCapturedHandles: fs.FSWatcher[] = [];
-        const origWatch = fs.watch;
-        let watcherReadyCount = 0;
-        const totalWatchers = 5;
-
-        fs.watch = ((...args: Parameters<typeof fs.watch>) => {
-            const handle = origWatch.apply(fs, args);
-            handle.setMaxListeners(handle.getMaxListeners() + 1);
-            handle.on("error", () => {
-                /* swallow – watched directory was removed */
-            });
-            allCapturedHandles.push(handle);
-            return handle;
-        }) as typeof fs.watch;
-
-        const createUnreffedWatcher = (folder: string) => {
-            const startIdx = allCapturedHandles.length;
-            const w = chokidar.watch(folder, chokidarOptions);
-            const unreffAll = () => {
-                // Unref only handles created for THIS watcher
-                for (let i = startIdx; i < allCapturedHandles.length; i++) {
-                    allCapturedHandles[i].unref();
-                }
-                // Restore fs.watch once ALL watchers are ready
-                watcherReadyCount++;
-                if (watcherReadyCount >= totalWatchers) {
-                    fs.watch = origWatch;
-                }
-            };
-            return { w, capturedHandles: allCapturedHandles.slice(startIdx), unreffAll };
-        };
+        // fs.watch() is intercepted while each watcher is created
+        // (captureFsWatchHandles, see #createUnreffedWatcher). Every
+        // captured handle gets an error handler (fix #2) and is
+        // .unref()'d (fix #1) once its watcher is ready: chokidar
+        // creates fs.watch handles asynchronously during directory
+        // scanning, so the capture stays open until "ready".
+        this.#chokidarOptions = chokidarOptions;
+        // how often a deleted store folder is looked for again
+        this.#folderWaitInterval = pollingInterval;
 
         // ── Phase 1: Async scan ─────────────────────────────────
         // Populate the in-memory indexes by reading existing
@@ -2683,17 +2685,130 @@ export class CertificateManager extends EventEmitter {
         //
         // When disableFileWatchers is set, skip the watcher setup
         // entirely. The in-memory indexes are already populated
-        // from the scan above. Also restore fs.watch immediately
-        // since no watchers will be created.
-        if (this.#disableFileWatchers) {
-            fs.watch = origWatch;
-        } else {
-            this.#startWatcher(this.trustedFolder, this.#thumbs.trusted, createUnreffedWatcher, "trusted");
-            this.#startWatcher(this.issuersCertFolder, this.#thumbs.issuers.certs, createUnreffedWatcher, "issuersCerts");
-            this.#startWatcher(this.rejectedFolder, this.#thumbs.rejected, createUnreffedWatcher, "rejected");
-            this.#startCrlWatcher(this.crlFolder, this.#thumbs.crl, createUnreffedWatcher, "crl");
-            this.#startCrlWatcher(this.issuersCrlFolder, this.#thumbs.issuersCrl, createUnreffedWatcher, "issuersCrl");
+        // from the scan above.
+        if (!this.#disableFileWatchers) {
+            this.#startWatcher(this.trustedFolder, this.#thumbs.trusted, "trusted");
+            this.#startWatcher(this.issuersCertFolder, this.#thumbs.issuers.certs, "issuersCerts");
+            this.#startWatcher(this.rejectedFolder, this.#thumbs.rejected, "rejected");
+            this.#startCrlWatcher(this.crlFolder, this.#thumbs.crl, "crl");
+            this.#startCrlWatcher(this.issuersCrlFolder, this.#thumbs.issuersCrl, "issuersCrl");
         }
+    }
+
+    #createUnreffedWatcher(folder: string): { w: ChokidarFSWatcher; unreffAll: () => void } {
+        const capture = captureFsWatchHandles();
+        const w = chokidar.watch(folder, this.#chokidarOptions);
+        let done = false;
+        const unreffAll = () => {
+            if (done) return;
+            done = true;
+            for (const handle of capture.handles) {
+                handle.unref();
+            }
+            capture.release();
+        };
+        return { w, unreffAll };
+    }
+
+    /** Close every watcher, and stop waiting for deleted folders. */
+    async #closeWatchers(): Promise<void> {
+        for (const timer of this.#folderWaiters) {
+            clearInterval(timer);
+        }
+        this.#folderWaiters.clear();
+        // Ensure all fs.watch handles are unref'd even if
+        // chokidar hasn't reached "ready" yet.
+        for (const unreff of this.#pendingUnrefs) {
+            unreff();
+        }
+        this.#pendingUnrefs.clear();
+        const watchers = this.#watchers.splice(0);
+        await Promise.all(watchers.map((w) => w.close()));
+        for (const w of watchers) {
+            w.removeAllListeners();
+        }
+    }
+
+    /**
+     * Stop watching a store folder once it has been deleted, and
+     * watch it again when it comes back.
+     *
+     * On Windows the native fs.watch handle of a deleted directory
+     * keeps reporting `rename` without end, and each report runs
+     * chokidar's `_handleRead`, which arms a ref'd 1 s throttle
+     * timer: thousands per second, and the process can never exit.
+     * Closing the watcher is the only thing that stops it. Every
+     * raw event checks that the folder is still there; that costs
+     * one stat per file-system event in a folder that rarely
+     * changes. Polling mode gets the same treatment, so both modes
+     * resume the same way.
+     *
+     * `forget` drops what the index held for the folder: chokidar
+     * may not have reported each file as unlinked before its
+     * watcher is closed. `resume` starts a new watcher once the
+     * folder exists again, looked for every polling interval with
+     * an unref'd timer.
+     *
+     * Upstream, this is chokidar's own bug, fixed by
+     * paulmillr/chokidar#1467 in chokidar 6.0.0: on Windows it
+     * stored a directory's closer under a normalized path and looked
+     * it up with the raw one, so a deleted directory was never
+     * unwatched. 4.x has no release with the fix, and chokidar 6
+     * needs Node 22.22 or later. Keep this workaround until the
+     * chokidar 6 upgrade, due when this package drops Node 20; then
+     * check whether it can go.
+     */
+    #closeWatcherWhenFolderRemoved(
+        folder: string,
+        w: ChokidarFSWatcher,
+        unreffAll: () => void,
+        forget: () => void,
+        resume: () => void
+    ): void {
+        let gone = false;
+        const check = () => {
+            if (gone || fs.existsSync(folder)) return;
+            gone = true;
+            debugLog(`watched folder ${folder} was deleted: closing its watcher`);
+            const i = this.#watchers.indexOf(w as unknown as fs.FSWatcher);
+            if (i >= 0) this.#watchers.splice(i, 1);
+            this.#pendingUnrefs.delete(unreffAll);
+            unreffAll();
+            w.close().catch((err) => debugLog(`closing the watcher of ${folder}`, err));
+            forget();
+            this.#waitForFolder(folder, resume);
+        };
+        // Never close from inside a chokidar callback: in polling mode
+        // the fs.watchFile listener loop keeps going after a "raw"
+        // listener closes the watcher, and calls a listener that the
+        // close has just removed (TypeError: listener is not a function).
+        let scheduled = false;
+        const scheduleCheck = () => {
+            if (scheduled || gone) return;
+            scheduled = true;
+            setImmediate(() => {
+                scheduled = false;
+                check();
+            });
+        };
+        w.on("raw", scheduleCheck);
+        w.on("unlinkDir", scheduleCheck);
+        w.on("error", scheduleCheck);
+    }
+
+    /** Call `resume` once `folder` exists, unless the manager is disposed first. */
+    #waitForFolder(folder: string, resume: () => void): void {
+        const timer = setInterval(() => {
+            const disposed = this.state === CertificateManagerState.Disposing || this.state === CertificateManagerState.Disposed;
+            if (!disposed && !fs.existsSync(folder)) return;
+            clearInterval(timer);
+            this.#folderWaiters.delete(timer);
+            if (disposed) return;
+            debugLog(`watched folder ${folder} is back: watching it again`);
+            resume();
+        }, this.#folderWaitInterval);
+        timer.unref();
+        this.#folderWaiters.add(timer);
     }
 
     /**
@@ -2769,18 +2884,36 @@ export class CertificateManager extends EventEmitter {
     /**
      * Start a chokidar watcher for a CRL folder.
      * Non-blocking — does NOT await "ready".
+     *
+     * `resumed`: the folder was deleted and has come back, so the
+     * files found by the initial scan are new and are indexed and
+     * announced like files added later.
      */
-    #startCrlWatcher(
-        folder: string,
-        index: Map<string, CRLData>,
-        createUnreffedWatcher: (folder: string) => { w: ChokidarFSWatcher; unreffAll: () => void },
-        store: CrlStore
-    ): void {
-        const { w, unreffAll } = createUnreffedWatcher(folder);
+    #startCrlWatcher(folder: string, index: Map<string, CRLData>, store: CrlStore, resumed = false): void {
+        const resume = () => this.#startCrlWatcher(folder, index, store, true);
+        if (!fs.existsSync(folder)) {
+            this.#waitForFolder(folder, resume);
+            return;
+        }
+        const { w, unreffAll } = this.#createUnreffedWatcher(folder);
         w.on("error", (err: unknown) => {
             debugLog(`chokidar CRL watcher error on ${folder}:`, err);
         });
         let ready = false;
+        // the index mirrors this one folder
+        const forget = () => {
+            const filenames = new Set<string>();
+            for (const data of index.values()) {
+                for (const c of data.crls) {
+                    filenames.add(c.filename);
+                }
+            }
+            for (const filename of filenames) {
+                this.#removeCrlFile(index, filename);
+                this.emit("crlRemoved", { store, filename });
+            }
+        };
+        this.#closeWatcherWhenFolderRemoved(folder, w, unreffAll, forget, resume);
 
         w.on("unlink", (filename: string) => {
             // The event can arrive after the file was written again under
@@ -2798,7 +2931,7 @@ export class CertificateManager extends EventEmitter {
             }
         });
         w.on("add", (filename: string) => {
-            if (ready) {
+            if (ready || resumed) {
                 this.#onCrlFileAdded(index, filename);
                 this.emit("crlAdded", { store, filename });
             }
@@ -2821,17 +2954,27 @@ export class CertificateManager extends EventEmitter {
      * Start a chokidar watcher for a certificate folder.
      * Non-blocking — does NOT await "ready".
      */
-    #startWatcher(
-        folder: string,
-        index: Map<string, Entry>,
-        createUnreffedWatcher: (folder: string) => { w: ChokidarFSWatcher; unreffAll: () => void },
-        store: CertificateStore
-    ): void {
-        const { w, unreffAll } = createUnreffedWatcher(folder);
+    #startWatcher(folder: string, index: Map<string, Entry>, store: CertificateStore): void {
+        // a resumed watcher indexes and announces what its initial scan finds (`isNew`)
+        const resume = () => this.#startWatcher(folder, index, store);
+        if (!fs.existsSync(folder)) {
+            this.#waitForFolder(folder, resume);
+            return;
+        }
+        const { w, unreffAll } = this.#createUnreffedWatcher(folder);
         w.on("error", (err: unknown) => {
             debugLog(`chokidar cert watcher error on ${folder}:`, err);
         });
         let ready = false;
+        // the index mirrors this one folder
+        const forget = () => {
+            for (const [fingerprint, entry] of [...index.entries()]) {
+                index.delete(fingerprint);
+                this.#filenameToHash.delete(entry.filename);
+                this.emit("certificateRemoved", { store, fingerprint, filename: entry.filename });
+            }
+        };
+        this.#closeWatcherWhenFolderRemoved(folder, w, unreffAll, forget, resume);
         // re-read a file into the index, replacing what it held before; throws if unreadable
         const reindex = (filename: string) => {
             const certificate = readCertificateChain(filename)[0];
