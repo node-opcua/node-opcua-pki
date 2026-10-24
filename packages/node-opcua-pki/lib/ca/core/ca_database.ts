@@ -21,6 +21,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ---------------------------------------------------------------------------------------------------------------------
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { convertPEMtoDER, readCertificatePEM } from "node-opcua-crypto";
@@ -256,8 +257,31 @@ export class CaDatabase {
         return evenLengthHex(current);
     }
 
-    /** Hand out the next certificate serial number, bumping the `serial` file. */
+    /**
+     * Put a fresh random serial in the `serial` file, so the next certificate
+     * signed from this directory (by `openssl ca`, `openssl x509 -CAserial` or
+     * {@link nextSerial}) takes it. A counter (1000, 1001, ...) is predictable
+     * and starts over when a CA is re-created, so two certificates of one CA
+     * name could share a serial. RFC 5280 §4.1.2.2 allows up to 20 octets; the
+     * CA/Browser Forum baseline asks for at least 64 bits from a CSPRNG. This
+     * draws 16 bytes, with the top byte in 0x40..0x7F: positive, and always 16
+     * bytes long. A clash with a serial this CA already issued draws again.
+     */
+    public seedRandomSerial(): string {
+        for (;;) {
+            const bytes = crypto.randomBytes(16);
+            bytes[0] = 0x40 | (bytes[0] & 0x3f);
+            const serial = bytes.toString("hex").toUpperCase();
+            if (!this.findBySerial(serial) && !fs.existsSync(path.join(this.#rootDir, "certs", `${serial}.pem`))) {
+                fs.writeFileSync(path.join(this.#rootDir, "serial"), serial);
+                return serial;
+            }
+        }
+    }
+
+    /** Hand out a new random certificate serial number (see {@link seedRandomSerial}). */
     public nextSerial(): string {
+        this.seedRandomSerial();
         return this.#nextHexCounter("serial");
     }
 
