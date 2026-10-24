@@ -1,5 +1,5 @@
 import path from "node:path";
-import { exploreCertificate, readCertificate } from "node-opcua-crypto";
+import { exploreCertificate, readCertificateChain } from "node-opcua-crypto";
 import { CertificateAuthority } from "node-opcua-pki";
 import should from "should";
 import { makeLeafCsr } from "./_ca_backends";
@@ -15,7 +15,7 @@ describe("random certificate serial numbers", function (this: Mocha.Suite) {
     const testData = beforeTest(this);
 
     const serialOf = (file: string) =>
-        exploreCertificate(readCertificate(file)).tbsCertificate.serialNumber.replace(/:/g, "").toUpperCase();
+        exploreCertificate(readCertificateChain(file)[0]).tbsCertificate.serialNumber.replace(/:/g, "").toUpperCase();
 
     async function issue(ca: CertificateAuthority, folder: string, count: number): Promise<{ serials: string[]; files: string[] }> {
         const { cm, csr } = await makeLeafCsr(path.join(testData.tmpFolder, folder), { applicationUri: `urn:test:${folder}` });
