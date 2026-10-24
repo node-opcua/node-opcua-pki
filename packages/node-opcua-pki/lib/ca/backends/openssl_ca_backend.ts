@@ -38,6 +38,7 @@ import {
     x509Date
 } from "../../toolbox/with_openssl/index.js";
 import type { CaBackend } from "../core/ca_backend.js";
+import { CaDatabase } from "../core/ca_database.js";
 import type { CertificateAuthorityCore } from "../core/certificate_authority_core.js";
 
 const n = makePath;
@@ -222,6 +223,7 @@ export class OpenSslCaBackend implements CaBackend {
                 // the -CAkey is the *issuer's* key: its passphrase, not this CA's
                 const issuerPassin = await this.#passin(issuerCA);
                 const signWithIssuer = async () => {
+                    new CaDatabase(issuerCA.rootDir).seedRandomSerial();
                     await execute_openssl(
                         [
                             "x509",
@@ -316,6 +318,7 @@ export class OpenSslCaBackend implements CaBackend {
         await this.#withConfig(ca, caAltName(ca), async (configFile, options) => {
             const caRootDir = options.cwd;
             const passin = await this.#passin(ca);
+            new CaDatabase(caRootDir).seedRandomSerial();
             await execute_openssl(
                 [
                     "x509",
@@ -354,6 +357,7 @@ export class OpenSslCaBackend implements CaBackend {
         await this.#withConfig(ca, buildSubjectAltNameString(sanOverride), async (configFile, options) => {
             displaySubtitle("- then we ask the authority to sign the certificate signing request");
             const passin = await this.#passin(ca);
+            new CaDatabase(ca.rootDir).seedRandomSerial();
             await execute_openssl(
                 [
                     "ca",
@@ -473,6 +477,7 @@ export class OpenSslCaBackend implements CaBackend {
             );
 
             displaySubtitle("- creating the self-signed certificate");
+            new CaDatabase(ca.rootDir).seedRandomSerial();
             await execute_openssl(
                 [
                     "ca",
