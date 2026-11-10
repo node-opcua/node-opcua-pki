@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // A watcher "unlink" event can be handled after the file was written again
 // under the same name: clearRevocationLists + addRevocationList puts back
-// crl_[<issuer>].pem, removeIssuer + addIssuer puts back the same
+// crl_[<issuer>].crl, removeIssuer + addIssuer puts back the same
 // issuer_<name>.pem. The late event must not drop the entry that the
 // explicit add has just indexed, or every certificate of that issuer
 // answers BadCertificateRevocationUnknown until the next "add" event.
