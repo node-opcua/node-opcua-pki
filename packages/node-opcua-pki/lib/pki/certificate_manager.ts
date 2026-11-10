@@ -14,6 +14,7 @@ import { drainPendingLocks, withLock } from "@ster5/global-mutex";
 import chalk from "chalk";
 import chokidar, { type FSWatcher as ChokidarFSWatcher, type ChokidarOptions } from "chokidar";
 import {
+    asn1,
     type CaSigner,
     type Certificate,
     type CertificateInternals,
@@ -38,6 +39,7 @@ import {
     split_der,
     toPem,
     verifyCertificateSignature,
+    verifyCrlIssuedByCertificate,
     writePrivateKeyFile,
     x509
 } from "node-opcua-crypto";
@@ -105,6 +107,79 @@ function addSerialNumbers(data: CRLData, crlInfo: CertificateRevocationListInfo)
             data.serialNumbers[serialNumber] = revokedCertificate.revocationDate;
         }
     }
+}
+
+/**
+ * Write a CRL file as PEM: every CRL reader takes PEM whatever its size,
+ * while a DER CRL under 256 bytes (30 81, common for an EC CA) is missed
+ * by readers built on node-opcua-crypto before 6.2.4, which took a file
+ * as DER only when it started with 30 82. A TrustList server sharing the
+ * store may still be one of them.
+ */
+async function writeCrlFile(filename: string, crl: CertificateRevocationList): Promise<void> {
+    await fs.promises.writeFile(filename, toPem(crl, "X509 CRL"), "ascii");
+}
+
+/** DER of the OID 2.5.29.20 (CRL Number), without tag and length. */
+const crlNumberOid = Buffer.from([0x55, 0x1d, 0x14]);
+
+/**
+ * The CRL Number extension (RFC 5280 §5.2.3), or `undefined` when the
+ * CRL has none or it cannot be read.
+ *
+ * Read straight from the DER: @peculiar/x509's X509Crl refuses a CRL of
+ * many thousand entries ("Maximum ASN.1 node count exceeded").
+ *
+ *   CertificateList ::= SEQUENCE { tbsCertList, signatureAlgorithm, signature }
+ *   tbsCertList ::= SEQUENCE { ..., crlExtensions [0] EXPLICIT Extensions OPTIONAL }
+ *   Extension ::= SEQUENCE { extnID OID, critical BOOLEAN DEFAULT FALSE, extnValue OCTET STRING }
+ */
+function readCrlNumber(crl: CertificateRevocationList): bigint | undefined {
+    try {
+        const { readTag, readStruct } = asn1;
+        const tbsCertList = readStruct(crl, readStruct(crl, readTag(crl, 0))[0]);
+        const crlExtensions = tbsCertList.find((block) => block.tag === 0xa0);
+        if (!crlExtensions) {
+            return undefined;
+        }
+        for (const extension of readStruct(crl, readTag(crl, crlExtensions.position))) {
+            const [extnID, ...rest] = readStruct(crl, extension);
+            const extnValue = rest[rest.length - 1];
+            if (extnID.tag !== 0x06 || !crl.subarray(extnID.position, extnID.position + extnID.length).equals(crlNumberOid)) {
+                continue;
+            }
+            if (extnValue?.tag !== 0x04) {
+                return undefined;
+            }
+            const integer = readTag(crl, extnValue.position);
+            if (integer.tag !== 0x02 || integer.length === 0) {
+                return undefined;
+            }
+            return BigInt(`0x${crl.subarray(integer.position, integer.position + integer.length).toString("hex")}`);
+        }
+        return undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Order two CRLs of the same issuer: > 0 when `a` is the later edition,
+ * < 0 when it is the earlier one, 0 when they cannot be told apart.
+ * The CRL Number decides when both carry one and `byCrlNumber` is set
+ * (it increases with every CRL the issuer publishes), `thisUpdate`
+ * otherwise. Never the file time: it tells when a file landed, not when
+ * the issuer signed it.
+ */
+function compareCrlEditions(a: CertificateRevocationList, b: CertificateRevocationList, byCrlNumber: boolean): number {
+    const numberA = byCrlNumber ? readCrlNumber(a) : undefined;
+    const numberB = byCrlNumber ? readCrlNumber(b) : undefined;
+    if (numberA !== undefined && numberB !== undefined) {
+        return numberA === numberB ? 0 : numberA > numberB ? 1 : -1;
+    }
+    const thisUpdate = (crl: CertificateRevocationList) =>
+        new Date(exploreCertificateRevocationList(crl).tbsCertList.thisUpdate).getTime();
+    return Math.sign(thisUpdate(a) - thisUpdate(b));
 }
 interface Thumbs {
     trusted: Map<string, Entry>;
@@ -1884,20 +1959,68 @@ export class CertificateManager extends EventEmitter {
 
                 const crlInfo = exploreCertificateRevocationList(crl);
                 const key = crlInfo.tbsCertList.issuerFingerprint;
-                if (!index.has(key)) {
-                    index.set(key, { crls: [], serialNumbers: {} });
-                }
-                const pemCertificate = toPem(crl, "X509 CRL");
                 // Use the issuer fingerprint for the filename — NOT buildIdealCertificateName()
                 // which expects a certificate, not a CRL. Passing a CRL causes
                 // exploreCertificate() to throw, producing "invalid_certificate_" names.
+                //
+                // The file is a `.crl`: readers of a PKI store (an OPC UA
+                // TrustList server among them) take CRLs from `.crl` files
+                // and read `.pem` / `.der` files as certificates. Its
+                // content is PEM, see writeCrlFile.
                 const sanitizedKey = key.replace(/:/g, "");
-                const filename = path.join(folder, `crl_[${sanitizedKey}].pem`);
-                await fs.promises.writeFile(filename, pemCertificate, "ascii");
+                const filename = path.join(folder, `crl_[${sanitizedKey}].crl`);
+                // Earlier versions saved the same CRL as `crl_[<issuer>].pem`.
+                const legacyFilename = path.join(folder, `crl_[${sanitizedKey}].pem`);
 
-                await this.#onCrlFileAdded(index, filename);
+                // Writing replaces the issuer's stored CRL: never with an
+                // older edition, which would un-revoke what was revoked since.
+                // The name is only a slot: what a file holds is read from it.
+                for (const storedFilename of [filename, legacyFilename]) {
+                    let stored: CertificateRevocationList;
+                    try {
+                        stored = await readCertificateRevocationList(storedFilename);
+                    } catch (err) {
+                        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+                            continue;
+                        }
+                        // there but not readable now (locked, no access):
+                        // fail rather than overwrite what it may hold
+                        throw err;
+                    }
+                    let storedIssuer: string;
+                    try {
+                        storedIssuer = exploreCertificateRevocationList(stored).tbsCertList.issuerFingerprint;
+                    } catch {
+                        continue; // not a CRL: nothing to keep
+                    }
+                    if (storedIssuer !== key) {
+                        // the slot of this issuer holds another issuer's CRL
+                        await this.#moveMisnamedCrl(folder, index, storedFilename, stored, storedIssuer);
+                        continue;
+                    }
+                    if (this.#isNewerVerifiedCrl(stored, crl)) {
+                        warningLog(`addRevocationList: refusing a CRL older than ${storedFilename}`);
+                        return VerificationStatus.BadSecurityChecksFailed;
+                    }
+                }
 
+                await writeCrlFile(filename, crl);
+
+                this.#onCrlFileAdded(index, filename);
                 await this.#waitAndCheckCRLProcessingStatus();
+                if (!index.get(key)?.crls.some((c) => c.filename === filename)) {
+                    // written but not indexed: the CRL would not count
+                    debugLog("addRevocationList: CRL not indexed", filename);
+                    return VerificationStatus.BadSecurityChecksFailed;
+                }
+
+                // The new file replaces a legacy `.pem` one, as that one
+                // used to be overwritten in place; it is removed only now,
+                // so the issuer is never left without a CRL.
+                if (fs.existsSync(legacyFilename)) {
+                    await fs.promises.unlink(legacyFilename);
+                    this.#removeCrlFile(index, legacyFilename);
+                }
 
                 return VerificationStatus.Good;
             } catch (err) {
@@ -1908,8 +2031,74 @@ export class CertificateManager extends EventEmitter {
     }
 
     /**
+     * Move a CRL found under the name of another issuer to a name of its
+     * own issuer, so that storing that other issuer's CRL does not
+     * overwrite it. The CRL stays indexed: every CRL of an issuer counts,
+     * so a second file of the same issuer can only add revocations. Its
+     * own issuer's slot is used when free; otherwise a name with a short
+     * content hash keeps both files.
+     */
+    async #moveMisnamedCrl(
+        folder: string,
+        index: Map<string, CRLData>,
+        filename: string,
+        crl: CertificateRevocationList,
+        issuer: string
+    ): Promise<void> {
+        const base = `crl_[${issuer.replace(/:/g, "")}]`;
+        let target = path.join(folder, `${base}.crl`);
+        if (fs.existsSync(target)) {
+            target = path.join(folder, `${base}_${makeSHA1Thumbprint(crl).toString("hex").slice(0, 8)}.crl`);
+        }
+        warningLog(`${path.basename(filename)} holds a CRL of another issuer: moving it to ${path.basename(target)}`);
+        await writeCrlFile(target, crl);
+        this.#onCrlFileAdded(index, target);
+        await this.#waitAndCheckCRLProcessingStatus();
+        await fs.promises.unlink(filename);
+        this.#removeCrlFile(index, filename);
+    }
+
+    /**
+     * Whether `stored` is a later edition than `crl` of the same issuer's
+     * CRL, signed by an issuer certificate of this store.
+     *
+     * A stored CRL whose signature does not verify never wins: the
+     * manager does not check signatures when a CRL is added, so a forged
+     * CRL with a huge CRL Number would otherwise lock the issuer's CRL
+     * against every genuine update.
+     *
+     * CRL Numbers are compared only when both CRLs are signed by the same
+     * certificate. The issuer is known by its name alone, and a CRL signed
+     * by another key under that name (a re-keyed CA restarting its
+     * numbers, or another CA of the same name) is ordered by `thisUpdate`.
+     */
+    #isNewerVerifiedCrl(stored: CertificateRevocationList, crl: CertificateRevocationList): boolean {
+        const verifies = (c: CertificateRevocationList, certificate: Certificate) => {
+            try {
+                return verifyCrlIssuedByCertificate(c, certificate);
+            } catch {
+                return false;
+            }
+        };
+        const issuerKey = exploreCertificateRevocationList(stored).tbsCertList.issuerFingerprint;
+        const signer = [...this.#thumbs.issuers.certs.values(), ...this.#thumbs.trusted.values()].find(
+            (entry) =>
+                getOrComputeInfo(entry).tbsCertificate.subjectFingerPrint === issuerKey && verifies(stored, entry.certificate)
+        );
+        if (!signer) {
+            return false;
+        }
+        return compareCrlEditions(stored, crl, verifies(crl, signer.certificate)) > 0;
+    }
+
+    /**
      * Remove all CRL files from the specified folder(s) and clear the
      * corresponding in-memory index.
+     *
+     * Every file of the folder goes, whatever its name or extension: the
+     * folder scan indexes every file it can read as a CRL, so a CRL copied
+     * in as `ca-crl.txt` would otherwise keep revoking after a clear (and
+     * after the TrustList update that calls it to replace every CRL).
      * @param target - "issuers" clears issuers/crl, "trusted" clears
      *   trusted/crl, "all" clears both.
      */
@@ -1918,9 +2107,16 @@ export class CertificateManager extends EventEmitter {
             try {
                 const files = await fs.promises.readdir(folder);
                 for (const file of files) {
-                    const ext = path.extname(file).toLowerCase();
-                    if (ext === ".crl" || ext === ".pem" || ext === ".der") {
-                        await fs.promises.unlink(path.join(folder, file));
+                    const filename = path.join(folder, file);
+                    try {
+                        if ((await fs.promises.stat(filename)).isFile()) {
+                            await fs.promises.unlink(filename);
+                        }
+                    } catch (err: unknown) {
+                        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+                            throw err;
+                        }
+                        // gone already
                     }
                 }
             } catch (err: unknown) {
@@ -2494,7 +2690,7 @@ export class CertificateManager extends EventEmitter {
         // the CA above the issuer numbers its certificates independently.
         const issuerKey = exploreCertificate(issuerCertificate).tbsCertificate.subjectFingerPrint;
         const crls = [this.#thumbs.issuersCrl.get(issuerKey), this.#thumbs.crl.get(issuerKey)].filter(
-            (crl): crl is CRLData => !!crl
+            (crl): crl is CRLData => !!crl && crl.crls.length > 0
         );
         if (crls.length === 0) {
             return VerificationStatus.BadCertificateRevocationUnknown;
@@ -2534,6 +2730,13 @@ export class CertificateManager extends EventEmitter {
             this.#removeCrlFile(index, filename);
             if (!index.has(fingerprint)) {
                 index.set(fingerprint, { crls: [], serialNumbers: {} });
+            }
+            // The name does not decide anything (the CRL is indexed under
+            // the issuer it names inside), but a `crl_[<issuer>]` name that
+            // disagrees with that issuer is worth reporting.
+            const named = /^crl_\[([0-9A-Fa-f]+)\]/.exec(path.basename(filename))?.[1];
+            if (named && named.toUpperCase() !== fingerprint.replace(/:/g, "").toUpperCase()) {
+                warningLog(`${path.basename(filename)} holds a CRL of issuer ${fingerprint}, not of the issuer its name gives`);
             }
             const data = index.get(fingerprint) || { crls: [], serialNumbers: {} };
             data.crls.push({ crlInfo, filename });
@@ -2918,7 +3121,7 @@ export class CertificateManager extends EventEmitter {
         w.on("unlink", (filename: string) => {
             // The event can arrive after the file was written again under
             // the same name (clearRevocationLists + addRevocationList puts
-            // back `crl_[<issuer>].pem`). Trust the disk, not the event:
+            // back `crl_[<issuer>].crl`). Trust the disk, not the event:
             // re-read a file that exists, drop only one that is gone.
             if (fs.existsSync(filename)) {
                 debugLog("unlink in folder ", folder, filename, "but the file exists again: re-reading it");
