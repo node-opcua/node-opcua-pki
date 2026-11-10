@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [7.1.5](https://github.com/node-opcua/node-opcua-pki/compare/v7.1.4...v7.1.5) (2026-11-10)
+
+### Bug Fixes
+
+* **crl:** store CRLs as .crl and never replace one with an older edition ([4a9346a](https://github.com/node-opcua/node-opcua-pki/commit/4a9346af746373a58bb2d360425716f5e4a97e89))
+
+
 ## [7.1.4](https://github.com/node-opcua/node-opcua-pki/compare/v7.1.3...v7.1.4) (2026-10-24)
 
 ### Bug Fixes
