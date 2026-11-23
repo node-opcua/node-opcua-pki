@@ -1646,6 +1646,10 @@ export class CertificateManager extends EventEmitter {
      * It must be called before any certificate operations.
      */
     public async initialize(): Promise<void> {
+        if (this.state === CertificateManagerState.Initializing && this.#initializingPromise) {
+            await this.#initializingPromise;
+            return;
+        }
         if (this.state !== CertificateManagerState.Uninitialized) {
             return;
         }

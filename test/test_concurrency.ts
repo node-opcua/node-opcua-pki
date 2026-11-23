@@ -41,4 +41,23 @@ describe("Concurrency", function (this: Mocha.Suite) {
         ];
         await Promise.all(promises);
     });
+
+    it("should wait for a pending initialize() when it is called again on the same instance", async () => {
+        const location = path.join(testData.tmpFolder, "concurrency_same_instance");
+        const cm = new CertificateManager({ location });
+
+        const firstCall = cm.initialize();
+        await cm.initialize();
+
+        await cm.createSelfSignedCertificate({
+            applicationUri: "MY:APPLICATION:URI",
+            dns: ["my.domain.com"],
+            subject: "/CN=MyCommonName",
+            validity: 10,
+            startDate: new Date()
+        });
+
+        await firstCall;
+        await cm.dispose();
+    });
 });
